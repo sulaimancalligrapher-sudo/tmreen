@@ -505,33 +505,6 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         </div>
       </div>
 
-      {/* Profile quick action links */}
-      {generalData?.header.buttons && generalData.header.buttons.some(btn => btn.buttonText && btn.buttonText !== 'زر بدون نص' && btn.buttonUrl !== '#' && btn.buttonUrl !== '-') && (
-        <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="text-right">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-              <Compass className="w-4 h-4 text-amber-500" />
-              روابط وتوجيهات سريعة من المشرف
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">انتقل مباشرة إلى الدروس الخارجية والموارد الإثرائية المخصصة لك بضغطة زر.</p>
-          </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
-            {generalData.header.buttons.map((btn, idx) => {
-              if (!btn.buttonText || btn.buttonText === 'زر بدون نص' || btn.buttonUrl === '#' || btn.buttonUrl === '-') return null;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => handleLaunchButton(btn.buttonUrl)}
-                  className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition border border-slate-100 flex items-center gap-1 shadow-sm"
-                >
-                  🌐 {btn.buttonText}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* 🚀 SIMPLIFIED GATEWAY SECTION: Exercises & Activities */}
       <div className="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-lg border border-slate-800">
         <div className="absolute right-0 bottom-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />

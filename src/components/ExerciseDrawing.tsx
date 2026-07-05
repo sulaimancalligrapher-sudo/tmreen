@@ -663,31 +663,20 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
         {/* Tab content */}
         {activeTab === 'lessons' ? (
-          /* Lessons List Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          /* Lessons List - Sleek Vertical Stack */
+          <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100 overflow-hidden shadow-sm">
             {lessons.map((lesson, idx) => (
               <div
                 key={idx}
-                className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                className="flex items-center justify-between p-4 md:p-5 hover:bg-slate-50/75 transition gap-4 text-right"
               >
-                <div className="space-y-4 text-right">
-                  <div className="bg-emerald-50 text-emerald-600 p-3 rounded-2xl w-fit">
-                    <BookOpen className="w-6 h-6" />
+                <div className="flex items-center gap-3.5">
+                  <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl shrink-0">
+                    <BookOpen className="w-5 h-5" />
                   </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold">الدرس {idx + 1}</span>
-                    <h3 className="font-bold text-slate-900 font-sans text-lg">{lesson.label}</h3>
-                  </div>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2 pt-2 text-xs">
-                    <span className="bg-slate-50 text-slate-600 border border-slate-100 px-2.5 py-1 rounded-xl">
-                      📝 {lesson.questions.length} حروف ونماذج خطية
-                    </span>
-                    <span className="bg-slate-50 text-slate-600 border border-slate-100 px-2.5 py-1 rounded-xl">
-                      🎯 دقة القياس: ذكية
-                    </span>
-                  </div>
+                  <h3 className="font-bold text-slate-900 font-sans text-base md:text-lg">
+                    {lesson.label}
+                  </h3>
                 </div>
 
                 <button
@@ -700,9 +689,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                     setRestartCount(0);
                     setResultModal(null);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-3 rounded-xl text-sm mt-6 transition flex items-center justify-center gap-1.5 shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm shrink-0"
                 >
-                  بدء محاكاة الخط العربي
+                  فتح الدرس
                   <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
                 </button>
               </div>

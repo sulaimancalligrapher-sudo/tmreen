@@ -281,40 +281,44 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               <span className="text-sm text-slate-500">جاري تحميل المواضيع والدروس...</span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100 overflow-hidden shadow-sm">
               {topics.map((topic, idx) => (
                 <div
                   key={idx}
-                  className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between hover:bg-slate-100/50 hover:shadow-md transition"
+                  className="flex items-center justify-between p-4 md:p-5 hover:bg-slate-50/75 transition gap-4 text-right"
                 >
-                  <div className="space-y-1">
-                    <span className="text-xs text-slate-400 font-bold block">الدرس {idx + 1}</span>
-                    <h3 className="font-bold text-slate-950 font-sans">{topic.topic}</h3>
+                  <div className="flex items-center gap-3.5">
+                    <div className="bg-amber-50 text-amber-600 p-2.5 rounded-xl shrink-0">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-slate-900 font-sans text-base md:text-lg">
+                      {topic.topic}
+                    </h3>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     {topic.isCompleted ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <span className="text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1">
                           <CheckCircle className="w-3.5 h-3.5" />
                           مكتمل
                         </span>
                         {topic.allowReset && (
                           <button
                             onClick={() => handleResetTopic(topic.row, topic.topic)}
-                            className="bg-slate-950 text-white font-bold p-2.5 rounded-xl hover:bg-slate-800 transition"
+                            className="bg-slate-900 text-white font-bold p-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
                             title="إعادة الدرس والتصفير"
                           >
-                            <RotateCcw className="w-4.5 h-4.5" />
+                            <RotateCcw className="w-4 h-4" />
                           </button>
                         )}
                       </div>
                     ) : (
                       <button
                         onClick={() => handleSelectTopic(topic.row)}
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm transition flex items-center gap-1 shadow-sm"
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm"
                       >
-                        ابدأ الآن
+                        فتح الدرس
                         <ArrowRight className="w-4 h-4 shrink-0 rotate-180" />
                       </button>
                     )}

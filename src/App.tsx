@@ -196,7 +196,7 @@ export default function App() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 text-sm font-bold text-slate-600">
+          <nav className="hidden md:flex flex-wrap items-center gap-1 text-sm font-bold text-slate-600">
             <button
               onClick={() => setActiveScreen('home')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
@@ -230,6 +230,34 @@ export default function App() {
               <HelpCircle className="w-4 h-4 shrink-0" />
               معلومات
             </button>
+
+            {/* Dynamic buttons from Profile Sheet */}
+            {generalData?.header.buttons?.map((btn, idx) => {
+              if (!btn.buttonText || btn.buttonText === 'زر بدون نص' || btn.buttonUrl === '#' || btn.buttonUrl === '-') return null;
+              
+              const handleLaunch = () => {
+                const url = btn.buttonUrl;
+                if (!url) return;
+                if (url.startsWith('http')) {
+                  window.open(url, '_blank', 'noreferrer');
+                } else if (url.startsWith('#')) {
+                  setActiveScreen(url.substring(1));
+                } else {
+                  setActiveScreen(url);
+                }
+              };
+
+              return (
+                <button
+                  key={`header-dyn-${idx}`}
+                  onClick={handleLaunch}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-slate-600 hover:text-slate-950 hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  {btn.buttonText}
+                </button>
+              );
+            })}
           </nav>
 
           {/* User profile & controls */}
