@@ -1,0 +1,605 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useEffect, useState } from 'react';
+import { callGasApi } from '../utils/api';
+import { Student, OrderingLessonTopic, OrderingQuestion, ExerciseType } from '../types';
+import { ArrowRight, RotateCcw, Check, Sparkles, AlertCircle, Volume2, Image as ImageIcon, CheckCircle, HelpCircle, Gamepad2, BookOpen, Compass } from 'lucide-react';
+import { motion } from 'motion/react';
+import ExerciseSwitcherModal from './ExerciseSwitcherModal';
+
+interface ExerciseWordsProps {
+  student: Student;
+  onBack: () => void;
+  onSelectExercise?: (type: ExerciseType) => void;
+}
+
+export default function ExerciseWords({ student, onBack, onSelectExercise }: ExerciseWordsProps) {
+  const [topics, setTopics] = useState<OrderingLessonTopic[]>([]);
+  const [activeTopicRow, setActiveTopicRow] = useState<number | null>(null);
+  const [activeQuestion, setActiveQuestion] = useState<OrderingQuestion | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [questionLoading, setQuestionLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [error, setError] = useState('');
+  const [showSwitcher, setShowSwitcher] = useState(false);
+
+  // Exercise gameplay states
+  const [shuffledLetters, setShuffledLetters] = useState<{ id: string; val: string; used: boolean }[]>([]);
+  const [selectedLetterIds, setSelectedLetterIds] = useState<string[]>([]);
+  const [isCorrectAnswer, setIsCorrectAnswer] = useState<boolean | null>(null);
+  const [checked, setChecked] = useState<boolean>(false);
+  const [activeCompletionBlanks, setActiveCompletionBlanks] = useState<string[]>([]); // for completion blank indexing
+  const [showAnswerHint, setShowAnswerHint] = useState<boolean>(false);
+
+  // Fetch letters/topics
+  useEffect(() => {
+    fetchLessonTopics();
+  }, []);
+
+  const fetchLessonTopics = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await callGasApi<OrderingLessonTopic[]>('getLessons', { studentId: student.id });
+      setTopics(data);
+    } catch (err: any) {
+      setError(err.message || 'تعذر تحميل دروس تركيب الكلمات.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectTopic = (rowNum: number) => {
+    setActiveTopicRow(rowNum);
+    loadQuestionForTopic(rowNum, undefined);
+  };
+
+  const loadQuestionForTopic = async (rowNum: number, previousIdx: number | undefined) => {
+    try {
+      setQuestionLoading(true);
+      setError('');
+      setChecked(false);
+      setIsCorrectAnswer(null);
+      setSelectedLetterIds([]);
+      setShowAnswerHint(false);
+
+      const data = await callGasApi<OrderingQuestion | null>('getRandomWord', {
+        rowNumber: rowNum,
+        studentId: student.id,
+        previousIndex: previousIdx,
+      });
+
+      if (data) {
+        if ('completed' in data && (data as any).completed) {
+          alert('تهانينا الكبيرة يا بطل! لقد أتممت جميع أسئلة هذا الدرس بنجاح! 🎉');
+          setActiveTopicRow(null);
+          fetchLessonTopics();
+          return;
+        }
+
+        setActiveQuestion(data);
+        
+        // Prepare discrete letters pool with unique IDs for React key mapping
+        const pool = data.letters.map((l, idx) => ({
+          id: `letter_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+          val: l,
+          used: false,
+        }));
+        
+        // Shuffle pool
+        setShuffledLetters(pool.sort(() => Math.random() - 0.5));
+
+        // If completion mode, initialize blanks state
+        if (data.type === 'completion') {
+          // Blanks mapped to indices
+          const blanksCount = (data.displayText.match(/\.\.\./g) || []).length;
+          setActiveCompletionBlanks(Array(blanksCount).fill(''));
+        }
+      } else {
+        setError('لا توجد أسئلة نشطة في هذا الدرس حالياً.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'فشل جلب سؤال جديد.');
+    } finally {
+      setQuestionLoading(false);
+    }
+  };
+
+  const handleLetterClick = (id: string, val: string) => {
+    if (checked) return;
+
+    if (activeQuestion?.type === 'completion') {
+      // Find first empty blank slot
+      const firstEmptyIdx = activeCompletionBlanks.findIndex((b) => b === '');
+      if (firstEmptyIdx !== -1) {
+        const updated = [...activeCompletionBlanks];
+        updated[firstEmptyIdx] = val;
+        setActiveCompletionBlanks(updated);
+
+        setShuffledLetters((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, used: true } : item))
+        );
+        setSelectedLetterIds((prev) => [...prev, id]);
+      }
+    } else {
+      // Classic arrange layout
+      setShuffledLetters((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, used: true } : item))
+      );
+      setSelectedLetterIds((prev) => [...prev, id]);
+    }
+  };
+
+  const handleRemoveAnswerLetter = (id: string, indexInAnswer: number) => {
+    if (checked) return;
+
+    setShuffledLetters((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, used: false } : item))
+    );
+
+    setSelectedLetterIds((prev) => prev.filter((item) => item !== id));
+
+    if (activeQuestion?.type === 'completion') {
+      const updated = [...activeCompletionBlanks];
+      updated[indexInAnswer] = '';
+      setActiveCompletionBlanks(updated);
+    }
+  };
+
+  const getUserAnswerText = (): string => {
+    if (!activeQuestion) return '';
+
+    if (activeQuestion.type === 'completion') {
+      // Reconstruct user's filled text
+      let text = activeQuestion.displayText;
+      activeCompletionBlanks.forEach((blankVal) => {
+        text = text.replace('...', blankVal || '...');
+      });
+      return text;
+    } else {
+      // Standard arrangement concatenation
+      const items = selectedLetterIds.map((id) => shuffledLetters.find((l) => l.id === id)?.val || '');
+      return items.join('');
+    }
+  };
+
+  const handleCheckAnswer = async () => {
+    const answer = getUserAnswerText();
+    if (!answer.trim() || answer.includes('...')) {
+      alert('يرجى ترتيب الحروف وملء الفراغات أولاً يا بطل!');
+      return;
+    }
+
+    setRecording(true);
+    try {
+      // Verify correct matches from dynamic list
+      let cleanUser = answer.trim().replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+      let match = false;
+
+      for (let correctAns of activeQuestion!.correct) {
+        let cleanCorrect = correctAns.trim().replace(/\s+/g, ' ').trim();
+        if (cleanUser === cleanCorrect) {
+          match = true;
+          break;
+        }
+      }
+
+      setIsCorrectAnswer(match);
+      setChecked(true);
+
+      // Record answers score in sheets database
+      await callGasApi('recordAnswer', {
+        studentId: student.id,
+        studentName: student.name,
+        topic: activeQuestion!.topic,
+        questionIndex: activeQuestion!.index,
+        isCorrect: match,
+      });
+
+    } catch (err: any) {
+      alert(`خطأ أثناء تسجيل الإجابة: ${err.message}`);
+    } finally {
+      setRecording(false);
+    }
+  };
+
+  const handleRetry = () => {
+    setChecked(false);
+    setIsCorrectAnswer(null);
+    setSelectedLetterIds([]);
+    
+    // Clear pool used state
+    setShuffledLetters((prev) => prev.map((item) => ({ ...item, used: false })));
+
+    if (activeQuestion?.type === 'completion') {
+      const blanksCount = (activeQuestion.displayText.match(/\.\.\./g) || []).length;
+      setActiveCompletionBlanks(Array(blanksCount).fill(''));
+    }
+  };
+
+  const handleResetTopic = async (rowNum: number, topicName: string) => {
+    if (!window.confirm(`هل أنت متأكد من رغبتك في إعادة المحاولة وتصفير تقدمك في موضوع "${topicName}"؟`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await callGasApi('resetLesson', { studentId: student.id, topic: topicName });
+      alert('تمت تصفير تقدم الدرس بنجاح!');
+      fetchLessonTopics();
+    } catch (err: any) {
+      alert(`خطأ أثناء تصفير التقدم: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const playAudioMedia = (url: string) => {
+    const audio = new Audio(url);
+    audio.play();
+  };
+
+  if (activeTopicRow === null) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-6 text-right animate-fadeIn" dir="rtl">
+        <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-xl space-y-6">
+          <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
+            <div className="space-y-1">
+              <span className="text-xs text-amber-600 font-bold block">القسم الثاني: تركيب الكلمات والجمل</span>
+              <h1 className="text-2xl font-black text-slate-900 font-sans">تمرين ترتيب الحروف والكلمات 🔤</h1>
+              <p className="text-slate-500 text-xs">
+                اختر درساً مناسباً من القائمة أدناه للبدء بحل تمارين تجميع الحروف، ترتيب الجمل والتركيب اللغوي الممتع.
+              </p>
+            </div>
+
+            <div className="flex gap-2 shrink-0">
+              {onSelectExercise && (
+                <button
+                  onClick={() => setShowSwitcher(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <Gamepad2 className="w-4 h-4 text-amber-500" />
+                  تبديل التمرين 🎮
+                </button>
+              )}
+              <button
+                onClick={onBack}
+                className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
+              >
+                الرئيسية 🏠
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
+              <span className="text-sm text-slate-500">جاري تحميل المواضيع والدروس...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {topics.map((topic, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center justify-between hover:bg-slate-100/50 hover:shadow-md transition"
+                >
+                  <div className="space-y-1">
+                    <span className="text-xs text-slate-400 font-bold block">الدرس {idx + 1}</span>
+                    <h3 className="font-bold text-slate-950 font-sans">{topic.topic}</h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {topic.isCompleted ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          مكتمل
+                        </span>
+                        {topic.allowReset && (
+                          <button
+                            onClick={() => handleResetTopic(topic.row, topic.topic)}
+                            className="bg-slate-950 text-white font-bold p-2.5 rounded-xl hover:bg-slate-800 transition"
+                            title="إعادة الدرس والتصفير"
+                          >
+                            <RotateCcw className="w-4.5 h-4.5" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleSelectTopic(topic.row)}
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm transition flex items-center gap-1 shadow-sm"
+                      >
+                        ابدأ الآن
+                        <ArrowRight className="w-4 h-4 shrink-0 rotate-180" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Switcher Modal */}
+        {onSelectExercise && (
+          <ExerciseSwitcherModal
+            isOpen={showSwitcher}
+            onClose={() => setShowSwitcher(false)}
+            onSelectExercise={onSelectExercise}
+            currentExercise={ExerciseType.WORDS}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 space-y-6 text-right animate-fadeIn" dir="rtl">
+      {/* Gameplay Header */}
+      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+          <span className="text-xs text-amber-600 font-bold block mb-1">القسم الثاني: تركيب الكلمات</span>
+          <h1 className="text-2xl font-extrabold text-slate-900 font-sans">{activeQuestion?.topic}</h1>
+        </div>
+        
+        <div className="flex gap-2 shrink-0">
+          {onSelectExercise && (
+            <button
+              onClick={() => setShowSwitcher(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
+            >
+              <Gamepad2 className="w-4 h-4 text-amber-500" />
+              تبديل التمرين 🎮
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTopicRow(null)}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+          >
+            رجوع للدروس 📂
+          </button>
+          <button
+            onClick={onBack}
+            className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition"
+          >
+            الرئيسية 🏠
+          </button>
+        </div>
+      </div>
+
+      {questionLoading ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-3xl border border-slate-100 shadow-md">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
+          <p className="text-slate-500 text-sm font-sans">جاري تحميل السؤال التالي...</p>
+        </div>
+      ) : activeQuestion ? (
+        <div className="space-y-6">
+          {/* Question Text Box */}
+          <div className="bg-amber-50/50 border border-amber-100 p-6 rounded-3xl text-center space-y-4">
+            <h2 className="text-lg md:text-xl font-bold text-slate-900 leading-relaxed font-serif whitespace-pre-line">
+              {activeQuestion.question}
+            </h2>
+
+            {/* Render audio or image Media attachment */}
+            {activeQuestion.media.trim() && (
+              <div className="inline-flex">
+                {activeQuestion.media.match(/\.(mp3|wav|ogg|m4a)/i) ? (
+                  <button
+                    onClick={() => playAudioMedia(activeQuestion.media)}
+                    className="bg-slate-950 text-white font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 transition flex items-center gap-2 shadow"
+                  >
+                    <Volume2 className="w-5 h-5 text-amber-400" />
+                    استمع للمقطع الصوتي 🔊
+                  </button>
+                ) : (
+                  <div className="bg-white p-2 rounded-2xl shadow-md border border-slate-100">
+                    <img
+                      src={activeQuestion.media}
+                      alt="مرفق السؤال"
+                      className="max-h-48 object-contain rounded-xl max-w-xs cursor-zoom-in"
+                      onClick={() => window.open(activeQuestion.media, '_blank')}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Connected Cursive Display Output Area */}
+          <div className="bg-slate-950 text-white rounded-3xl p-6 md:p-10 text-center shadow-lg relative overflow-hidden">
+            <div className="absolute left-4 top-4 text-[10px] text-slate-500 font-mono tracking-wider">
+              DISPLAY OUTPUT WINDOW
+            </div>
+
+            {/* Conditional joined layout */}
+            {isCorrectAnswer === true ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-2 py-4"
+              >
+                <div className="text-4xl md:text-5xl font-extrabold text-amber-400 tracking-normal font-serif leading-loose">
+                  {getUserAnswerText().replace(/-/g, ' ')}
+                </div>
+                <div className="text-xs text-emerald-400 font-bold flex items-center justify-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  تم تجميع الكلمة بخط متصل ممتاز! 🏅
+                </div>
+              </motion.div>
+            ) : (
+              /* Active Block arrangement builder */
+              <div className="flex flex-wrap items-center justify-center gap-2 py-6 min-h-[90px] border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/40 p-4">
+                {activeQuestion.type === 'completion' ? (
+                  /* Completion gaps view */
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-2xl md:text-3xl font-serif">
+                    {activeQuestion.displayText.split(' ').map((word, wIdx) => (
+                      <div key={wIdx} className="inline-flex items-baseline gap-1">
+                        {word.split('...').map((part, pIdx, arr) => (
+                          <React.Fragment key={pIdx}>
+                            <span className="text-slate-200">{part}</span>
+                            {pIdx < arr.length - 1 && (
+                              <span
+                                onClick={() => {
+                                  // Find the selected ID for this blank and clear it
+                                  const id = selectedLetterIds[pIdx];
+                                  if (id) handleRemoveAnswerLetter(id, pIdx);
+                                }}
+                                className={`inline-block border-b-2 border-amber-500 px-3 min-w-[40px] text-center cursor-pointer transition ${
+                                  activeCompletionBlanks[pIdx]
+                                    ? 'text-rose-400 font-bold'
+                                    : 'text-slate-600'
+                                }`}
+                              >
+                                {activeCompletionBlanks[pIdx] || '...'}
+                              </span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        {wIdx < activeQuestion.displayText.split(' ').length - 1 && <span className="w-3" />}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Standard arrangement blocks */
+                  selectedLetterIds.map((id, index) => {
+                    const l = shuffledLetters.find((item) => item.id === id);
+                    if (!l) return null;
+                    return (
+                      <motion.div
+                        key={id}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        onClick={() => handleRemoveAnswerLetter(id, index)}
+                        className={`px-4 py-2.5 rounded-xl font-bold font-serif text-lg md:text-xl shadow cursor-pointer select-none ${
+                          l.val === '-'
+                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30'
+                            : 'bg-amber-500 text-slate-950 border border-transparent'
+                        }`}
+                      >
+                        {l.val === '-' ? 'مسافة ␣' : l.val}
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Letter Choice Pool */}
+          {!checked && (
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4">
+              <p className="text-xs font-bold text-slate-500">اختر الحروف بترتيبها الصحيح لتجميع الكلمة:</p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {shuffledLetters.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => handleLetterClick(l.id, l.val)}
+                    disabled={l.used}
+                    className={`px-4 py-3 rounded-xl font-bold font-serif text-lg md:text-xl shadow select-none transition ${
+                      l.used
+                        ? 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed scale-95'
+                        : l.val === '-'
+                        ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950 hover:scale-105 active:scale-110'
+                    }`}
+                  >
+                    {l.val === '-' ? 'مسافة ␣' : l.val}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Feedback & Actions Dashboard */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+            <div className="flex items-center gap-3">
+              {isCorrectAnswer === true && (
+                <div className="text-emerald-700 font-bold flex items-center gap-1.5 text-sm">
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                  أحسنت الإجابة يا عبقري! يمكنك الانتقال للموديل التالي.
+                </div>
+              )}
+              {isCorrectAnswer === false && (
+                <div className="space-y-1">
+                  <div className="text-rose-800 font-bold flex items-center gap-1.5 text-sm">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                    محاولة غير موفقة! حاول مرة أخرى بالضغط على زر تصفير.
+                  </div>
+                  {showAnswerHint && (
+                    <div className="text-xs text-amber-800 font-sans">
+                      * الإجابة الصحيحة هي: <strong>{activeQuestion.correct.join(' أو ')}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+              {isCorrectAnswer === null && (
+                <div className="text-slate-500 text-xs flex items-center gap-1.5">
+                  <HelpCircle className="w-5 h-5 text-slate-400" />
+                  رتب الحروف بالكامل ثم اضغط على زر تحقق لتسجيل الإجابة.
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              {checked ? (
+                <>
+                  {activeQuestion.retryCondition === 'نعم' && !isCorrectAnswer && (
+                    <button
+                      onClick={handleRetry}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl text-sm transition flex items-center gap-1.5"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      إعادة المحاولة
+                    </button>
+                  )}
+                  {activeQuestion.showCorrectAnswer === 'نعم' && !isCorrectAnswer && !showAnswerHint && (
+                    <button
+                      onClick={() => setShowAnswerHint(true)}
+                      className="bg-amber-100 text-amber-900 font-bold px-4 py-3 rounded-xl text-sm transition"
+                    >
+                      عرض الإجابة الصحيحة
+                    </button>
+                  )}
+                  {/* Next Question Loader */}
+                  {(isCorrectAnswer || activeQuestion.condition === 'نعم') && (
+                    <button
+                      onClick={() => loadQuestionForTopic(activeTopicRow, activeQuestion.index)}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center gap-1"
+                    >
+                      سؤال جديد
+                      <ArrowRight className="w-4 h-4 shrink-0 rotate-180" />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={handleCheckAnswer}
+                  disabled={recording}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3 rounded-xl text-sm transition flex items-center gap-1.5 shadow"
+                >
+                  <Check className="w-4 h-4" />
+                  تحقق من إجابتي
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Switcher Modal */}
+      {onSelectExercise && (
+        <ExerciseSwitcherModal
+          isOpen={showSwitcher}
+          onClose={() => setShowSwitcher(false)}
+          onSelectExercise={onSelectExercise}
+          currentExercise={ExerciseType.WORDS}
+        />
+      )}
+    </div>
+  );
+}
