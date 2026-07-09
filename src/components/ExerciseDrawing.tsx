@@ -73,12 +73,14 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   // Validation modal
   const [resultModal, setResultModal] = useState<{ show: boolean; percentage: number; isSuccess: boolean } | null>(null);
   const [customAlert, setCustomAlert] = useState<{ message: string; title?: string; type?: 'error' | 'success' | 'info' } | null>(null);
+  const [resettingLessonLabel, setResettingLessonLabel] = useState<string | null>(null);
 
   const templateCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hiddenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const currentStrokePointsRef = useRef<StrokePoint[]>([]);
+  const autoCheckTimeoutRef = useRef<any>(null);
 
   const fetchDrawingResults = async () => {
     try {
@@ -119,6 +121,34 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       console.warn('Could not fetch writing scores:', err);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const handleResetAndStart = async (lesson: DrawingLesson, originalIdx: number) => {
+    try {
+      setResettingLessonLabel(lesson.label);
+      // 1. Call resetLesson4 to increment the retry counter and clear previous progress in Google Sheet
+      await callGasApi('resetLesson4', { studentId: student.id, label: lesson.label });
+      // 2. Fetch drawing results to refresh retry counter and check AH/AI values
+      await fetchDrawingResults();
+      // 3. Open the drawing session interface
+      if (originalIdx >= 0) {
+        setActiveLessonIndex(originalIdx);
+        setActiveQuestionIndex(0);
+        setCurrentStep(0);
+        setStrokesPerStep([]);
+        setCurrentRepetition(0);
+        setRestartCount(0);
+        setResultModal(null);
+      }
+    } catch (err) {
+      console.error('Error resetting lesson:', err);
+      setCustomAlert({
+        message: 'حدث خطأ أثناء إعادة تهيئة الدرس، يرجى المحاولة مجدداً يا بطل.',
+        type: 'error'
+      });
+    } finally {
+      setResettingLessonLabel(null);
     }
   };
 
@@ -233,6 +263,11 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   // Initializing or resetting a question
   useEffect(() => {
     if (!activeQuestion) return;
+
+    if (autoCheckTimeoutRef.current) {
+      clearTimeout(autoCheckTimeoutRef.current);
+      autoCheckTimeoutRef.current = null;
+    }
 
     // Reset steps
     const stepsCount = activeQuestion.imageUrls.length;
@@ -511,6 +546,12 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     if (!lessonStarted) return;
+
+    if (autoCheckTimeoutRef.current) {
+      clearTimeout(autoCheckTimeoutRef.current);
+      autoCheckTimeoutRef.current = null;
+    }
+
     const pos = getMousePos(e);
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x: pos.x, y: pos.y, pressure: pos.pressure }];
@@ -522,7 +563,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
     if (penType === 'normal') {
       ctx.beginPath();
-      ctx.strokeStyle = '#e74c3c';
+      ctx.strokeStyle = '#2563eb';
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.lineWidth = penSize;
@@ -547,7 +588,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
     } else if (penType === 'chisel') {
-      drawChiselSegment(ctx, lastPoint, { x: pos.x, y: pos.y, pressure: pos.pressure }, nibAngle, penSize, '#e74c3c');
+      drawChiselSegment(ctx, lastPoint, { x: pos.x, y: pos.y, pressure: pos.pressure }, nibAngle, penSize, '#2563eb');
     }
   };
 
@@ -560,11 +601,110 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         penSize,
       };
 
+      const updatedStrokesForStep = [...(strokesPerStep[currentStep] || []), newStroke];
+
       setStrokesPerStep((prev) => {
         const next = [...prev];
-        next[currentStep] = [...(next[currentStep] || []), newStroke];
+        next[currentStep] = updatedStrokesForStep;
         return next;
       });
+
+      // Verification Logic on Stroke Release
+      if (isDirectionMode && startPoint && endPoint) {
+        // 1. Immediately check if the very first stroke starts near the green dot
+        const firstStroke = updatedStrokesForStep[0];
+        const firstPoint = firstStroke ? firstStroke.points[0] : null;
+
+        if (firstPoint) {
+          const distFromStart = Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y);
+          if (distFromStart > 35) {
+            new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+            setCustomAlert({
+              message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
+              type: 'error',
+              title: 'تنبيه الاتجاه'
+            });
+            // Reset strokes of this step to empty
+            setStrokesPerStep((prev) => {
+              const next = [...prev];
+              next[currentStep] = [];
+              return next;
+            });
+            isDrawingRef.current = false;
+            currentStrokePointsRef.current = [];
+            return;
+          }
+        }
+
+        // 2. Check if the latest stroke (or any stroke) ends near the red dot 🔴
+        const hasStrokeEndingNearRed = updatedStrokesForStep.some((stroke) => {
+          const lp = stroke.points[stroke.points.length - 1];
+          return lp && Math.hypot(lp.x - endPoint.x, lp.y - endPoint.y) <= 45;
+        });
+
+        if (hasStrokeEndingNearRed) {
+          // Trigger the check drawing logic automatically!
+          setTimeout(() => {
+            handleCheckDrawing(updatedStrokesForStep);
+          }, 150);
+        } else {
+          // Verify if they overshot or drew completely off-track
+          const latestStroke = newStroke;
+          const points = latestStroke.points;
+          if (points.length > 5) {
+            const lp = points[points.length - 1];
+            const distFromEnd = Math.hypot(lp.x - endPoint.x, lp.y - endPoint.y);
+            
+            // 2a. Overshoot check: did they pass near red but ended far away?
+            const passedNearRed = points.some(p => Math.hypot(p.x - endPoint.x, p.y - endPoint.y) <= 45);
+            if (passedNearRed && distFromEnd > 55) {
+              new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+              setCustomAlert({
+                message: 'لقد تجاوزت النقطة الحمراء يا بطل! حاول التوقف عندها تماماً 🔴',
+                type: 'error',
+                title: 'تجاوز النقطة'
+              });
+              setStrokesPerStep((prev) => {
+                const next = [...prev];
+                next[currentStep] = [];
+                return next;
+              });
+              isDrawingRef.current = false;
+              currentStrokePointsRef.current = [];
+              return;
+            }
+
+            // 2b. Off-track check: they drew a long stroke but didn't come near red
+            const minDistanceToRed = Math.min(...points.map(p => Math.hypot(p.x - endPoint.x, p.y - endPoint.y)));
+            if (points.length > 25 && minDistanceToRed > 75) {
+              new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+              setCustomAlert({
+                message: 'انتبه لمسار الرسم والاتجاه الصحيح! تتبع النموذج بدقة واصل إلى النقطة الحمراء 🔴',
+                type: 'error',
+                title: 'مسار خاطئ'
+              });
+              setStrokesPerStep((prev) => {
+                const next = [...prev];
+                next[currentStep] = [];
+                return next;
+              });
+              isDrawingRef.current = false;
+              currentStrokePointsRef.current = [];
+              return;
+            }
+          }
+        }
+      } else {
+        const stepsCount = activeQuestion?.imageUrls?.length || 1;
+        if (stepsCount > 1) {
+          if (autoCheckTimeoutRef.current) {
+            clearTimeout(autoCheckTimeoutRef.current);
+          }
+          autoCheckTimeoutRef.current = setTimeout(() => {
+            handleCheckDrawing(updatedStrokesForStep);
+          }, 1500);
+        }
+      }
     }
     isDrawingRef.current = false;
     currentStrokePointsRef.current = [];
@@ -633,7 +773,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
         if (stroke.penType === 'normal') {
           ctx.beginPath();
-          ctx.strokeStyle = '#e74c3c';
+          ctx.strokeStyle = '#2563eb';
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
           ctx.lineWidth = stroke.penSize;
@@ -644,7 +784,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           ctx.stroke();
         } else if (stroke.penType === 'chisel') {
           for (let i = 1; i < points.length; i++) {
-            drawChiselSegment(ctx, points[i - 1], points[i], stroke.nibAngle, stroke.penSize, '#e74c3c');
+            drawChiselSegment(ctx, points[i - 1], points[i], stroke.nibAngle, stroke.penSize, '#2563eb');
           }
         }
       });
@@ -655,7 +795,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       // Draw green start ring
       ctx.save();
       ctx.beginPath();
-      ctx.arc(startPoint.x, startPoint.y, 25, 0, 2 * Math.PI);
+      ctx.arc(startPoint.x, startPoint.y, 15, 0, 2 * Math.PI);
       ctx.strokeStyle = '#2ecc71';
       ctx.lineWidth = 3;
       ctx.setLineDash([4, 4]);
@@ -670,13 +810,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       ctx.fillStyle = '#2ecc71';
       ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('ابدأ من هنا 🟢', startPoint.x, startPoint.y - 32);
+      ctx.fillText('ابدأ من هنا 🟢', startPoint.x, startPoint.y - 24);
       ctx.restore();
 
       // Draw red end ring
       ctx.save();
       ctx.beginPath();
-      ctx.arc(endPoint.x, endPoint.y, 25, 0, 2 * Math.PI);
+      ctx.arc(endPoint.x, endPoint.y, 15, 0, 2 * Math.PI);
       ctx.strokeStyle = '#e74c3c';
       ctx.lineWidth = 3;
       ctx.setLineDash([4, 4]);
@@ -691,7 +831,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       ctx.fillStyle = '#e74c3c';
       ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('انتهِ هنا 🔴', endPoint.x, endPoint.y - 32);
+      ctx.fillText('انتهِ هنا 🔴', endPoint.x, endPoint.y - 24);
       ctx.restore();
     }
   };
@@ -708,6 +848,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   };
 
   const handleRestart = () => {
+    if (autoCheckTimeoutRef.current) {
+      clearTimeout(autoCheckTimeoutRef.current);
+      autoCheckTimeoutRef.current = null;
+    }
     if (restartCount >= currentMaxRestarts) {
       setCustomAlert({
         message: 'لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم المسموح بها في هذا التمرين!',
@@ -725,7 +869,12 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   };
 
   // Compare Drawn Overlay with Hidden Mask Template
-  const handleCheckDrawing = () => {
+  const handleCheckDrawing = (strokesOverride?: Stroke[]) => {
+    if (autoCheckTimeoutRef.current) {
+      clearTimeout(autoCheckTimeoutRef.current);
+      autoCheckTimeoutRef.current = null;
+    }
+
     const drawingCanvas = drawingCanvasRef.current;
     const hiddenCanvas = hiddenCanvasRef.current;
     if (!drawingCanvas || !hiddenCanvas) return;
@@ -734,7 +883,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     const hCtx = hiddenCanvas.getContext('2d');
     if (!dCtx || !hCtx) return;
 
-    const strokes = strokesPerStep[currentStep] || [];
+    const strokes = strokesOverride || strokesPerStep[currentStep] || [];
     if (strokes.length === 0) {
       setCustomAlert({
         message: 'يرجى رسم الحرف أولاً يا بطل!',
@@ -750,10 +899,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       const firstPoint = firstStroke ? firstStroke.points[0] : null;
 
       // Ensure the very first stroke starts at the green dot
-      if (firstPoint && Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y) > 65) {
+      if (firstPoint && Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y) > 35) {
         new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
         setCustomAlert({
-          message: 'ابدأ من النقطة الخضراء يا بطل!',
+          message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
           type: 'error',
           title: 'تنبيه الاتجاه'
         });
@@ -763,13 +912,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       // Check if at least one stroke ends near the red dot
       const hasStrokeEndingNearRed = strokes.some((stroke) => {
         const lp = stroke.points[stroke.points.length - 1];
-        return lp && Math.hypot(lp.x - endPoint.x, lp.y - endPoint.y) <= 75;
+        return lp && Math.hypot(lp.x - endPoint.x, lp.y - endPoint.y) <= 45;
       });
 
       if (!hasStrokeEndingNearRed) {
         new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
         setCustomAlert({
-          message: 'كمل للنقطة الحمراء يا بطل!',
+          message: 'توقف عند النقطة الحمراء تماماً يا بطل! 🔴',
           type: 'error',
           title: 'تنبيه الاتجاه'
         });
@@ -792,13 +941,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       // Detect dark mask pixel
       if (r + g + b < 450 && a > 50) {
         templatePixels++;
-        // Check if drawing matches (red stroke drawn on drawing canvas)
+        // Check if drawing matches (blue stroke drawn on drawing canvas)
         const dr = dData[i];
         const dg = dData[i + 1];
         const db = dData[i + 2];
         const da = dData[i + 3];
 
-        if (dr > 180 && dg < 100 && db < 100 && da > 120) {
+        if (db > 150 && dr < 120 && da > 100) {
           coveredPixels++;
         }
       }
@@ -937,6 +1086,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       // Refresh completed status in real-time
       fetchDrawingResults();
 
+      // Play victory chime sound
+      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-winning-chime-2015.mp3").play().catch(() => {});
+
       // Show motivational congratulations
       setCustomAlert({
         message: `عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة ${finalPct}%!`,
@@ -947,6 +1099,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           if (activeQuestionIndex < activeLesson!.questions.length - 1) {
             setActiveQuestionIndex((prev) => prev + 1);
           } else {
+            // Play magical lesson completion sound
+            new Audio("https://assets.mixkit.co/sfx/preview/mixkit-magical-gold-coin-chime-2187.mp3").play().catch(() => {});
             setCustomAlert({
               message: 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉',
               type: 'success',
@@ -1128,27 +1282,53 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          if (originalIdx >= 0) {
-                            setActiveLessonIndex(originalIdx);
-                            setActiveQuestionIndex(0);
-                            setCurrentStep(0);
-                            setStrokesPerStep([]);
-                            setCurrentRepetition(0);
-                            setRestartCount(0);
-                            setResultModal(null);
-                          }
-                        }}
-                        className={`font-black px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0 w-full sm:w-auto justify-center ${
-                          lesson.isCompleted
-                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        }`}
-                      >
-                        {lesson.isCompleted ? 'مراجعة وإعادة الرسم 🔄' : 'بدء الدرس والتدريب ✍️'}
-                        <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
-                      </button>
+                      {(() => {
+                        const drawingRecord = drawingResults.find((r) => r && r.label && String(r.label).trim() === String(lesson.label).trim());
+                        const isResetAllowed = drawingRecord ? drawingRecord.allowReset !== 'لا' : true;
+                        const isResettingThis = resettingLessonLabel === lesson.label;
+
+                        return (
+                          <button
+                            disabled={(lesson.isCompleted && !isResetAllowed) || isResettingThis}
+                            onClick={() => {
+                              if (lesson.isCompleted) {
+                                handleResetAndStart(lesson, originalIdx);
+                              } else {
+                                if (originalIdx >= 0) {
+                                  setActiveLessonIndex(originalIdx);
+                                  setActiveQuestionIndex(0);
+                                  setCurrentStep(0);
+                                  setStrokesPerStep([]);
+                                  setCurrentRepetition(0);
+                                  setRestartCount(0);
+                                  setResultModal(null);
+                                }
+                              }
+                            }}
+                            className={`font-black px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0 w-full sm:w-auto justify-center ${
+                              isResettingThis
+                                ? 'bg-slate-100 text-slate-500 cursor-wait'
+                                : lesson.isCompleted
+                                  ? !isResetAllowed
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            {isResettingThis ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin shrink-0" />
+                                <span>جاري التهيئة...</span>
+                              </>
+                            ) : lesson.isCompleted ? (
+                              !isResetAllowed ? 'مكتمل ومغلق 🔒' : 'مراجعة وإعادة الرسم 🔄'
+                            ) : (
+                              'بدء الدرس والتدريب ✍️'
+                            )}
+                            {!isResettingThis && <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />}
+                          </button>
+                        );
+                      })()}
                     </div>
                   );
                 })
@@ -1591,7 +1771,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                   onClick={handleConfirmResult}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition text-sm shadow-md"
                 >
-                  {resultModal.isSuccess ? 'استمر ومتابعة الأداء' : 'حفظ النتيجة والاستمرار ⚠️'}
+                  {resultModal.isSuccess ? 'موافق والاستمرار 🌟' : 'حفظ النتيجة والاستمرار ⚠️'}
                 </button>
               )}
             </div>

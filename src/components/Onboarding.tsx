@@ -949,8 +949,8 @@ function getStudentResults(studentId) {
         
         var usedResets = 0;
         var progressRow = data.find(function(r) { return r[0].toString() == studentId.toString() && r[3] === result.label; });
-        if (progressRow) {
-          usedResets = progressRow[38] || 0;
+        if (progressRow && progressRow[38] !== undefined && progressRow[38] !== "") {
+          usedResets = parseInt(progressRow[38]) || 0;
         }
         
         var allowFromAH = ahValue !== "لا";
@@ -970,6 +970,10 @@ function resetLesson4(studentId, label) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { error: "No data" };
   
+  if (sheet.getLastColumn() < 39) {
+    sheet.insertColumnsAfter(sheet.getLastColumn(), 39 - sheet.getLastColumn());
+  }
+  
   var data = sheet.getRange(2, 1, lastRow - 1, 39).getValues();
   var rowsToUpdate = [];
   for (var i = 0; i < data.length; i++) {
@@ -981,7 +985,7 @@ function resetLesson4(studentId, label) {
   if (rowsToUpdate.length === 0) return { success: true };
   
   rowsToUpdate.forEach(function(row) {
-    var resetCount = sheet.getRange(row, 39).getValue() || 0;
+    var resetCount = parseInt(sheet.getRange(row, 39).getValue()) || 0;
     sheet.getRange(row, 39).setValue(resetCount + 1);
     sheet.getRange(row, 5, 1, 34).clearContent();
     sheet.getRange(row, 3).setValue(new Date());
