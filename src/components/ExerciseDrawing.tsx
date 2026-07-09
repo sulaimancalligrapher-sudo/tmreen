@@ -9,6 +9,7 @@ import { Student, DrawingLesson, DrawingQuestion, ExerciseType } from '../types'
 import { ChevronRight, Undo, RotateCcw, Check, Sparkles, Clock, Layers, PenTool, CheckCircle, AlertTriangle, BookOpen, Gamepad2, ArrowLeft, ArrowRight, History, Award, BookOpenCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 import ExerciseSwitcherModal from './ExerciseSwitcherModal';
+import { sound } from '../utils/soundHelper';
 
 interface ExerciseDrawingProps {
   student: Student;
@@ -97,8 +98,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       try {
         setLoading(true);
         const data = await callGasApi<DrawingLesson[]>('getLetters', { studentId: student.id });
-        setLessons(data);
-        if (data.length > 0) {
+        const cleanData = Array.isArray(data) ? data.filter(Boolean) : [];
+        setLessons(cleanData);
+        if (cleanData.length > 0) {
           setActiveLessonIndex(-1); // Lands on selector first!
         }
       } catch (err: any) {
@@ -184,80 +186,84 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
   // Combine active questions with completed scores to reconstruct the full history
   const fullLessonsList = React.useMemo(() => {
-    return lessons.map((lesson) => {
-      // Reconstruct completed questions for this lesson from drawingResults
-      const completedForThisLesson: any[] = [];
-      drawingResults
-        .filter((record) => record && record.label && String(record.label).trim() === String(lesson.label).trim())
-        .forEach((record) => {
-          if (Array.isArray(record.answers)) {
-            record.answers.forEach((ans) => {
-              if (ans && ans.details && typeof ans.details === 'string') {
-                const subLabel = ans.details.split('|')[0].trim();
-                if (subLabel) {
-                  completedForThisLesson.push({
-                    subLabel: subLabel,
-                    imageUrls: [],
-                    templateAlpha: 0.35,
-                    requiredPercent: 65,
-                    requiredPenSize: null,
-                    requiredRepetitions: 1,
-                    timeMinutes: 0,
-                    drawType: 'normal',
-                    allowUndo: true,
-                    maxRestarts: Infinity,
-                    maxCancels: Infinity,
-                    isCompleted: true,
-                  });
+    if (!Array.isArray(lessons)) return [];
+    return lessons
+      .filter((lesson) => lesson !== null && lesson !== undefined)
+      .map((lesson) => {
+        // Reconstruct completed questions for this lesson from drawingResults
+        const completedForThisLesson: any[] = [];
+        drawingResults
+          .filter((record) => record && record.label && String(record.label).trim() === String(lesson.label).trim())
+          .forEach((record) => {
+            if (Array.isArray(record.answers)) {
+              record.answers.forEach((ans) => {
+                if (ans && ans.details && typeof ans.details === 'string') {
+                  const subLabel = ans.details.split('|')[0].trim();
+                  if (subLabel) {
+                    completedForThisLesson.push({
+                      subLabel: subLabel,
+                      imageUrls: [],
+                      templateAlpha: 0.35,
+                      requiredPercent: 65,
+                      requiredPenSize: null,
+                      requiredRepetitions: 1,
+                      timeMinutes: 0,
+                      drawType: 'normal',
+                      allowUndo: true,
+                      maxRestarts: Infinity,
+                      maxCancels: Infinity,
+                      isCompleted: true,
+                    });
+                  }
                 }
-              }
-            });
+              });
+            }
+          });
+
+        // Map current questions with completion flag
+        const activeQuestions = (lesson.questions || []).map((q) => ({
+          ...q,
+          isCompleted: isQuestionCompleted(lesson.label, q.subLabel, (q as any).isCompleted),
+        }));
+
+        // Merge avoiding duplicates
+        const mergedQuestionsMap = new Map<string, any>();
+        
+        completedForThisLesson.forEach((q) => {
+          if (q && q.subLabel) {
+            mergedQuestionsMap.set(String(q.subLabel).trim(), q);
+          }
+        });
+        
+        activeQuestions.forEach((q) => {
+          if (q && q.subLabel) {
+            mergedQuestionsMap.set(String(q.subLabel).trim(), q);
           }
         });
 
-      // Map current questions with completion flag
-      const activeQuestions = (lesson.questions || []).map((q) => ({
-        ...q,
-        isCompleted: isQuestionCompleted(lesson.label, q.subLabel, (q as any).isCompleted),
-      }));
+        const allQuestions = Array.from(mergedQuestionsMap.values());
 
-      // Merge avoiding duplicates
-      const mergedQuestionsMap = new Map<string, any>();
-      
-      completedForThisLesson.forEach((q) => {
-        if (q && q.subLabel) {
-          mergedQuestionsMap.set(String(q.subLabel).trim(), q);
-        }
+        const updatedQuestions = allQuestions.map((q) => ({
+          ...q,
+          isCompleted: q.isCompleted || isQuestionCompleted(lesson.label, q.subLabel, q.isCompleted),
+        }));
+
+        const isLessonCompleted = updatedQuestions.length > 0 && updatedQuestions.every((q) => q.isCompleted);
+
+        return {
+          ...lesson,
+          questions: updatedQuestions,
+          isCompleted: isLessonCompleted,
+        };
       });
-      
-      activeQuestions.forEach((q) => {
-        if (q && q.subLabel) {
-          mergedQuestionsMap.set(String(q.subLabel).trim(), q);
-        }
-      });
-
-      const allQuestions = Array.from(mergedQuestionsMap.values());
-
-      const updatedQuestions = allQuestions.map((q) => ({
-        ...q,
-        isCompleted: q.isCompleted || isQuestionCompleted(lesson.label, q.subLabel, q.isCompleted),
-      }));
-
-      const isLessonCompleted = updatedQuestions.length > 0 && updatedQuestions.every((q) => q.isCompleted);
-
-      return {
-        ...lesson,
-        questions: updatedQuestions,
-        isCompleted: isLessonCompleted,
-      };
-    });
   }, [lessons, drawingResults, isQuestionCompleted]);
 
   const visibleLessons = React.useMemo(() => {
+    if (!Array.isArray(fullLessonsList)) return [];
     if (showCompleted) {
       return fullLessonsList;
     }
-    return fullLessonsList.filter((lesson) => !lesson.isCompleted);
+    return fullLessonsList.filter((lesson) => lesson && !lesson.isCompleted);
   }, [fullLessonsList, showCompleted]);
 
   // Initializing or resetting a question
@@ -479,22 +485,26 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         });
       };
 
-      if (activeQuestion!.drawType === 'free') {
+      if (!isCurrent || !activeQuestion) return;
+
+      if (activeQuestion.drawType === 'free') {
         let hiddenUrl = imageUrls[0];
         if (imageUrls.length > 1) {
           await drawImg(imageUrls[0], tCtx, 1.0);
+          if (!isCurrent || !activeQuestion) return;
           hiddenUrl = imageUrls[1];
         }
         await drawImg(hiddenUrl, hCtx, 1.0, true);
       } else {
         // Composition mode: draw previous steps dimmed and active step fully
         for (let i = 0; i <= currentStep; i++) {
-          if (!isCurrent) break;
-          let alpha = i < currentStep ? activeQuestion!.templateAlpha + 0.3 : activeQuestion!.templateAlpha;
+          if (!isCurrent || !activeQuestion) break;
+          let alpha = i < currentStep ? activeQuestion.templateAlpha + 0.3 : activeQuestion.templateAlpha;
           if (alpha > 0.9) alpha = 0.9;
           await drawImg(imageUrls[i], tCtx, alpha);
+          if (!isCurrent || !activeQuestion) return;
         }
-        if (isCurrent) {
+        if (isCurrent && activeQuestion) {
           await drawImg(imageUrls[currentStep], hCtx, 1.0, true);
         }
       }
@@ -618,7 +628,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         if (firstPoint) {
           const distFromStart = Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y);
           if (distFromStart > 35) {
-            new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+            sound.playError();
             setCustomAlert({
               message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
               type: 'error',
@@ -658,7 +668,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             // 2a. Overshoot check: did they pass near red but ended far away?
             const passedNearRed = points.some(p => Math.hypot(p.x - endPoint.x, p.y - endPoint.y) <= 45);
             if (passedNearRed && distFromEnd > 55) {
-              new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+              sound.playError();
               setCustomAlert({
                 message: 'لقد تجاوزت النقطة الحمراء يا بطل! حاول التوقف عندها تماماً 🔴',
                 type: 'error',
@@ -677,7 +687,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             // 2b. Off-track check: they drew a long stroke but didn't come near red
             const minDistanceToRed = Math.min(...points.map(p => Math.hypot(p.x - endPoint.x, p.y - endPoint.y)));
             if (points.length > 25 && minDistanceToRed > 75) {
-              new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+              sound.playError();
               setCustomAlert({
                 message: 'انتبه لمسار الرسم والاتجاه الصحيح! تتبع النموذج بدقة واصل إلى النقطة الحمراء 🔴',
                 type: 'error',
@@ -695,15 +705,12 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           }
         }
       } else {
-        const stepsCount = activeQuestion?.imageUrls?.length || 1;
-        if (stepsCount > 1) {
-          if (autoCheckTimeoutRef.current) {
-            clearTimeout(autoCheckTimeoutRef.current);
-          }
-          autoCheckTimeoutRef.current = setTimeout(() => {
-            handleCheckDrawing(updatedStrokesForStep);
-          }, 1500);
+        if (autoCheckTimeoutRef.current) {
+          clearTimeout(autoCheckTimeoutRef.current);
         }
+        autoCheckTimeoutRef.current = setTimeout(() => {
+          handleCheckDrawing(updatedStrokesForStep);
+        }, 1500);
       }
     }
     isDrawingRef.current = false;
@@ -900,7 +907,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
       // Ensure the very first stroke starts at the green dot
       if (firstPoint && Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y) > 35) {
-        new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+        sound.playError();
         setCustomAlert({
           message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
           type: 'error',
@@ -916,7 +923,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       });
 
       if (!hasStrokeEndingNearRed) {
-        new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+        sound.playError();
         setCustomAlert({
           message: 'توقف عند النقطة الحمراء تماماً يا بطل! 🔴',
           type: 'error',
@@ -957,9 +964,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     const isSuccess = percentage >= activeQuestion!.requiredPercent;
 
     if (isSuccess) {
-      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-complete-or-approved-mission-205.mp3").play().catch(() => {});
+      sound.playSuccess();
     } else {
-      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+      sound.playError();
     }
 
     setResultModal({
@@ -1087,7 +1094,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       fetchDrawingResults();
 
       // Play victory chime sound
-      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-winning-chime-2015.mp3").play().catch(() => {});
+      sound.playSuccess();
 
       // Show motivational congratulations
       setCustomAlert({
@@ -1100,7 +1107,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             setActiveQuestionIndex((prev) => prev + 1);
           } else {
             // Play magical lesson completion sound
-            new Audio("https://assets.mixkit.co/sfx/preview/mixkit-magical-gold-coin-chime-2187.mp3").play().catch(() => {});
+            sound.playLessonComplete();
             setCustomAlert({
               message: 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉',
               type: 'success',
@@ -1250,9 +1257,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm divide-y divide-slate-100">
               {visibleLessons.length > 0 ? (
                 visibleLessons.map((lesson) => {
-                  const originalIdx = lessons.findIndex((l) => l.label === lesson.label);
-                  const completedCount = lesson.questions.filter(q => q.isCompleted).length;
-                  const totalCount = lesson.questions.length;
+                  const originalIdx = lessons.findIndex((l) => l && l.label === lesson.label);
+                  const completedCount = (lesson.questions || []).filter(q => q && q.isCompleted).length;
+                  const totalCount = (lesson.questions || []).length;
                   
                   return (
                     <div
@@ -1352,7 +1359,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                 <table className="w-full text-sm text-right text-slate-600" dir="rtl">
                   <thead>
                     <tr className="border-b border-slate-100 text-slate-400 text-xs font-black uppercase">
-                      {writingHistory.headers.map((header: string, i: number) => (
+                      {(writingHistory.headers || []).map((header: string, i: number) => (
                         <th key={i} className="px-4 py-3 font-medium">
                           {header}
                         </th>
@@ -1445,10 +1452,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           )}
 
           {/* Steps Progress */}
-          {activeQuestion && activeQuestion.imageUrls.length > 1 && (
+          {activeQuestion && (activeQuestion.imageUrls || []).length > 1 && (
             <div className="bg-amber-50 text-amber-800 border border-amber-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" />
-              <span>الخطوة: {currentStep + 1} / {activeQuestion.imageUrls.length}</span>
+              <span>الخطوة: {currentStep + 1} / {activeQuestion?.imageUrls?.length || 0}</span>
             </div>
           )}
 
