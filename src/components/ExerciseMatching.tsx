@@ -37,7 +37,8 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
   const [volume, setVolume] = useState<number>(0.8);
 
-  // Line Drawing State
+  // Audio & Line Drawing State
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const leftItemsContainerRef = useRef<HTMLDivElement | null>(null);
   const rightItemsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -48,7 +49,21 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   useEffect(() => {
     fetchMatchingLessons();
+    return () => {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setPlayingAudioSrc(null);
+  }, [activeQuestionIndex, activeLessonIndex]);
 
   const fetchMatchingLessons = async () => {
     try {
@@ -143,12 +158,105 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     });
   };
 
-  // Touch and Mouse Event Helpers
+  // Global drag-and-drop / connection drawing listeners
+  useEffect(() => {
+    if (!activeQuestion) return;
+
+    const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
+      if (!drawingRef.current || !dragStartPos.current) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rectContainer = canvas.parentElement?.getBoundingClientRect();
+      if (!rectContainer) return;
+
+      let clientX = 0;
+      let clientY = 0;
+
+      if ('touches' in e) {
+        if (e.touches.length === 0) return;
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      const curX = clientX - rectContainer.left;
+      const curY = clientY - rectContainer.top;
+
+      setCurrentLinePos({ x: curX, y: curY });
+      drawConnections();
+    };
+
+    const handleGlobalEnd = (e: MouseEvent | TouchEvent) => {
+      if (!drawingRef.current) return;
+      drawingRef.current = false;
+
+      let clientX = 0;
+      let clientY = 0;
+
+      if ('changedTouches' in e) {
+        if (e.changedTouches.length === 0) return;
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      // Identify which right item the pointer was released on
+      const rightElements = rightItemsContainerRef.current?.querySelectorAll('[data-id]');
+      let targetRightId: string | null = null;
+
+      rightElements?.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          targetRightId = (el as HTMLElement).dataset.id || null;
+        }
+      });
+
+      if (dragStartId.current && targetRightId) {
+        const lid = dragStartId.current;
+        const rid = targetRightId;
+
+        setConnections((prev) => {
+          // Discard any existing lines starting from this same left node
+          const filtered = prev.filter((c) => c.leftId !== lid);
+          return [...filtered, { leftId: lid, rightId: rid }];
+        });
+      }
+
+      dragStartId.current = null;
+      dragStartPos.current = null;
+      setCurrentLinePos(null);
+      drawConnections();
+    };
+
+    window.addEventListener('mousemove', handleGlobalMove);
+    window.addEventListener('touchmove', handleGlobalMove, { passive: false });
+    window.addEventListener('mouseup', handleGlobalEnd);
+    window.addEventListener('touchend', handleGlobalEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMove);
+      window.removeEventListener('touchmove', handleGlobalMove);
+      window.removeEventListener('mouseup', handleGlobalEnd);
+      window.removeEventListener('touchend', handleGlobalEnd);
+    };
+  }, [connections, activeQuestion, checked]);
+
+  // Touch and Mouse Event Helpers to start connection
   const handleStartDraw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, leftId: string) => {
     // Avoid interfering with audio volume or audio play trigger buttons
     if ((e.target as HTMLElement).closest('.play-btn')) return;
 
-    e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -163,98 +271,66 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     drawingRef.current = true;
     dragStartId.current = leftId;
     dragStartPos.current = { x: startX, y: startY };
+    setCurrentLinePos({ x: startX, y: startY });
   };
 
-  const handleDraw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!drawingRef.current || !dragStartPos.current) return;
-    e.preventDefault();
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rectContainer = canvas.parentElement?.getBoundingClientRect();
-    if (!rectContainer) return;
-
-    let clientX = 0;
-    let clientY = 0;
-
-    if ('touches' in e) {
-      if (e.touches.length === 0) return;
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-
-    const curX = clientX - rectContainer.left;
-    const curY = clientY - rectContainer.top;
-
-    setCurrentLinePos({ x: curX, y: curY });
-    drawConnections();
+  const isAudioUrl = (url: string): boolean => {
+    if (!url) return false;
+    const lowercase = url.toLowerCase().trim();
+    return (
+      lowercase.endsWith('.mp3') ||
+      lowercase.endsWith('.wav') ||
+      lowercase.endsWith('.ogg') ||
+      lowercase.endsWith('.m4a') ||
+      lowercase.includes('drive.google.com') ||
+      lowercase.includes('/uc?id=')
+    );
   };
 
-  const handleEndDraw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
-
-    let clientX = 0;
-    let clientY = 0;
-
-    if ('changedTouches' in e) {
-      if (e.changedTouches.length === 0) return;
-      clientX = e.changedTouches[0].clientX;
-      clientY = e.changedTouches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
+  const normalizeAudioUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    let id = '';
+    if (trimmed.includes('/file/d/')) {
+      id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
+    } else if (trimmed.includes('open?id=')) {
+      id = trimmed.split('open?id=')[1].split('&')[0];
+    } else if (trimmed.includes('drive.google.com/uc?id=')) {
+      return trimmed;
     }
-
-    // Identify which right item the pointer was released on
-    const rightElements = rightItemsContainerRef.current?.querySelectorAll('[data-id]');
-    let targetRightId: string | null = null;
-
-    rightElements?.forEach((el) => {
-      const rect = el.getBoundingClientRect();
-      if (
-        clientX >= rect.left &&
-        clientX <= rect.right &&
-        clientY >= rect.top &&
-        clientY <= rect.bottom
-      ) {
-        targetRightId = (el as HTMLElement).dataset.id || null;
-      }
-    });
-
-    if (dragStartId.current && targetRightId) {
-      const lid = dragStartId.current;
-      const rid = targetRightId;
-
-      setConnections((prev) => {
-        // Discard any existing lines starting from this same left node
-        const filtered = prev.filter((c) => c.leftId !== lid);
-        return [...filtered, { leftId: lid, rightId: rid }];
-      });
+    if (id) {
+      return `https://drive.google.com/uc?id=${id}&export=download`;
     }
-
-    dragStartId.current = null;
-    dragStartPos.current = null;
-    setCurrentLinePos(null);
-    drawConnections();
+    return trimmed;
   };
 
   const handlePlayAudio = (url: string) => {
+    const normalizedUrl = normalizeAudioUrl(url);
+    // If the same audio is playing, stop it
     if (playingAudioSrc === url) {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
       setPlayingAudioSrc(null);
       return;
     }
 
+    // If another audio is playing, stop it first
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+    }
+
     setPlayingAudioSrc(url);
-    const audio = new Audio(url);
+    const audio = new Audio(normalizedUrl);
     audio.volume = volume;
-    audio.play();
+    currentAudioRef.current = audio;
+
+    audio.play().catch(err => console.error("Error playing audio:", err));
+
     audio.addEventListener('ended', () => {
       setPlayingAudioSrc(null);
+      currentAudioRef.current = null;
     });
   };
 
@@ -313,7 +389,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       setChecked(false);
     } else {
       alert('تهانينا! لقد أنهيت جميع تمارين التوصيل في هذا الدرس بنجاح 🎉');
-      onBack();
+      setActiveLessonIndex(-1);
     }
   };
 
@@ -483,37 +559,33 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           </div>
 
           {/* Interactive Line-matching canvas container */}
-          <div className="relative border border-slate-100 rounded-3xl bg-white shadow-md p-8 min-h-[400px] select-none">
+          <div className="relative border border-slate-100 rounded-3xl bg-white shadow-md p-3 md:p-8 min-h-[400px] select-none">
             {/* Overlay line-drawing canvas */}
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
 
-            {/* Layout Grid columns */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-20 relative z-20">
+            {/* Layout Grid columns - Keep side-by-side on mobile */}
+            <div className="grid grid-cols-2 gap-4 md:gap-20 relative z-20">
               {/* Left node cards */}
               <div ref={leftItemsContainerRef} className="space-y-6 flex flex-col justify-center">
-                <span className="text-xs font-bold text-slate-400 block mb-2">المجموعة الأولى (انقر واسحب للتوصيل)</span>
+                <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الأولى (انقر واسحب للتوصيل)</span>
                 {activeQuestion.leftItems.map((item, idx) => (
                   <div
                     key={idx}
                     data-id={idx + 1}
                     onMouseDown={(e) => handleStartDraw(e, (idx + 1).toString())}
                     onTouchStart={(e) => handleStartDraw(e, (idx + 1).toString())}
-                    onMouseMove={handleDraw}
-                    onTouchMove={handleDraw}
-                    onMouseUp={handleEndDraw}
-                    onTouchEnd={handleEndDraw}
-                    className="bg-slate-50 hover:bg-slate-100/80 active:scale-105 border border-slate-200/80 rounded-2xl p-4 cursor-pointer text-center font-bold text-lg shadow-sm hover:shadow-md transition relative flex items-center justify-center min-h-[70px]"
+                    className="bg-slate-50 hover:bg-slate-100/80 active:scale-105 border border-slate-200/80 rounded-2xl p-2.5 md:p-4 cursor-pointer text-center font-bold text-sm md:text-lg shadow-sm hover:shadow-md transition relative flex items-center justify-center min-h-[70px]"
                   >
-                    {item.type === 'audio' ? (
+                    {item.type === 'audio' || isAudioUrl(item.value) ? (
                       <button
                         onClick={() => handlePlayAudio(item.value)}
-                        className="play-btn bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+                        className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition"
                       >
-                        <Volume2 className="w-4 h-4 text-amber-400" />
-                        {playingAudioSrc === item.value ? '⏸️ جاري التشغيل' : '▶️ استمع للصوت'}
+                        <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
+                        {playingAudioSrc === item.value ? '⏸️ إيقاف' : '▶️ استمع'}
                       </button>
                     ) : item.type === 'image' ? (
-                      <img src={item.value} alt="مرفق" className="max-h-24 object-contain rounded-lg" />
+                      <img src={item.value} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
                     ) : (
                       item.value
                     )}
@@ -523,23 +595,23 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
               {/* Right node cards */}
               <div ref={rightItemsContainerRef} className="space-y-6 flex flex-col justify-center">
-                <span className="text-xs font-bold text-slate-400 block mb-2">المجموعة الثانية (مستقبل الوصلة)</span>
+                <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الثانية (مستقبل الوصلة)</span>
                 {activeQuestion.shuffledRight.map((item, idx) => (
                   <div
                     key={idx}
                     data-id={activeQuestion.rightIds[idx]}
-                    className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-center font-bold text-lg shadow-sm min-h-[70px] flex items-center justify-center relative"
+                    className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5 md:p-4 text-center font-bold text-sm md:text-lg shadow-sm min-h-[70px] flex items-center justify-center relative"
                   >
-                    {item.type === 'audio' ? (
+                    {item.type === 'audio' || isAudioUrl(item.value) ? (
                       <button
                         onClick={() => handlePlayAudio(item.value)}
-                        className="play-btn bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+                        className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition"
                       >
-                        <Volume2 className="w-4 h-4 text-amber-400" />
-                        {playingAudioSrc === item.value ? '⏸️ جاري التشغيل' : '▶️ استمع للصوت'}
+                        <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
+                        {playingAudioSrc === item.value ? '⏸️ إيقاف' : '▶️ استمع'}
                       </button>
                     ) : item.type === 'image' ? (
-                      <img src={item.value} alt="مرفق" className="max-h-24 object-contain rounded-lg" />
+                      <img src={item.value} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
                     ) : (
                       item.value
                     )}
@@ -550,8 +622,8 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           </div>
 
           {/* Audio volume sliders */}
-          {(activeQuestion.leftItems.some((i) => i.type === 'audio') ||
-            activeQuestion.shuffledRight.some((i) => i.type === 'audio')) && (
+          {(activeQuestion.leftItems.some((i) => i.type === 'audio' || isAudioUrl(i.value)) ||
+            activeQuestion.shuffledRight.some((i) => i.type === 'audio' || isAudioUrl(i.value))) && (
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3 w-fit">
               <span className="text-xs font-bold text-slate-600">درجة الصوت:</span>
               <input

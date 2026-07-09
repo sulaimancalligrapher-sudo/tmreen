@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { callGasApi } from '../utils/api';
 import { Student, OrderingLessonTopic, OrderingQuestion, ExerciseType } from '../types';
 import { ArrowRight, RotateCcw, Check, Sparkles, AlertCircle, Volume2, Image as ImageIcon, CheckCircle, HelpCircle, Gamepad2, BookOpen, Compass } from 'lucide-react';
@@ -33,12 +33,29 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
   const [isCorrectAnswer, setIsCorrectAnswer] = useState<boolean | null>(null);
   const [checked, setChecked] = useState<boolean>(false);
   const [activeCompletionBlanks, setActiveCompletionBlanks] = useState<string[]>([]); // for completion blank indexing
+  const [activeCompletionBlankIds, setActiveCompletionBlankIds] = useState<string[]>([]); // map each blank to its selected letter ID
   const [showAnswerHint, setShowAnswerHint] = useState<boolean>(false);
+  const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Fetch letters/topics
   useEffect(() => {
     fetchLessonTopics();
+    return () => {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setPlayingAudioSrc(null);
+  }, [activeQuestion, activeTopicRow]);
 
   const fetchLessonTopics = async () => {
     try {
@@ -98,6 +115,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
           // Blanks mapped to indices
           const blanksCount = (data.displayText.match(/\.\.\./g) || []).length;
           setActiveCompletionBlanks(Array(blanksCount).fill(''));
+          setActiveCompletionBlankIds(Array(blanksCount).fill(''));
         }
       } else {
         setError('لا توجد أسئلة نشطة في هذا الدرس حالياً.');
@@ -120,10 +138,13 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
         updated[firstEmptyIdx] = val;
         setActiveCompletionBlanks(updated);
 
+        const updatedIds = [...activeCompletionBlankIds];
+        updatedIds[firstEmptyIdx] = id;
+        setActiveCompletionBlankIds(updatedIds);
+
         setShuffledLetters((prev) =>
           prev.map((item) => (item.id === id ? { ...item, used: true } : item))
         );
-        setSelectedLetterIds((prev) => [...prev, id]);
       }
     } else {
       // Classic arrange layout
@@ -141,12 +162,16 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
       prev.map((item) => (item.id === id ? { ...item, used: false } : item))
     );
 
-    setSelectedLetterIds((prev) => prev.filter((item) => item !== id));
-
     if (activeQuestion?.type === 'completion') {
       const updated = [...activeCompletionBlanks];
       updated[indexInAnswer] = '';
       setActiveCompletionBlanks(updated);
+
+      const updatedIds = [...activeCompletionBlankIds];
+      updatedIds[indexInAnswer] = '';
+      setActiveCompletionBlankIds(updatedIds);
+    } else {
+      setSelectedLetterIds((prev) => prev.filter((item) => item !== id));
     }
   };
 
@@ -218,6 +243,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     if (activeQuestion?.type === 'completion') {
       const blanksCount = (activeQuestion.displayText.match(/\.\.\./g) || []).length;
       setActiveCompletionBlanks(Array(blanksCount).fill(''));
+      setActiveCompletionBlankIds(Array(blanksCount).fill(''));
     }
   };
 
@@ -238,9 +264,50 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     }
   };
 
+  const normalizeAudioUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    let id = '';
+    if (trimmed.includes('/file/d/')) {
+      id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
+    } else if (trimmed.includes('open?id=')) {
+      id = trimmed.split('open?id=')[1].split('&')[0];
+    } else if (trimmed.includes('drive.google.com/uc?id=')) {
+      return trimmed;
+    }
+    if (id) {
+      return `https://drive.google.com/uc?id=${id}&export=download`;
+    }
+    return trimmed;
+  };
+
   const playAudioMedia = (url: string) => {
-    const audio = new Audio(url);
-    audio.play();
+    const normalizedUrl = normalizeAudioUrl(url);
+
+    if (playingAudioSrc === url) {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      setPlayingAudioSrc(null);
+      return;
+    }
+
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+    }
+
+    setPlayingAudioSrc(url);
+    const audio = new Audio(normalizedUrl);
+    audio.volume = 0.8;
+    currentAudioRef.current = audio;
+
+    audio.play().catch((err) => console.error('Error playing audio:', err));
+
+    audio.addEventListener('ended', () => {
+      setPlayingAudioSrc(null);
+      currentAudioRef.current = null;
+    });
   };
 
   if (activeTopicRow === null) {
@@ -392,13 +459,15 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
             {/* Render audio or image Media attachment */}
             {activeQuestion.media.trim() && (
               <div className="inline-flex">
-                {activeQuestion.media.match(/\.(mp3|wav|ogg|m4a)/i) ? (
+                {activeQuestion.media.match(/\.(mp3|wav|ogg|m4a)/i) ||
+                activeQuestion.media.includes('drive.google.com') ||
+                activeQuestion.media.includes('/uc?id=') ? (
                   <button
                     onClick={() => playAudioMedia(activeQuestion.media)}
-                    className="bg-slate-950 text-white font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 transition flex items-center gap-2 shadow"
+                    className="bg-slate-950 text-white font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 transition flex items-center gap-2 shadow cursor-pointer"
                   >
                     <Volume2 className="w-5 h-5 text-amber-400" />
-                    استمع للمقطع الصوتي 🔊
+                    {playingAudioSrc === activeQuestion.media ? '⏸️ إيقاف الصوت' : 'استمع للمقطع الصوتي 🔊'}
                   </button>
                 ) : (
                   <div className="bg-white p-2 rounded-2xl shadow-md border border-slate-100">
@@ -441,32 +510,38 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                 {activeQuestion.type === 'completion' ? (
                   /* Completion gaps view */
                   <div className="flex flex-wrap items-center justify-center gap-2 text-2xl md:text-3xl font-serif">
-                    {activeQuestion.displayText.split(' ').map((word, wIdx) => (
-                      <div key={wIdx} className="inline-flex items-baseline gap-1">
-                        {word.split('...').map((part, pIdx, arr) => (
-                          <React.Fragment key={pIdx}>
-                            <span className="text-slate-200">{part}</span>
-                            {pIdx < arr.length - 1 && (
-                              <span
-                                onClick={() => {
-                                  // Find the selected ID for this blank and clear it
-                                  const id = selectedLetterIds[pIdx];
-                                  if (id) handleRemoveAnswerLetter(id, pIdx);
-                                }}
-                                className={`inline-block border-b-2 border-amber-500 px-3 min-w-[40px] text-center cursor-pointer transition ${
-                                  activeCompletionBlanks[pIdx]
-                                    ? 'text-rose-400 font-bold'
-                                    : 'text-slate-600'
-                                }`}
-                              >
-                                {activeCompletionBlanks[pIdx] || '...'}
-                              </span>
-                            )}
-                          </React.Fragment>
-                        ))}
-                        {wIdx < activeQuestion.displayText.split(' ').length - 1 && <span className="w-3" />}
-                      </div>
-                    ))}
+                    {(() => {
+                      let blankGlobalIdx = 0;
+                      return activeQuestion.displayText.split(' ').map((word, wIdx) => (
+                        <div key={wIdx} className="inline-flex items-baseline gap-1">
+                          {word.split('...').map((part, pIdx, arr) => {
+                            const isBlank = pIdx < arr.length - 1;
+                            const currentBlankIdx = isBlank ? blankGlobalIdx++ : -1;
+                            return (
+                              <React.Fragment key={pIdx}>
+                                <span className="text-slate-200">{part}</span>
+                                {isBlank && (
+                                  <span
+                                    onClick={() => {
+                                      const id = activeCompletionBlankIds[currentBlankIdx];
+                                      if (id) handleRemoveAnswerLetter(id, currentBlankIdx);
+                                    }}
+                                    className={`inline-block border-b-2 border-amber-500 px-3 min-w-[40px] text-center cursor-pointer transition ${
+                                      activeCompletionBlanks[currentBlankIdx]
+                                        ? 'text-rose-400 font-bold'
+                                        : 'text-slate-600'
+                                    }`}
+                                  >
+                                    {activeCompletionBlanks[currentBlankIdx] || '...'}
+                                  </span>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {wIdx < activeQuestion.displayText.split(' ').length - 1 && <span className="w-3" />}
+                        </div>
+                      ));
+                    })()}
                   </div>
                 ) : (
                   /* Standard arrangement blocks */

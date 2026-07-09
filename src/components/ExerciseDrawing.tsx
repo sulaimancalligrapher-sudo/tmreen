@@ -41,7 +41,11 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   // Custom Selector and Switcher States
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [activeTab, setActiveTab] = useState<'lessons' | 'history'>('lessons');
+  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
+    return localStorage.getItem('draw_show_completed') !== 'false';
+  });
   const [writingHistory, setWritingHistory] = useState<any>(null);
+  const [drawingResults, setDrawingResults] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Pen configuration
@@ -54,6 +58,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   const [strokesPerStep, setStrokesPerStep] = useState<Stroke[][]>([]);
   const [currentRepetition, setCurrentRepetition] = useState<number>(0);
   const [restartCount, setRestartCount] = useState<number>(0);
+  const [cancelCount, setCancelCount] = useState<number>(0);
+  const [percentages, setPercentages] = useState<number[]>([]);
+  const [stepDetails, setStepDetails] = useState<string[]>([]);
+  const [lessonStarted, setLessonStarted] = useState<boolean>(false);
+  const [isDirectionMode, setIsDirectionMode] = useState<boolean>(false);
+  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [endPoint, setEndPoint] = useState<{ x: number; y: number } | null>(null);
   
   // Timer states
   const [remainingTime, setRemainingTime] = useState<number>(0);
@@ -61,12 +72,22 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   
   // Validation modal
   const [resultModal, setResultModal] = useState<{ show: boolean; percentage: number; isSuccess: boolean } | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ message: string; title?: string; type?: 'error' | 'success' | 'info' } | null>(null);
 
   const templateCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hiddenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const currentStrokePointsRef = useRef<StrokePoint[]>([]);
+
+  const fetchDrawingResults = async () => {
+    try {
+      const data = await callGasApi<any[]>('getStudentResults', { studentId: student.id });
+      setDrawingResults(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Could not fetch drawing results:', err);
+    }
+  };
 
   // Load drawing lessons
   useEffect(() => {
@@ -86,6 +107,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     };
     fetchLetters();
     fetchWritingHistory();
+    fetchDrawingResults();
   }, [student.id]);
 
   const fetchWritingHistory = async () => {
@@ -102,6 +124,111 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
   const activeLesson = activeLessonIndex >= 0 ? lessons[activeLessonIndex] : null;
   const activeQuestion = activeLesson ? activeLesson.questions[activeQuestionIndex] : null;
+  const currentMaxCancels = activeQuestion && typeof activeQuestion.maxCancels === 'number' ? activeQuestion.maxCancels : Infinity;
+  const currentMaxRestarts = activeQuestion && typeof activeQuestion.maxRestarts === 'number' ? activeQuestion.maxRestarts : Infinity;
+
+  const completedQuestionsSet = React.useMemo(() => {
+    const set = new Set<string>();
+    drawingResults.forEach((record) => {
+      if (record && record.label && Array.isArray(record.answers)) {
+        record.answers.forEach((ans) => {
+          if (ans && ans.details && typeof ans.details === 'string') {
+            const subLabel = ans.details.split('|')[0].trim();
+            if (subLabel) {
+              set.add(`${String(record.label).trim()} - ${subLabel}`);
+            }
+          }
+        });
+      }
+    });
+    return set;
+  }, [drawingResults]);
+
+  const isQuestionCompleted = React.useCallback((lessonLabel: string, subLabel: string, backendCompletedFlag?: boolean) => {
+    if (backendCompletedFlag) return true;
+    const lLabel = String(lessonLabel || '').trim();
+    const sLabel = String(subLabel || '').trim();
+    const fullLabel = `${lLabel} - ${sLabel}`;
+    return completedQuestionsSet.has(fullLabel);
+  }, [completedQuestionsSet]);
+
+  // Combine active questions with completed scores to reconstruct the full history
+  const fullLessonsList = React.useMemo(() => {
+    return lessons.map((lesson) => {
+      // Reconstruct completed questions for this lesson from drawingResults
+      const completedForThisLesson: any[] = [];
+      drawingResults
+        .filter((record) => record && record.label && String(record.label).trim() === String(lesson.label).trim())
+        .forEach((record) => {
+          if (Array.isArray(record.answers)) {
+            record.answers.forEach((ans) => {
+              if (ans && ans.details && typeof ans.details === 'string') {
+                const subLabel = ans.details.split('|')[0].trim();
+                if (subLabel) {
+                  completedForThisLesson.push({
+                    subLabel: subLabel,
+                    imageUrls: [],
+                    templateAlpha: 0.35,
+                    requiredPercent: 65,
+                    requiredPenSize: null,
+                    requiredRepetitions: 1,
+                    timeMinutes: 0,
+                    drawType: 'normal',
+                    allowUndo: true,
+                    maxRestarts: Infinity,
+                    maxCancels: Infinity,
+                    isCompleted: true,
+                  });
+                }
+              }
+            });
+          }
+        });
+
+      // Map current questions with completion flag
+      const activeQuestions = (lesson.questions || []).map((q) => ({
+        ...q,
+        isCompleted: isQuestionCompleted(lesson.label, q.subLabel, (q as any).isCompleted),
+      }));
+
+      // Merge avoiding duplicates
+      const mergedQuestionsMap = new Map<string, any>();
+      
+      completedForThisLesson.forEach((q) => {
+        if (q && q.subLabel) {
+          mergedQuestionsMap.set(String(q.subLabel).trim(), q);
+        }
+      });
+      
+      activeQuestions.forEach((q) => {
+        if (q && q.subLabel) {
+          mergedQuestionsMap.set(String(q.subLabel).trim(), q);
+        }
+      });
+
+      const allQuestions = Array.from(mergedQuestionsMap.values());
+
+      const updatedQuestions = allQuestions.map((q) => ({
+        ...q,
+        isCompleted: q.isCompleted || isQuestionCompleted(lesson.label, q.subLabel, q.isCompleted),
+      }));
+
+      const isLessonCompleted = updatedQuestions.length > 0 && updatedQuestions.every((q) => q.isCompleted);
+
+      return {
+        ...lesson,
+        questions: updatedQuestions,
+        isCompleted: isLessonCompleted,
+      };
+    });
+  }, [lessons, drawingResults, isQuestionCompleted]);
+
+  const visibleLessons = React.useMemo(() => {
+    if (showCompleted) {
+      return fullLessonsList;
+    }
+    return fullLessonsList.filter((lesson) => !lesson.isCompleted);
+  }, [fullLessonsList, showCompleted]);
 
   // Initializing or resetting a question
   useEffect(() => {
@@ -112,6 +239,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     setCurrentStep(0);
     setStrokesPerStep(Array.from({ length: stepsCount }, () => []));
     setRestartCount(0);
+    setCancelCount(0);
+    setPercentages([]);
+    setStepDetails([]);
+    setLessonStarted(false);
+    setIsDirectionMode(false);
+    setStartPoint(null);
+    setEndPoint(null);
     setCurrentRepetition(0);
     
     // Set pen size requirement
@@ -121,17 +255,16 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       setPenSize(35);
     }
 
-    // Timer setup
+    // Timer setup (will be activated on Start/Start Challenge)
     if (activeQuestion.timeMinutes > 0) {
       setRemainingTime(activeQuestion.timeMinutes * 60);
-      setIsTimerActive(true);
     } else {
       setRemainingTime(0);
-      setIsTimerActive(false);
     }
+    setIsTimerActive(false);
 
     setResultModal(null);
-  }, [activeQuestion]);
+  }, [activeQuestion, activeQuestionIndex]);
 
   // Handle countdown timer
   useEffect(() => {
@@ -153,84 +286,195 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
   const handleTimeExpired = () => {
     setIsTimerActive(false);
-    alert('انتهى الوقت المسموح به لهذا التمرين يا بطل!');
-    // Trigger submission as zero if incomplete
-    submitFinalProgress(0, 'انتهى الوقت مسبقاً');
+    setCustomAlert({
+      message: 'انتهى الوقت المسموح به لهذا التمرين يا بطل!',
+      type: 'error',
+      title: 'انتهى الوقت'
+    });
+    
+    // Fill remaining repetitions or steps with 0%
+    const requiredRepetitions = activeQuestion!.requiredRepetitions || 1;
+    const stepsCount = activeQuestion!.imageUrls.length;
+    
+    let nextPercentages = [...percentages];
+    let nextDetails = [...stepDetails];
+    
+    if (stepsCount > 1) {
+      const remainingSteps = stepsCount - percentages.length;
+      for (let i = 0; i < remainingSteps; i++) {
+        const idx = percentages.length + i + 1;
+        nextDetails.push(`خطوة ${idx}: فشل 0% (انتهى الوقت)`);
+        nextPercentages.push(0);
+      }
+      const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
+      const avgPct = Math.round(nextPercentages.reduce((a, b) => a + b, 0) / stepsCount);
+      submitFinalProgress(avgPct, detailsString, '');
+    } else if (requiredRepetitions > 1) {
+      const remainingReps = requiredRepetitions - percentages.length;
+      for (let i = 0; i < remainingReps; i++) {
+        const idx = percentages.length + i + 1;
+        nextDetails.push(`التكرار ${idx}: فشل 0% (انتهى الوقت)`);
+        nextPercentages.push(0);
+      }
+      const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
+      const avgPct = Math.round(nextPercentages.reduce((a, b) => a + b, 0) / requiredRepetitions);
+      const repInfo = `${percentages.length} / ${requiredRepetitions}`;
+      submitFinalProgress(avgPct, detailsString, repInfo);
+    } else {
+      const detailsString = `${activeQuestion!.subLabel}|فشل 0% (انتهى الوقت)`;
+      submitFinalProgress(0, detailsString, '');
+    }
   };
 
   // Redraw canvas template and drawings when step/strokes change
   useEffect(() => {
     if (!activeQuestion) return;
+    let isCurrent = true;
+
+    const loadCalligraphyTemplates = async () => {
+      const templateCanvas = templateCanvasRef.current;
+      const hiddenCanvas = hiddenCanvasRef.current;
+      if (!templateCanvas || !hiddenCanvas) return;
+
+      const tCtx = templateCanvas.getContext('2d');
+      const hCtx = hiddenCanvas.getContext('2d');
+      if (!tCtx || !hCtx) return;
+
+      // Clear previous drawings
+      tCtx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+      hCtx.clearRect(0, 0, hiddenCanvas.width, hiddenCanvas.height);
+
+      const imageUrls = activeQuestion!.imageUrls;
+      if (imageUrls.length === 0) return;
+
+      const drawImg = (url: string, ctx: CanvasRenderingContext2D, alpha: number, detectPoints = false) => {
+        return new Promise<void>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
+          img.onload = () => {
+            if (!isCurrent) {
+              resolve();
+              return;
+            }
+            const cw = templateCanvas.width;
+            const ch = templateCanvas.height;
+            const ratio = img.width / img.height;
+            let w = cw * 0.92;
+            let h = w / ratio;
+            if (h > ch * 0.92) {
+              h = ch * 0.92;
+              w = h * ratio;
+            }
+            const offsetX = (cw - w) / 2;
+            const offsetY = (ch - h) / 2 + 10;
+
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(img, offsetX, offsetY, w, h);
+            ctx.globalAlpha = 1.0;
+
+            if (detectPoints) {
+              const tempCanvas = document.createElement('canvas');
+              tempCanvas.width = img.width;
+              tempCanvas.height = img.height;
+              const tempCtx = tempCanvas.getContext('2d');
+              if (tempCtx) {
+                tempCtx.drawImage(img, 0, 0);
+                try {
+                  const imgData = tempCtx.getImageData(0, 0, img.width, img.height).data;
+                  let sumStartX = 0, sumStartY = 0, countStart = 0;
+                  let sumEndX = 0, sumEndY = 0, countEnd = 0;
+
+                  for (let y = 0; y < img.height; y++) {
+                    for (let x = 0; x < img.width; x++) {
+                      const idx = (y * img.width + x) * 4;
+                      const r = imgData[idx];
+                      const g = imgData[idx + 1];
+                      const b = imgData[idx + 2];
+                      const a = imgData[idx + 3];
+
+                      if (a > 30) {
+                        // Vibrant Red dot centroid calculation
+                        if (r > 180 && g < 100 && b < 100) {
+                          sumEndX += x;
+                          sumEndY += y;
+                          countEnd++;
+                        }
+                        // Vibrant Green dot centroid calculation
+                        if (g > 180 && r < 100 && b < 100) {
+                          sumStartX += x;
+                          sumStartY += y;
+                          countStart++;
+                        }
+                      }
+                    }
+                  }
+
+                  let sPt: { x: number; y: number } | null = null;
+                  let ePt: { x: number; y: number } | null = null;
+
+                  if (countStart > 0) {
+                    const avgX = sumStartX / countStart;
+                    const avgY = sumStartY / countStart;
+                    sPt = { x: (avgX * w) / img.width + offsetX, y: (avgY * h) / img.height + offsetY };
+                  }
+                  if (countEnd > 0) {
+                    const avgX = sumEndX / countEnd;
+                    const avgY = sumEndY / countEnd;
+                    ePt = { x: (avgX * w) / img.width + offsetX, y: (avgY * h) / img.height + offsetY };
+                  }
+
+                  if (sPt && ePt) {
+                    setStartPoint(sPt);
+                    setEndPoint(ePt);
+                    setIsDirectionMode(true);
+                  } else {
+                    setStartPoint(null);
+                    setEndPoint(null);
+                    setIsDirectionMode(false);
+                  }
+                } catch (ex) {
+                  console.warn("Failed to get image pixels for dot detection (possibly CORS):", ex);
+                }
+              }
+            }
+            resolve();
+          };
+          img.onerror = () => resolve();
+        });
+      };
+
+      if (activeQuestion!.drawType === 'free') {
+        let hiddenUrl = imageUrls[0];
+        if (imageUrls.length > 1) {
+          await drawImg(imageUrls[0], tCtx, 1.0);
+          hiddenUrl = imageUrls[1];
+        }
+        await drawImg(hiddenUrl, hCtx, 1.0, true);
+      } else {
+        // Composition mode: draw previous steps dimmed and active step fully
+        for (let i = 0; i <= currentStep; i++) {
+          if (!isCurrent) break;
+          let alpha = i < currentStep ? activeQuestion!.templateAlpha + 0.3 : activeQuestion!.templateAlpha;
+          if (alpha > 0.9) alpha = 0.9;
+          await drawImg(imageUrls[i], tCtx, alpha);
+        }
+        if (isCurrent) {
+          await drawImg(imageUrls[currentStep], hCtx, 1.0, true);
+        }
+      }
+    };
+
     loadCalligraphyTemplates();
+
+    return () => {
+      isCurrent = false;
+    };
   }, [activeQuestion, currentStep]);
 
   useEffect(() => {
     redrawAllStrokes();
-  }, [strokesPerStep, currentStep, penType, nibAngle]);
-
-  const loadCalligraphyTemplates = async () => {
-    const templateCanvas = templateCanvasRef.current;
-    const hiddenCanvas = hiddenCanvasRef.current;
-    if (!templateCanvas || !hiddenCanvas) return;
-
-    const tCtx = templateCanvas.getContext('2d');
-    const hCtx = hiddenCanvas.getContext('2d');
-    if (!tCtx || !hCtx) return;
-
-    // Clear previous drawing
-    tCtx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
-    hCtx.clearRect(0, 0, hiddenCanvas.width, hiddenCanvas.height);
-
-    const imageUrls = activeQuestion!.imageUrls;
-    if (imageUrls.length === 0) return;
-
-    // Draw previous steps semi-transparently, and active step fully
-    const drawImg = (url: string, ctx: CanvasRenderingContext2D, alpha: number) => {
-      return new Promise<void>((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        // Use a secure proxy to avoid Canvas CORS restrictions on Vercel/Vite
-        img.src = `https://images.weserv.nl/?url=${encodeURIComponent(url)}`;
-        img.onload = () => {
-          const cw = templateCanvas.width;
-          const ch = templateCanvas.height;
-          const ratio = img.width / img.height;
-          let w = cw * 0.92;
-          let h = w / ratio;
-          if (h > ch * 0.92) {
-            h = ch * 0.92;
-            w = h * ratio;
-          }
-          const offsetX = (cw - w) / 2;
-          const offsetY = (ch - h) / 2 + 10;
-
-          ctx.globalAlpha = alpha;
-          ctx.drawImage(img, offsetX, offsetY, w, h);
-          ctx.globalAlpha = 1.0;
-          resolve();
-        };
-        img.onerror = () => resolve(); // continue on error
-      });
-    };
-
-    if (activeQuestion!.drawType === 'free') {
-      let hiddenUrl = imageUrls[0];
-      if (imageUrls.length > 1) {
-        await drawImg(imageUrls[0], tCtx, 1.0);
-        hiddenUrl = imageUrls[1];
-      }
-      await drawImg(hiddenUrl, hCtx, 1.0);
-    } else {
-      // Composition mode: draw previous steps dimmed
-      for (let i = 0; i <= currentStep; i++) {
-        let alpha = i < currentStep ? activeQuestion!.templateAlpha + 0.3 : activeQuestion!.templateAlpha;
-        if (alpha > 0.9) alpha = 0.9;
-        await drawImg(imageUrls[i], tCtx, alpha);
-      }
-      // Hidden canvas always gets the target step for overlap calculation
-      await drawImg(imageUrls[currentStep], hCtx, 1.0);
-    }
-  };
+  }, [strokesPerStep, currentStep, penType, nibAngle, isDirectionMode, startPoint, endPoint]);
 
   // Drawing Canvas Actions
   const getMousePos = (e: React.MouseEvent | React.TouchEvent) => {
@@ -266,6 +510,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    if (!lessonStarted) return;
     const pos = getMousePos(e);
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x: pos.x, y: pos.y, pressure: pos.pressure }];
@@ -404,6 +649,51 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         }
       });
     }
+
+    // Draw start/end guide indicators if in direction mode
+    if (isDirectionMode && startPoint && endPoint) {
+      // Draw green start ring
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(startPoint.x, startPoint.y, 25, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#2ecc71';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.arc(startPoint.x, startPoint.y, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = '#2ecc71';
+      ctx.fill();
+
+      // Label for start
+      ctx.fillStyle = '#2ecc71';
+      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ابدأ من هنا 🟢', startPoint.x, startPoint.y - 32);
+      ctx.restore();
+
+      // Draw red end ring
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(endPoint.x, endPoint.y, 25, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(endPoint.x, endPoint.y, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fill();
+
+      // Label for end
+      ctx.fillStyle = '#e74c3c';
+      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('انتهِ هنا 🔴', endPoint.x, endPoint.y - 32);
+      ctx.restore();
+    }
   };
 
   const handleUndo = () => {
@@ -418,8 +708,12 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   };
 
   const handleRestart = () => {
-    if (restartCount >= activeQuestion!.maxRestarts) {
-      alert('لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم!');
+    if (restartCount >= currentMaxRestarts) {
+      setCustomAlert({
+        message: 'لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم المسموح بها في هذا التمرين!',
+        type: 'error',
+        title: 'تنبيه'
+      });
       return;
     }
     setRestartCount((prev) => prev + 1);
@@ -442,8 +736,45 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
     const strokes = strokesPerStep[currentStep] || [];
     if (strokes.length === 0) {
-      alert('يرجى رسم الحرف أولاً يا بطل!');
+      setCustomAlert({
+        message: 'يرجى رسم الحرف أولاً يا بطل!',
+        type: 'info',
+        title: 'تنبيه'
+      });
       return;
+    }
+
+    // Direction Checking (Green to Red dot)
+    if (isDirectionMode && startPoint && endPoint) {
+      const firstStroke = strokes[0];
+      const firstPoint = firstStroke ? firstStroke.points[0] : null;
+
+      // Ensure the very first stroke starts at the green dot
+      if (firstPoint && Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y) > 65) {
+        new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+        setCustomAlert({
+          message: 'ابدأ من النقطة الخضراء يا بطل!',
+          type: 'error',
+          title: 'تنبيه الاتجاه'
+        });
+        return;
+      }
+
+      // Check if at least one stroke ends near the red dot
+      const hasStrokeEndingNearRed = strokes.some((stroke) => {
+        const lp = stroke.points[stroke.points.length - 1];
+        return lp && Math.hypot(lp.x - endPoint.x, lp.y - endPoint.y) <= 75;
+      });
+
+      if (!hasStrokeEndingNearRed) {
+        new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+        setCustomAlert({
+          message: 'كمل للنقطة الحمراء يا بطل!',
+          type: 'error',
+          title: 'تنبيه الاتجاه'
+        });
+        return;
+      }
     }
 
     const hData = hCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height).data;
@@ -476,10 +807,36 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     const percentage = templatePixels === 0 ? 0 : Math.round((coveredPixels / templatePixels) * 100);
     const isSuccess = percentage >= activeQuestion!.requiredPercent;
 
+    if (isSuccess) {
+      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-complete-or-approved-mission-205.mp3").play().catch(() => {});
+    } else {
+      new Audio("https://assets.mixkit.co/sfx/preview/mixkit-wrong-answer-alert-932.mp3").play().catch(() => {});
+    }
+
     setResultModal({
       show: true,
       percentage,
       isSuccess,
+    });
+  };
+
+  const handleCancelResult = () => {
+    if (cancelCount >= currentMaxCancels) {
+      setCustomAlert({
+        message: 'لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم!',
+        type: 'error',
+        title: 'تنبيه'
+      });
+      // Ensure the modal closes so the user is not stuck forever
+      setResultModal(null);
+      return;
+    }
+    setCancelCount((prev) => prev + 1);
+    setResultModal(null);
+    setStrokesPerStep((prev) => {
+      const next = [...prev];
+      next[currentStep] = [];
+      return next;
     });
   };
 
@@ -488,17 +845,54 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     setResultModal(null);
 
     const stepsCount = activeQuestion!.imageUrls.length;
+    const requiredRepetitions = activeQuestion!.requiredRepetitions || 1;
 
-    if (currentStep < stepsCount - 1) {
-      // Move to next step in the calligraphic sequence
-      setCurrentStep((prev) => prev + 1);
+    // Save active percentage
+    const nextPercentages = [...percentages, resultModal.percentage];
+    setPercentages(nextPercentages);
+
+    if (activeQuestion!.drawType === 'free') {
+      const detailsString = `${activeQuestion!.subLabel}|نجح ${resultModal.percentage}%`;
+      submitFinalProgress(resultModal.percentage, detailsString, '');
+    } else if (stepsCount > 1) {
+      // Step-by-step mode
+      const nextDetails = [...stepDetails, `خطوة ${currentStep + 1}: نجح ${resultModal.percentage}%`].filter(Boolean);
+      setStepDetails(nextDetails);
+
+      if (currentStep < stepsCount - 1) {
+        // Move to next step in the calligraphic sequence
+        setCurrentStep((prev) => prev + 1);
+      } else {
+        // Completed last step, save to database
+        const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
+        const avgPct = Math.round(nextPercentages.reduce((a, b) => a + b, 0) / stepsCount);
+        submitFinalProgress(avgPct, detailsString, '');
+      }
+    } else if (requiredRepetitions > 1) {
+      // Challenge Mode
+      const repIdx = currentRepetition + 1;
+      const nextDetails = [...stepDetails, `التكرار ${repIdx}: نجح ${resultModal.percentage}%`].filter(Boolean);
+      setStepDetails(nextDetails);
+
+      if (repIdx < requiredRepetitions) {
+        // Reset canvas for next repetition
+        setStrokesPerStep(Array.from({ length: stepsCount }, () => []));
+        setCurrentRepetition(repIdx);
+        setCurrentStep(0);
+      } else {
+        const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
+        const avgPct = Math.round(nextPercentages.reduce((a, b) => a + b, 0) / requiredRepetitions);
+        const repInfo = `${repIdx} / ${requiredRepetitions}`;
+        submitFinalProgress(avgPct, detailsString, repInfo);
+      }
     } else {
-      // Completed last step, save to database
-      submitFinalProgress(resultModal.percentage);
+      // Single step, single repetition
+      const detailsString = `${activeQuestion!.subLabel}|نجح ${resultModal.percentage}%`;
+      submitFinalProgress(resultModal.percentage, detailsString, '');
     }
   };
 
-  const submitFinalProgress = async (finalPct: number, reason: string = '') => {
+  const submitFinalProgress = async (finalPct: number, detailsOverride?: string, repInfoOverride?: string) => {
     setSaving(true);
     try {
       const templateCanvas = templateCanvasRef.current;
@@ -527,8 +921,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         }
       }
 
-      const detailsStr = reason ? `${activeQuestion!.subLabel} | ${reason}` : `${activeQuestion!.subLabel} | نجح ${finalPct}%`;
-      const repInfo = `${currentRepetition + 1} / ${activeQuestion!.requiredRepetitions}`;
+      const detailsStr = detailsOverride || `${activeQuestion!.subLabel} | نجح ${finalPct}%`;
+      const repInfo = repInfoOverride || `${currentRepetition + 1} / ${activeQuestion!.requiredRepetitions}`;
 
       await callGasApi('saveProgress', {
         studentId: student.id,
@@ -540,26 +934,36 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         imageData: b64Image,
       });
 
-      // Show motivational congratulations
-      alert(`عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة ${finalPct}%!`);
+      // Refresh completed status in real-time
+      fetchDrawingResults();
 
-      // Check if more repetitions are required
-      if (currentRepetition < activeQuestion!.requiredRepetitions - 1) {
-        setCurrentRepetition((prev) => prev + 1);
-        // Clear strokes for next repetition
-        setStrokesPerStep(Array.from({ length: activeQuestion!.imageUrls.length }, () => []));
-        setCurrentStep(0);
-      } else {
-        // Jump to next calligraphy model in lesson if any
-        if (activeQuestionIndex < activeLesson!.questions.length - 1) {
-          setActiveQuestionIndex((prev) => prev + 1);
-        } else {
-          alert('تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉');
-          onBack();
+      // Show motivational congratulations
+      setCustomAlert({
+        message: `عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة ${finalPct}%!`,
+        type: 'success',
+        title: 'تم الحفظ بنجاح',
+        onClose: () => {
+          // Jump to next calligraphy model in lesson if any
+          if (activeQuestionIndex < activeLesson!.questions.length - 1) {
+            setActiveQuestionIndex((prev) => prev + 1);
+          } else {
+            setCustomAlert({
+              message: 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉',
+              type: 'success',
+              title: 'إنجاز رائع',
+              onClose: () => {
+                setActiveLessonIndex(-1);
+              }
+            });
+          }
         }
-      }
+      });
     } catch (err: any) {
-      alert(`تعذر حفظ أدائك: ${err.message}`);
+      setCustomAlert({
+        message: `تعذر حفظ أدائك: ${err.message}`,
+        type: 'error',
+        title: 'خطأ في الحفظ'
+      });
     } finally {
       setSaving(false);
     }
@@ -663,39 +1067,97 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
         {/* Tab content */}
         {activeTab === 'lessons' ? (
-          /* Lessons List - Sleek Vertical Stack */
-          <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100 overflow-hidden shadow-sm">
-            {lessons.map((lesson, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-4 md:p-5 hover:bg-slate-50/75 transition gap-4 text-right"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl shrink-0">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <h3 className="font-bold text-slate-900 font-sans text-base md:text-lg">
-                    {lesson.label}
-                  </h3>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setActiveLessonIndex(idx);
-                    setActiveQuestionIndex(0);
-                    setCurrentStep(0);
-                    setStrokesPerStep([]);
-                    setCurrentRepetition(0);
-                    setRestartCount(0);
-                    setResultModal(null);
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm shrink-0"
-                >
-                  فتح الدرس
-                  <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
-                </button>
+          <div className="space-y-4">
+            {/* Toggle Switch for Completed Lessons */}
+            <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس الخط</h4>
+                <p className="text-[11px] text-slate-500">
+                  يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+                </p>
               </div>
-            ))}
+              <button
+                onClick={() => {
+                  const newVal = !showCompleted;
+                  setShowCompleted(newVal);
+                  localStorage.setItem('draw_show_completed', String(newVal));
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 ${
+                  showCompleted
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                }`}
+              >
+                {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍🗨️' : 'إظهار الدروس المكتملة 👁️'}
+              </button>
+            </div>
+
+            {/* Lessons List - Sleek Vertical Stack */}
+            <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm divide-y divide-slate-100">
+              {visibleLessons.length > 0 ? (
+                visibleLessons.map((lesson) => {
+                  const originalIdx = lessons.findIndex((l) => l.label === lesson.label);
+                  const completedCount = lesson.questions.filter(q => q.isCompleted).length;
+                  const totalCount = lesson.questions.length;
+                  
+                  return (
+                    <div
+                      key={lesson.label}
+                      className={`flex flex-col sm:flex-row items-center justify-between p-5 hover:bg-slate-50/50 transition gap-4 text-right ${
+                        lesson.isCompleted ? 'bg-emerald-50/20 border-r-4 border-r-emerald-500' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                        <div className={`${lesson.isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-50 text-emerald-600'} p-2.5 rounded-xl shrink-0`}>
+                          <BookOpen className="w-5.5 h-5.5" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-slate-900 font-sans text-base">
+                              {lesson.label}
+                            </h3>
+                            {lesson.isCompleted && (
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shrink-0">
+                                مكتمل ✅
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-500 text-xs">
+                            تم إنجاز {completedCount} من أصل {totalCount} نموذج للرسم والخط ({Math.round(totalCount === 0 ? 0 : (completedCount / totalCount) * 100)}%)
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (originalIdx >= 0) {
+                            setActiveLessonIndex(originalIdx);
+                            setActiveQuestionIndex(0);
+                            setCurrentStep(0);
+                            setStrokesPerStep([]);
+                            setCurrentRepetition(0);
+                            setRestartCount(0);
+                            setResultModal(null);
+                          }
+                        }}
+                        className={`font-black px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0 w-full sm:w-auto justify-center ${
+                          lesson.isCompleted
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        }`}
+                      >
+                        {lesson.isCompleted ? 'مراجعة وإعادة الرسم 🔄' : 'بدء الدرس والتدريب ✍️'}
+                        <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-12 text-slate-400">
+                  <p className="text-sm font-bold">لا توجد دروس متوفرة مطابقة لخيار التصفية</p>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* History logs tab */
@@ -833,6 +1295,47 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Sidebar Controls Panel (Left or Right) */}
         <div className="lg:col-span-4 space-y-6">
+          {/* Models list inside active lesson */}
+          {activeLesson && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+              <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-emerald-600" />
+                نماذج هذا الدرس ({activeLesson.questions.length})
+              </h3>
+              <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1">
+                {activeLesson.questions.map((q, idx) => {
+                  const isQCompleted = isQuestionCompleted(activeLesson.label, q.subLabel, (q as any).isCompleted);
+                  const isActive = idx === activeQuestionIndex;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setActiveQuestionIndex(idx);
+                        setLessonStarted(false);
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-right transition text-sm ${
+                        isActive
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-extrabold'
+                          : isQCompleted
+                          ? 'bg-slate-50/50 border-slate-100 text-slate-500 hover:bg-slate-50'
+                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate">{q.subLabel}</span>
+                      {isQCompleted ? (
+                        <span className="text-emerald-600 font-bold text-xs flex items-center gap-1 shrink-0">
+                          مكتمل ✅
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs shrink-0">قيد الانتظار</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-6">
             <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2 flex items-center gap-2">
               <PenTool className="w-5 h-5 text-emerald-600" />
@@ -918,7 +1421,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               </button>
               <button
                 onClick={handleRestart}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold py-3 rounded-xl transition flex items-center justify-center gap-1.5"
+                disabled={activeQuestion && (currentMaxRestarts === 0 || restartCount >= currentMaxRestarts)}
+                className="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 text-sm font-bold py-3 rounded-xl transition flex items-center justify-center gap-1.5"
               >
                 <RotateCcw className="w-4 h-4" />
                 إعادة المحاولة
@@ -969,6 +1473,30 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               onTouchEnd={stopDrawing}
               className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
             />
+            {/* Start overlay when lesson not started */}
+            {!lessonStarted && (
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10 transition-all">
+                <h3 className="text-white text-lg font-black mb-2">تمرين محاكاة ورسم الخط</h3>
+                <p className="text-slate-300 text-xs max-w-[240px] mb-6 leading-relaxed">
+                  {activeQuestion && activeQuestion.requiredRepetitions > 1 && activeQuestion.imageUrls.length === 1
+                    ? `تحدي تكرار رسم النموذج لـ ${activeQuestion.requiredRepetitions} مرات متتالية بنسبة دقة لا تقل عن ${activeQuestion.requiredPercent}%.`
+                    : 'محاكاة رسم النموذج خطوة بخطوة بطريقة صحيحة ومتقنة.'}
+                </p>
+                <button
+                  onClick={() => {
+                    setLessonStarted(true);
+                    if (activeQuestion && activeQuestion.timeMinutes > 0) {
+                      setIsTimerActive(true);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm px-8 py-3 rounded-2xl shadow-lg transition active:scale-95 animate-pulse"
+                >
+                  {activeQuestion && activeQuestion.requiredRepetitions > 1 && activeQuestion.imageUrls.length === 1
+                    ? 'ابدأ التحدي! 🏆'
+                    : 'ابدأ التمرين ✍️'}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 mt-6 w-full max-w-[500px]">
@@ -980,8 +1508,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             </button>
             <button
               onClick={handleCheckDrawing}
-              disabled={saving}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-2"
+              disabled={saving || !lessonStarted}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-2"
             >
               {saving ? (
                 <>
@@ -1030,6 +1558,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               <p className="text-xs text-slate-400">
                 النسبة المطلوبة للنجاح هي {activeQuestion?.requiredPercent}%
               </p>
+              {(!resultModal.isSuccess && cancelCount >= currentMaxCancels) && (
+                <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-100 mt-2">
+                  {currentMaxCancels === 0 
+                    ? '⚠️ خيار إعادة محاولة الرسم غير متاح في هذا التمرين بطلب من المعلم. يجب عليك حفظ النتيجة والاستمرار.' 
+                    : '⚠️ لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم المسموح بها! يجب عليك الاستمرار بالنتيجة الحالية ومتابعة الأداء.'}
+                </p>
+              )}
             </div>
 
             {/* Progress Visual Bar */}
@@ -1043,18 +1578,20 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             </div>
 
             <div className="flex gap-3">
-              <button
-                onClick={() => setResultModal(null)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-xl transition text-sm"
-              >
-                إغلاق والمحاولة مجدداً
-              </button>
-              {resultModal.isSuccess && (
+              {(!resultModal.isSuccess && cancelCount < currentMaxCancels) && (
+                <button
+                  onClick={handleCancelResult}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-xl transition text-sm"
+                >
+                  إغلاق والمحاولة مجدداً
+                </button>
+              )}
+              {(resultModal.isSuccess || cancelCount >= currentMaxCancels) && (
                 <button
                   onClick={handleConfirmResult}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition text-sm shadow-md"
                 >
-                  استمر للخطوة التالية
+                  {resultModal.isSuccess ? 'استمر ومتابعة الأداء' : 'حفظ النتيجة والاستمرار ⚠️'}
                 </button>
               )}
             </div>
@@ -1070,6 +1607,51 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           onSelectExercise={onSelectExercise}
           currentExercise={ExerciseType.DRAWING}
         />
+      )}
+
+      {/* Custom alert notification modal */}
+      {customAlert && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fadeIn" dir="rtl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl border border-slate-100 p-8 text-center max-w-sm w-full space-y-6 shadow-2xl"
+          >
+            {customAlert.type === 'error' ? (
+              <div className="inline-flex bg-rose-50 p-4 rounded-full text-rose-600">
+                <AlertTriangle className="w-10 h-10" />
+              </div>
+            ) : customAlert.type === 'success' ? (
+              <div className="inline-flex bg-emerald-50 p-4 rounded-full text-emerald-600">
+                <CheckCircle className="w-10 h-10" />
+              </div>
+            ) : (
+              <div className="inline-flex bg-blue-50 p-4 rounded-full text-blue-600">
+                <BookOpenCheck className="w-10 h-10" />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-slate-900 font-sans">
+                {customAlert.title || (customAlert.type === 'error' ? 'تنبيه يا بطل! ⚠️' : 'تنبيه')}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                {customAlert.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                const onCloseCallback = customAlert.onClose;
+                setCustomAlert(null);
+                if (onCloseCallback) onCloseCallback();
+              }}
+              className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-3.5 rounded-2xl transition text-sm shadow-md active:scale-98"
+            >
+              موافق 👍
+            </button>
+          </motion.div>
+        </div>
       )}
     </div>
   );

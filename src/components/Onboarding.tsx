@@ -735,8 +735,8 @@ function getLetters(studentId) {
       var subLabel = row[textCol] ? row[textCol].toString().trim() : "";
       if (!subLabel) continue;
       
+      // Do not skip completed questions to allow reviewing and retrying them in the lessons list
       var fullLabel = lessonLabel + " - " + subLabel;
-      if (completedLabels.includes(fullLabel)) continue;
       
       var imageUrls = row[imageCol]
         ? row[imageCol].toString().trim().split(/[;؛,]/).map(function(p) { return normalizeDriveUrl(p.trim()); }).filter(function(u) { return u !== ""; })
