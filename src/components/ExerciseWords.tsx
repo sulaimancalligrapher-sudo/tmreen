@@ -36,6 +36,8 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
   const [activeCompletionBlankIds, setActiveCompletionBlankIds] = useState<string[]>([]); // map each blank to its selected letter ID
   const [showAnswerHint, setShowAnswerHint] = useState<boolean>(false);
   const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
+  const [loadingAudioSrc, setLoadingAudioSrc] = useState<string | null>(null);
+  const [detectedMediaType, setDetectedMediaType] = useState<Record<string, 'audio' | 'image'>>({});
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Fetch letters/topics
@@ -56,6 +58,117 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     }
     setPlayingAudioSrc(null);
   }, [activeQuestion, activeTopicRow]);
+
+  const determineTypeFromUrl = (url: string): 'audio' | 'image' | 'text' | 'unknown' => {
+    if (!url) return 'text';
+    const trimmed = url.trim();
+    const lowercase = trimmed.toLowerCase();
+    
+    if (lowercase.includes('#audio')) return 'audio';
+    if (lowercase.includes('#image')) return 'image';
+    if (lowercase.includes('#text')) return 'text';
+    
+    // If it is a google drive thumbnail or has sz=, it's definitely an image
+    if (lowercase.includes('thumbnail?id=') || lowercase.includes('&sz=') || lowercase.includes('?sz=')) {
+      return 'image';
+    }
+
+    if (
+      lowercase.endsWith('.mp3') ||
+      lowercase.endsWith('.wav') ||
+      lowercase.endsWith('.ogg') ||
+      lowercase.endsWith('.m4a') ||
+      lowercase.endsWith('.aac') ||
+      lowercase.includes('.mp3?') ||
+      lowercase.includes('.wav?') ||
+      lowercase.includes('.ogg?') ||
+      lowercase.includes('.m4a?') ||
+      lowercase.includes('.aac?')
+    ) {
+      return 'audio';
+    }
+    
+    if (
+      lowercase.endsWith('.png') ||
+      lowercase.endsWith('.jpg') ||
+      lowercase.endsWith('.jpeg') ||
+      lowercase.endsWith('.gif') ||
+      lowercase.endsWith('.webp') ||
+      lowercase.endsWith('.svg') ||
+      lowercase.includes('.png?') ||
+      lowercase.includes('.jpg?') ||
+      lowercase.includes('.jpeg?') ||
+      lowercase.includes('.gif?') ||
+      lowercase.includes('.webp?') ||
+      lowercase.includes('.svg?')
+    ) {
+      return 'image';
+    }
+    
+    return 'unknown';
+  };
+
+  const getGoogleDriveId = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    let id = '';
+    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
+    if (isGoogleDrive) {
+      if (trimmed.includes('/file/d/')) {
+        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0].split('#')[0];
+      } else if (trimmed.includes('open?id=')) {
+        id = trimmed.split('open?id=')[1].split('&')[0].split('#')[0];
+      } else if (trimmed.includes('id=')) {
+        id = trimmed.split('id=')[1].split('&')[0].split('#')[0];
+      }
+    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
+      id = trimmed;
+    }
+    return id;
+  };
+
+  const normalizeImageUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    const id = getGoogleDriveId(trimmed);
+    
+    if (id) {
+      // Use Google Drive's public thumbnail URL directly (high-quality sz=w1200) - loads instantly and bypasses proxy!
+      return `https://drive.google.com/thumbnail?id=${id}&sz=w1200`;
+    }
+    return trimmed;
+  };
+
+  useEffect(() => {
+    if (!activeQuestion || !activeQuestion.media) return;
+    const url = activeQuestion.media.trim();
+    if (!url) return;
+    if (detectedMediaType[url]) return;
+
+    const determined = determineTypeFromUrl(url);
+    if (determined !== 'unknown') {
+      setDetectedMediaType(prev => ({ ...prev, [url]: determined === 'audio' ? 'audio' : 'image' }));
+      return;
+    }
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const normalized = normalizeAudioUrl(url);
+      fetch(normalized, { method: 'HEAD' })
+        .then(res => {
+          const ct = res.headers.get('content-type') || '';
+          if (ct.startsWith('image/')) {
+            setDetectedMediaType(prev => ({ ...prev, [url]: 'image' }));
+          } else if (ct.startsWith('audio/')) {
+            setDetectedMediaType(prev => ({ ...prev, [url]: 'audio' }));
+          } else {
+            setDetectedMediaType(prev => ({ ...prev, [url]: 'image' })); // Default fallback to image in words spelling
+          }
+        })
+        .catch(() => {
+          setDetectedMediaType(prev => ({ ...prev, [url]: 'image' }));
+        });
+    }
+  }, [activeQuestion, activeQuestion?.media]);
 
   const fetchLessonTopics = async () => {
     try {
@@ -268,15 +381,27 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     if (!url) return '';
     const trimmed = url.trim();
     let id = '';
-    if (trimmed.includes('/file/d/')) {
-      id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
-    } else if (trimmed.includes('open?id=')) {
-      id = trimmed.split('open?id=')[1].split('&')[0];
-    } else if (trimmed.includes('drive.google.com/uc?id=')) {
-      return trimmed;
+    
+    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
+    
+    if (isGoogleDrive) {
+      if (trimmed.includes('/file/d/')) {
+        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
+      } else if (trimmed.includes('open?id=')) {
+        id = trimmed.split('open?id=')[1].split('&')[0];
+      } else if (trimmed.includes('id=')) {
+        id = trimmed.split('id=')[1].split('&')[0];
+      }
+    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
+      // Raw Google Drive file ID
+      id = trimmed;
     }
+    
     if (id) {
-      return `https://drive.google.com/uc?id=${id}&export=download`;
+      return `/api/proxy-audio?id=${id}`;
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return `/api/proxy-audio?url=${encodeURIComponent(trimmed)}`;
     }
     return trimmed;
   };
@@ -290,6 +415,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
         currentAudioRef.current = null;
       }
       setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
       return;
     }
 
@@ -298,14 +424,31 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     }
 
     setPlayingAudioSrc(url);
+    setLoadingAudioSrc(url);
     const audio = new Audio(normalizedUrl);
     audio.volume = 0.8;
     currentAudioRef.current = audio;
 
-    audio.play().catch((err) => console.error('Error playing audio:', err));
+    audio.addEventListener('playing', () => {
+      setLoadingAudioSrc(null);
+    });
+
+    audio.play().catch((err) => {
+      console.error('Error playing audio:', err);
+      setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
+    });
+
+    audio.addEventListener('error', (e) => {
+      console.error('Audio error event:', e);
+      setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
+      currentAudioRef.current = null;
+    });
 
     audio.addEventListener('ended', () => {
       setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
       currentAudioRef.current = null;
     });
   };
@@ -457,30 +600,50 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
             </h2>
 
             {/* Render audio or image Media attachment */}
-            {activeQuestion.media.trim() && (
-              <div className="inline-flex">
-                {activeQuestion.media.match(/\.(mp3|wav|ogg|m4a)/i) ||
-                activeQuestion.media.includes('drive.google.com') ||
-                activeQuestion.media.includes('/uc?id=') ? (
-                  <button
-                    onClick={() => playAudioMedia(activeQuestion.media)}
-                    className="bg-slate-950 text-white font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 transition flex items-center gap-2 shadow cursor-pointer"
-                  >
-                    <Volume2 className="w-5 h-5 text-amber-400" />
-                    {playingAudioSrc === activeQuestion.media ? '⏸️ إيقاف الصوت' : 'استمع للمقطع الصوتي 🔊'}
-                  </button>
-                ) : (
-                  <div className="bg-white p-2 rounded-2xl shadow-md border border-slate-100">
+            {activeQuestion.media.trim() && (() => {
+              const url = activeQuestion.media.trim();
+              const isAudio = detectedMediaType[url] === 'audio' || 
+                (detectedMediaType[url] === undefined && (
+                  !!url.toLowerCase().match(/\.(mp3|wav|ogg|m4a)/i) ||
+                  url.toLowerCase().includes('#audio')
+                ));
+              
+              if (isAudio) {
+                return (
+                  <div className="inline-flex">
+                    <button
+                      onClick={() => playAudioMedia(url)}
+                      className="bg-slate-950 text-white font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 transition flex items-center gap-2 shadow cursor-pointer min-w-[200px] justify-center"
+                    >
+                      {loadingAudioSrc === url ? (
+                        <>
+                          <span className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
+                          <span>جاري تحميل الصوت...</span>
+                        </>
+                      ) : playingAudioSrc === url ? (
+                        <span>⏸️ إيقاف الصوت</span>
+                      ) : (
+                        <>
+                          <Volume2 className="w-5 h-5 text-amber-400" />
+                          <span>استمع للمقطع الصوتي 🔊</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="inline-flex bg-white p-2 rounded-2xl shadow-md border border-slate-100">
                     <img
-                      src={activeQuestion.media}
+                      src={normalizeImageUrl(url)}
                       alt="مرفق السؤال"
                       className="max-h-48 object-contain rounded-xl max-w-xs cursor-zoom-in"
-                      onClick={() => window.open(activeQuestion.media, '_blank')}
+                      onClick={() => window.open(normalizeImageUrl(url), '_blank')}
                     />
                   </div>
-                )}
-              </div>
-            )}
+                );
+              }
+            })()}
           </div>
 
           {/* Connected Cursive Display Output Area */}

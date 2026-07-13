@@ -31,6 +31,118 @@ interface ClientRightItem {
   item: ShuffledRightItem;
 }
 
+class SoundEffects {
+  private static ctx: AudioContext | null = null;
+
+  private static init() {
+    if (!this.ctx) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        this.ctx = new AudioCtxClass();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    return this.ctx;
+  }
+
+  // Soft, clean sound when a connection is made
+  public static playConnect(volume: number = 0.8) {
+    try {
+      const ctx = this.init();
+      if (!ctx) return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      // Play a short pleasant rising chime
+      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+
+      gain.gain.setValueAtTime(0.15 * volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {
+      console.warn("Sound effect error:", e);
+    }
+  }
+
+  // Harmonious, cheerful sound when all connected items are correct
+  public static playSuccess(volume: number = 0.8) {
+    try {
+      const ctx = this.init();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      // Arpeggio of major triad (C major: C5, E5, G5, C6)
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.2 * volume, now + idx * 0.08 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.35);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 0.35);
+      });
+    } catch (e) {
+      console.warn("Sound effect error:", e);
+    }
+  }
+
+  // Soft warning double-beep sound when there are errors
+  public static playFailure(volume: number = 0.8) {
+    try {
+      const ctx = this.init();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const beeps = [0, 0.12];
+
+      beeps.forEach((delay) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth'; // Slightly buzzy but softened by lowpass
+        osc.frequency.setValueAtTime(180, now + delay); // low warning tone
+
+        // Lowpass filter to make it gentle and less harsh
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, now + delay);
+
+        gain.gain.setValueAtTime(0.12 * volume, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.1);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.1);
+      });
+    } catch (e) {
+      console.warn("Sound effect error:", e);
+    }
+  }
+}
+
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -61,6 +173,8 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const [activeResults, setActiveResults] = useState<string>('');
   const [checked, setChecked] = useState(false);
   const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
+  const [loadingAudioSrc, setLoadingAudioSrc] = useState<string | null>(null);
+  const [detectedMediaType, setDetectedMediaType] = useState<Record<string, 'audio' | 'image' | 'text'>>({});
   const [volume, setVolume] = useState<number>(0.8);
   const [lessonAnswers, setLessonAnswers] = useState<string[]>(new Array(10).fill(''));
 
@@ -80,6 +194,178 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const dragStartId = useRef<string | null>(null);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
   const [currentLinePos, setCurrentLinePos] = useState<{ x: number; y: number } | null>(null);
+
+  const determineTypeFromUrl = (url: string): 'audio' | 'image' | 'text' | 'unknown' => {
+    if (!url) return 'text';
+    const trimmed = url.trim();
+    const lowercase = trimmed.toLowerCase();
+    
+    if (lowercase.includes('#audio')) return 'audio';
+    if (lowercase.includes('#image')) return 'image';
+    if (lowercase.includes('#text')) return 'text';
+    
+    // If it is a google drive thumbnail or has sz=, it's definitely an image
+    if (lowercase.includes('thumbnail?id=') || lowercase.includes('&sz=') || lowercase.includes('?sz=')) {
+      return 'image';
+    }
+
+    if (
+      lowercase.endsWith('.mp3') ||
+      lowercase.endsWith('.wav') ||
+      lowercase.endsWith('.ogg') ||
+      lowercase.endsWith('.m4a') ||
+      lowercase.endsWith('.aac') ||
+      lowercase.includes('.mp3?') ||
+      lowercase.includes('.wav?') ||
+      lowercase.includes('.ogg?') ||
+      lowercase.includes('.m4a?') ||
+      lowercase.includes('.aac?')
+    ) {
+      return 'audio';
+    }
+    
+    if (
+      lowercase.endsWith('.png') ||
+      lowercase.endsWith('.jpg') ||
+      lowercase.endsWith('.jpeg') ||
+      lowercase.endsWith('.gif') ||
+      lowercase.endsWith('.webp') ||
+      lowercase.endsWith('.svg') ||
+      lowercase.includes('.png?') ||
+      lowercase.includes('.jpg?') ||
+      lowercase.includes('.jpeg?') ||
+      lowercase.includes('.gif?') ||
+      lowercase.includes('.webp?') ||
+      lowercase.includes('.svg?')
+    ) {
+      return 'image';
+    }
+    
+    return 'unknown';
+  };
+
+  const getItemRenderType = (item: { type: string; value: string }): 'audio' | 'image' | 'text' => {
+    const val = item.value ? item.value.trim() : '';
+    if (!val) return 'text';
+
+    // 1. If type has been dynamically detected or explicitly mapped, use it FIRST!
+    if (detectedMediaType[val]) {
+      return detectedMediaType[val];
+    }
+
+    // 2. Check for explicit hash overrides inside the value itself
+    const lowercaseVal = val.toLowerCase();
+    if (lowercaseVal.includes('#audio')) return 'audio';
+    if (lowercaseVal.includes('#image')) return 'image';
+    if (lowercaseVal.includes('#text')) return 'text';
+
+    // 3. Fall back to rawType check - if explicitly specified in database, ALWAYS trust it!
+    const lowercaseType = item.type ? item.type.toLowerCase().trim() : '';
+    if (lowercaseType === 'audio' || lowercaseType === 'صوت') return 'audio';
+    if (lowercaseType === 'image' || lowercaseType === 'صورة') return 'image';
+    if (lowercaseType === 'text' || lowercaseType === 'نص') return 'text';
+
+    // 4. Fall back to determineTypeFromUrl
+    const determined = determineTypeFromUrl(val);
+    if (determined !== 'unknown') return determined;
+
+    // 5. Default heuristics for URLs
+    if (val.startsWith('http://') || val.startsWith('https://')) {
+      if (val.includes('drive.google.com') || val.includes('docs.google.com')) {
+        return 'audio'; // default Google Drive to audio initially
+      }
+      return 'image';
+    }
+
+    return 'text';
+  };
+
+  const getGoogleDriveId = (url: string): string => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    let id = '';
+    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
+    if (isGoogleDrive) {
+      if (trimmed.includes('/file/d/')) {
+        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0].split('#')[0];
+      } else if (trimmed.includes('open?id=')) {
+        id = trimmed.split('open?id=')[1].split('&')[0].split('#')[0];
+      } else if (trimmed.includes('id=')) {
+        id = trimmed.split('id=')[1].split('&')[0].split('#')[0];
+      }
+    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
+      id = trimmed;
+    }
+    return id;
+  };
+
+  const normalizeImageUrl = (url: string): string => {
+    if (!url) return '';
+    const trimmed = stripUrlHash(url.trim());
+    const id = getGoogleDriveId(trimmed);
+    
+    if (id) {
+      // Use Google Drive's public thumbnail URL directly (high-quality sz=w1200) - loads instantly and bypasses proxy!
+      return `https://drive.google.com/thumbnail?id=${id}&sz=w1200`;
+    }
+    return trimmed;
+  };
+
+  useEffect(() => {
+    if (!activeQuestion) return;
+
+    const itemsToCheck = [
+      ...activeQuestion.leftItems,
+      ...activeQuestion.shuffledRight
+    ];
+
+    itemsToCheck.forEach(item => {
+      const url = item.value ? item.value.trim() : '';
+      if (!url) return;
+      if (detectedMediaType[url]) return;
+
+      // Prioritize explicit item types immediately to prevent unnecessary HEAD requests
+      const rawType = item.type ? item.type.toLowerCase().trim() : '';
+      if (rawType === 'audio' || rawType === 'صوت') {
+        setDetectedMediaType(prev => ({ ...prev, [url]: 'audio' }));
+        return;
+      }
+      if (rawType === 'image' || rawType === 'صورة') {
+        setDetectedMediaType(prev => ({ ...prev, [url]: 'image' }));
+        return;
+      }
+      if (rawType === 'text' || rawType === 'نص') {
+        setDetectedMediaType(prev => ({ ...prev, [url]: 'text' }));
+        return;
+      }
+
+      const determined = determineTypeFromUrl(url);
+      if (determined !== 'unknown') {
+        setDetectedMediaType(prev => ({ ...prev, [url]: determined }));
+        return;
+      }
+
+      // If it's a web URL but we don't know the type, fetch HEAD to inspect Content-Type
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        const normalized = normalizeAudioUrl(url);
+        fetch(normalized, { method: 'HEAD' })
+          .then(res => {
+            const ct = res.headers.get('content-type') || '';
+            if (ct.startsWith('image/')) {
+              setDetectedMediaType(prev => ({ ...prev, [url]: 'image' }));
+            } else if (ct.startsWith('audio/')) {
+              setDetectedMediaType(prev => ({ ...prev, [url]: 'audio' }));
+            } else {
+              // If it's a valid URL, default to audio rather than raw text link
+              setDetectedMediaType(prev => ({ ...prev, [url]: 'audio' }));
+            }
+          })
+          .catch(() => {
+            setDetectedMediaType(prev => ({ ...prev, [url]: 'audio' }));
+          });
+      }
+    });
+  }, [activeQuestion, activeQuestionIndex, activeLessonIndex]);
 
   useEffect(() => {
     fetchMatchingLessons();
@@ -106,15 +392,21 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       return;
     }
 
-    const lefts: ClientLeftItem[] = activeQuestion.leftItems.map((item, idx) => ({
-      id: (idx + 1).toString(),
-      item
-    }));
+    const lefts: ClientLeftItem[] = activeQuestion.leftItems.map((item, idx) => {
+      const parsed = getItemTypeAndValue(item.type, item.value);
+      return {
+        id: (idx + 1).toString(),
+        item: parsed
+      };
+    });
 
-    const rights: ClientRightItem[] = activeQuestion.shuffledRight.map((item, idx) => ({
-      id: activeQuestion.rightIds[idx],
-      item
-    }));
+    const rights: ClientRightItem[] = activeQuestion.shuffledRight.map((item, idx) => {
+      const parsed = getItemTypeAndValue(item.type, item.value);
+      return {
+        id: activeQuestion.rightIds[idx],
+        item: parsed
+      };
+    });
 
     setShuffledLeftItems(shuffleArray(lefts));
     setShuffledRightItems(shuffleArray(rights));
@@ -183,10 +475,10 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     const correctMatches = activeQuestion ? JSON.parse(activeQuestion.correctMatches) : {};
 
     // Render active drag line
-    if (dragStartPos.current && currentLinePos.current) {
+    if (dragStartPos.current && currentLinePos) {
       ctx.beginPath();
       ctx.moveTo(dragStartPos.current.x, dragStartPos.current.y);
-      ctx.lineTo(currentLinePos.current.x, currentLinePos.current.y);
+      ctx.lineTo(currentLinePos.x, currentLinePos.y);
       ctx.strokeStyle = '#94a3b8'; // neutral slate
       ctx.lineWidth = 3;
       ctx.setLineDash([5, 5]);
@@ -301,6 +593,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           const filtered = prev.filter((c) => c.leftId !== lid);
           return [...filtered, { leftId: lid, rightId: rid }];
         });
+        SoundEffects.playConnect(volume);
       }
 
       dragStartId.current = null;
@@ -320,7 +613,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       window.removeEventListener('mouseup', handleGlobalEnd);
       window.removeEventListener('touchend', handleGlobalEnd);
     };
-  }, [connections, activeQuestion, checked]);
+  }, [connections, activeQuestion, checked, volume]);
 
   // Touch and Mouse Event Helpers to start connection
   const handleStartDraw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, leftId: string) => {
@@ -344,32 +637,128 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     setCurrentLinePos({ x: startX, y: startY });
   };
 
+  const stripUrlHash = (url: string): string => {
+    if (!url) return '';
+    const hashIdx = url.indexOf('#');
+    return hashIdx !== -1 ? url.substring(0, hashIdx) : url;
+  };
+
+  const getItemTypeAndValue = (rawType: string, value: string): { type: 'audio' | 'image' | 'text'; value: string } => {
+    const trimmed = value ? value.trim() : '';
+    if (!trimmed) return { type: 'text', value: '' };
+
+    const lowercase = trimmed.toLowerCase();
+    
+    // 1. Check for explicit hash overrides inside the value itself (Highest priority!)
+    if (lowercase.includes('#audio')) {
+      return { type: 'audio', value: stripUrlHash(trimmed) };
+    }
+    if (lowercase.includes('#image')) {
+      return { type: 'image', value: stripUrlHash(trimmed) };
+    }
+    if (lowercase.includes('#text')) {
+      return { type: 'text', value: stripUrlHash(trimmed) };
+    }
+
+    // 2. Check if rawType from spreadsheet is explicitly specified
+    if (rawType) {
+      const rt = rawType.toLowerCase().trim();
+      if (rt === 'audio' || rt === 'صوت') {
+        return { type: 'audio', value: trimmed };
+      }
+      if (rt === 'image' || rt === 'صورة') {
+        return { type: 'image', value: trimmed };
+      }
+      if (rt === 'text' || rt === 'نص') {
+        return { type: 'text', value: trimmed };
+      }
+    }
+
+    // 3. If it's a web URL
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      // Check audio extensions
+      if (
+        lowercase.endsWith('.mp3') ||
+        lowercase.endsWith('.wav') ||
+        lowercase.endsWith('.ogg') ||
+        lowercase.endsWith('.m4a') ||
+        lowercase.endsWith('.aac') ||
+        lowercase.includes('.mp3?') ||
+        lowercase.includes('.wav?') ||
+        lowercase.includes('.ogg?') ||
+        lowercase.includes('.m4a?') ||
+        lowercase.includes('.aac?')
+      ) {
+        return { type: 'audio', value: trimmed };
+      }
+
+      // Check image extensions
+      if (
+        lowercase.endsWith('.png') ||
+        lowercase.endsWith('.jpg') ||
+        lowercase.endsWith('.jpeg') ||
+        lowercase.endsWith('.gif') ||
+        lowercase.endsWith('.webp') ||
+        lowercase.endsWith('.svg') ||
+        lowercase.includes('.png?') ||
+        lowercase.includes('.jpg?') ||
+        lowercase.includes('.jpeg?') ||
+        lowercase.includes('.gif?') ||
+        lowercase.includes('.webp?') ||
+        lowercase.includes('.svg?')
+      ) {
+        return { type: 'image', value: trimmed };
+      }
+
+      // Check Google Drive audio indicators.
+      // Since Google Drive audio is extremely common for matching and might not have audio extensions,
+      // we default any other Google Drive link to audio unless it has an image extension above.
+      if (
+        lowercase.includes('drive.google.com') ||
+        lowercase.includes('docs.google.com') ||
+        lowercase.includes('/uc?id=') ||
+        lowercase.includes('export=download')
+      ) {
+        return { type: 'audio', value: trimmed };
+      }
+
+      // By default, if it's a URL but didn't match anything else, we can fallback to image
+      return { type: 'image', value: trimmed };
+    }
+
+    // 4. Otherwise, treat as pure text
+    return { type: 'text', value: trimmed };
+  };
+
   const isAudioUrl = (url: string): boolean => {
-    if (!url) return false;
-    const lowercase = url.toLowerCase().trim();
-    return (
-      lowercase.endsWith('.mp3') ||
-      lowercase.endsWith('.wav') ||
-      lowercase.endsWith('.ogg') ||
-      lowercase.endsWith('.m4a') ||
-      lowercase.includes('drive.google.com') ||
-      lowercase.includes('/uc?id=')
-    );
+    return getItemTypeAndValue('', url).type === 'audio';
   };
 
   const normalizeAudioUrl = (url: string): string => {
     if (!url) return '';
-    const trimmed = url.trim();
+    let trimmed = stripUrlHash(url.trim());
     let id = '';
-    if (trimmed.includes('/file/d/')) {
-      id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
-    } else if (trimmed.includes('open?id=')) {
-      id = trimmed.split('open?id=')[1].split('&')[0];
-    } else if (trimmed.includes('drive.google.com/uc?id=')) {
-      return trimmed;
+    
+    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
+    
+    if (isGoogleDrive) {
+      if (trimmed.includes('/file/d/')) {
+        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
+      } else if (trimmed.includes('open?id=')) {
+        id = trimmed.split('open?id=')[1].split('&')[0];
+      } else if (trimmed.includes('id=')) {
+        id = trimmed.split('id=')[1].split('&')[0];
+      }
+    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
+      // Raw Google Drive file ID
+      id = trimmed;
     }
+    
     if (id) {
-      return `https://drive.google.com/uc?id=${id}&export=download`;
+      return `/api/proxy-audio?id=${id}`;
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return `/api/proxy-audio?url=${encodeURIComponent(trimmed)}`;
     }
     return trimmed;
   };
@@ -383,6 +772,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
         currentAudioRef.current = null;
       }
       setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
       return;
     }
 
@@ -392,14 +782,38 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     }
 
     setPlayingAudioSrc(url);
+    setLoadingAudioSrc(url);
     const audio = new Audio(normalizedUrl);
     audio.volume = volume;
     currentAudioRef.current = audio;
 
-    audio.play().catch(err => console.error("Error playing audio:", err));
+    audio.addEventListener('playing', () => {
+      setLoadingAudioSrc(null);
+    });
+
+    audio.play().catch(err => {
+      console.error("Error playing audio:", err);
+      if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+        alert("تنبيه: تعذر تشغيل الملف الصوتي من Google Drive.\nيرجى التأكد من أن الملف الصوتي مشترك بصيغة 'أي شخص لديه الرابط' (Anyone with the link can view) في حساب Google Drive الخاص بك.");
+      }
+      setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
+      currentAudioRef.current = null;
+    });
+
+    audio.addEventListener('error', (e) => {
+      console.error("Audio error event:", e);
+      if (url.includes('drive.google.com') || url.includes('docs.google.com')) {
+        alert("تنبيه: تعذر تحميل أو تشغيل الملف الصوتي من Google Drive.\nيرجى التأكد من أن الملف الصوتي مشترك بصيغة 'أي شخص لديه الرابط' (Anyone with the link can view) في حساب Google Drive الخاص بك وأن الرابط صحيح.");
+      }
+      setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
+      currentAudioRef.current = null;
+    });
 
     audio.addEventListener('ended', () => {
       setPlayingAudioSrc(null);
+      setLoadingAudioSrc(null);
       currentAudioRef.current = null;
     });
   };
@@ -422,6 +836,12 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
     setActiveResults(resultText);
     setChecked(true);
+
+    if (errors === 0) {
+      SoundEffects.playSuccess(volume);
+    } else {
+      SoundEffects.playFailure(volume);
+    }
 
     // Save score to Google Sheets
     setSaving(true);
@@ -804,55 +1224,83 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
               {/* Left node cards */}
               <div ref={leftItemsContainerRef} className="space-y-6 flex flex-col justify-center">
                 <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الأولى (انقر واسحب للتوصيل)</span>
-                {shuffledLeftItems.map(({ id, item }) => (
-                  <div
-                    key={id}
-                    data-id={id}
-                    onMouseDown={(e) => handleStartDraw(e, id)}
-                    onTouchStart={(e) => handleStartDraw(e, id)}
-                    className={getLeftCardClassName(id)}
-                  >
-                    {item.type === 'audio' || isAudioUrl(item.value) ? (
-                      <button
-                        onClick={() => handlePlayAudio(item.value)}
-                        className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition"
-                      >
-                        <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
-                        {playingAudioSrc === item.value ? '⏸️ إيقاف' : '▶️ استمع'}
-                      </button>
-                    ) : item.type === 'image' ? (
-                      <img src={item.value} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
-                    ) : (
-                      item.value
-                    )}
-                  </div>
-                ))}
+                {shuffledLeftItems.map(({ id, item }) => {
+                  const renderType = getItemRenderType(item);
+                  return (
+                    <div
+                      key={id}
+                      data-id={id}
+                      onMouseDown={(e) => handleStartDraw(e, id)}
+                      onTouchStart={(e) => handleStartDraw(e, id)}
+                      className={getLeftCardClassName(id)}
+                    >
+                      {renderType === 'audio' ? (
+                        <button
+                          onClick={() => handlePlayAudio(item.value)}
+                          className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition min-w-[75px] justify-center"
+                        >
+                          {loadingAudioSrc === item.value ? (
+                            <>
+                              <span className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
+                              <span className="text-[10px]">تحميل...</span>
+                            </>
+                          ) : playingAudioSrc === item.value ? (
+                            '⏸️ إيقاف'
+                          ) : (
+                            <>
+                              <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
+                              <span>▶️ استمع</span>
+                            </>
+                          )}
+                        </button>
+                      ) : renderType === 'image' ? (
+                        <img src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                      ) : (
+                        item.value
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Right node cards */}
               <div ref={rightItemsContainerRef} className="space-y-6 flex flex-col justify-center">
                 <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الثانية (مستقبل الوصلة)</span>
-                {shuffledRightItems.map(({ id, item }) => (
-                  <div
-                    key={id}
-                    data-id={id}
-                    className={getRightCardClassName(id)}
-                  >
-                    {item.type === 'audio' || isAudioUrl(item.value) ? (
-                      <button
-                        onClick={() => handlePlayAudio(item.value)}
-                        className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition"
-                      >
-                        <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
-                        {playingAudioSrc === item.value ? '⏸️ إيقاف' : '▶️ استمع'}
-                      </button>
-                    ) : item.type === 'image' ? (
-                      <img src={item.value} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
-                    ) : (
-                      item.value
-                    )}
-                  </div>
-                ))}
+                {shuffledRightItems.map(({ id, item }) => {
+                  const renderType = getItemRenderType(item);
+                  return (
+                    <div
+                      key={id}
+                      data-id={id}
+                      className={getRightCardClassName(id)}
+                    >
+                      {renderType === 'audio' ? (
+                        <button
+                          onClick={() => handlePlayAudio(item.value)}
+                          className="play-btn bg-slate-900 text-white font-bold px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs flex items-center gap-1.5 cursor-pointer hover:bg-slate-800 transition min-w-[75px] justify-center"
+                        >
+                          {loadingAudioSrc === item.value ? (
+                            <>
+                              <span className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
+                              <span className="text-[10px]">تحميل...</span>
+                            </>
+                          ) : playingAudioSrc === item.value ? (
+                            '⏸️ إيقاف'
+                          ) : (
+                            <>
+                              <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400" />
+                              <span>▶️ استمع</span>
+                            </>
+                          )}
+                        </button>
+                      ) : renderType === 'image' ? (
+                        <img src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                      ) : (
+                        item.value
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
