@@ -740,8 +740,10 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     const id = getGoogleDriveId(trimmed);
     
     if (id) {
-      // Direct high-performance Google Drive stream/download link that bypasses any local proxies
-      return `https://docs.google.com/uc?export=download&id=${id}`;
+      return `/api/proxy-audio?id=${id}`;
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return `/api/proxy-audio?url=${encodeURIComponent(trimmed)}`;
     }
     return trimmed;
   };

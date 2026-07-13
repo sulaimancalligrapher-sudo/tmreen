@@ -384,8 +384,10 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     const id = getGoogleDriveId(cleanUrl);
     
     if (id) {
-      // Direct high-performance Google Drive stream/download link that bypasses any local proxies
-      return `https://docs.google.com/uc?export=download&id=${id}`;
+      return `/api/proxy-audio?id=${id}`;
+    }
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return `/api/proxy-audio?url=${encodeURIComponent(cleanUrl)}`;
     }
     return cleanUrl;
   };
