@@ -1435,22 +1435,6 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
         {/* Dynamic Controls Header */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Timer Display */}
-          {activeQuestion && activeQuestion.timeMinutes > 0 && (
-            <div className="bg-rose-50 text-rose-800 border border-rose-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
-              <Clock className="w-4 h-4" />
-              <span>الوقت المتبقي: {formatTimer(remainingTime)}</span>
-            </div>
-          )}
-
-          {/* Repetition Progress */}
-          {activeQuestion && activeQuestion.requiredRepetitions > 1 && (
-            <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
-              <Layers className="w-4 h-4" />
-              <span>التكرار: {currentRepetition + 1} / {activeQuestion.requiredRepetitions}</span>
-            </div>
-          )}
-
           {/* Steps Progress */}
           {activeQuestion && (activeQuestion.imageUrls || []).length > 1 && (
             <div className="bg-amber-50 text-amber-800 border border-amber-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
@@ -1483,149 +1467,215 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         {/* Sidebar Controls Panel (Left or Right) */}
         <div className="lg:col-span-4 space-y-6">
           {/* Models list inside active lesson */}
-          {activeLesson && (
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2 flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-emerald-600" />
-                نماذج هذا الدرس ({activeLesson.questions.length})
-              </h3>
-              <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-1">
-                {activeLesson.questions.map((q, idx) => {
-                  const isQCompleted = isQuestionCompleted(activeLesson.label, q.subLabel, (q as any).isCompleted);
-                  const isActive = idx === activeQuestionIndex;
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setActiveQuestionIndex(idx);
-                        setLessonStarted(false);
-                      }}
-                      className={`flex items-center justify-between p-3 rounded-xl border text-right transition text-sm ${
-                        isActive
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-extrabold'
-                          : isQCompleted
-                          ? 'bg-slate-50/50 border-slate-100 text-slate-500 hover:bg-slate-50'
-                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="truncate">{q.subLabel}</span>
-                      {isQCompleted ? (
-                        <span className="text-emerald-600 font-bold text-xs flex items-center gap-1 shrink-0">
-                          مكتمل ✅
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-xs shrink-0">قيد الانتظار</span>
+          {activeLesson && (() => {
+            const totalQuestions = activeLesson.questions.length;
+            const completedQuestionsCount = activeLesson.questions.filter((q) =>
+              isQuestionCompleted(activeLesson.label, q.subLabel, (q as any).isCompleted)
+            ).length;
+
+            // Split questions into rows of 5
+            const questionRows: any[][] = [];
+            for (let i = 0; i < totalQuestions; i += 5) {
+              questionRows.push(activeLesson.questions.slice(i, i + 5).map((q, localIdx) => ({
+                question: q,
+                globalIndex: i + localIdx
+              })));
+            }
+
+            return (
+              <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4" dir="rtl">
+                <div className="border-b border-slate-50 pb-2.5">
+                  <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm">
+                    <BookOpen className="w-4.5 h-4.5 text-emerald-600" />
+                    <span>هذا الدرس فيه ({totalQuestions}) وقد تم ({completedQuestionsCount})</span>
+                  </h3>
+                </div>
+
+                <div className="space-y-4 py-1">
+                  {questionRows.map((row, rowIdx) => (
+                    <div key={rowIdx} className="relative flex items-center justify-between w-full px-2">
+                      {/* Connection Line behind the circles for this row */}
+                      {row.length > 1 && (
+                        <div className="absolute top-1/2 left-6 right-6 h-1 bg-slate-100 -translate-y-1/2 z-0 rounded-full" />
                       )}
-                    </button>
-                  );
-                })}
+
+                      {row.map(({ question, globalIndex }) => {
+                        const isQCompleted = isQuestionCompleted(activeLesson.label, question.subLabel, (question as any).isCompleted);
+                        const isActive = globalIndex === activeQuestionIndex;
+
+                        return (
+                          <button
+                            key={globalIndex}
+                            onClick={() => {
+                              setActiveQuestionIndex(globalIndex);
+                              setLessonStarted(false);
+                            }}
+                            className={`relative z-10 w-11 h-11 rounded-full flex items-center justify-center font-black text-sm transition-all duration-300 focus:outline-none ${
+                              isActive
+                                ? 'bg-amber-50 border-4 border-amber-400 ring-4 ring-amber-400/20 text-amber-800 scale-110 shadow-md'
+                                : isQCompleted
+                                ? 'bg-emerald-500 border-2 border-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
+                                : 'bg-white border-2 border-slate-200 text-slate-400 hover:bg-slate-50 hover:border-slate-300'
+                            }`}
+                            title={question.subLabel}
+                          >
+                            {globalIndex + 1}
+                            {isQCompleted && !isActive && (
+                              <span className="absolute -top-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 border border-white text-[8px]">
+                                <Check className="w-2 h-2" strokeWidth={4} />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Show currently active question label */}
+                {activeQuestion && (
+                  <div className="text-center bg-slate-50/80 rounded-xl p-2.5 border border-slate-100/50 text-xs font-black text-slate-700">
+                    <span>{activeQuestionIndex + 1} - </span>
+                    <span className="text-emerald-700">{activeQuestion.subLabel}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-50 pb-2 flex-wrap gap-2">
+              <h3 className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
+                <PenTool className="w-4 h-4 text-emerald-600" />
+                أدوات وتخصيص قلم الرسم
+              </h3>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {activeQuestion && activeQuestion.timeMinutes > 0 && (
+                  <div className="bg-rose-50 text-rose-800 border border-rose-100 px-2 py-0.5 rounded-lg text-[11px] font-black flex items-center gap-1 animate-pulse">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{formatTimer(remainingTime)}</span>
+                  </div>
+                )}
+                {activeQuestion && activeQuestion.requiredRepetitions > 1 && (
+                  <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-lg text-[11px] font-black flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>التكرار: {currentRepetition + 1} / {activeQuestion.requiredRepetitions}</span>
+                  </div>
+                )}
               </div>
             </div>
-          )}
 
-          <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-6">
-            <h3 className="font-bold text-slate-900 border-b border-slate-50 pb-2 flex items-center gap-2">
-              <PenTool className="w-5 h-5 text-emerald-600" />
-              أدوات وتخصيص قلم الرسم
-            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Pen Type Selection */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 block">نوع القلم</label>
+                <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs">
+                  <button
+                    onClick={() => setPenType('normal')}
+                    className={`flex-1 py-1 rounded-md font-bold transition text-center text-[11px] ${
+                      penType === 'normal'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    دائري
+                  </button>
+                  <button
+                    onClick={() => setPenType('chisel')}
+                    className={`flex-1 py-1 rounded-md font-bold transition text-center text-[11px] ${
+                      penType === 'chisel'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    مائل
+                  </button>
+                </div>
+              </div>
 
-            {/* Pen Type Selection */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 block">نوع سن القلم</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setPenType('normal')}
-                  className={`py-3 rounded-xl border text-sm font-bold transition ${
-                    penType === 'normal'
-                      ? 'bg-slate-950 text-white border-transparent'
-                      : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'
-                  }`}
-                >
-                  قلم عادي (دائري)
-                </button>
-                <button
-                  onClick={() => setPenType('chisel')}
-                  className={`py-3 rounded-xl border text-sm font-bold transition ${
-                    penType === 'chisel'
-                      ? 'bg-slate-950 text-white border-transparent'
-                      : 'bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100'
-                  }`}
-                >
-                  قلم مائل (خط عربي)
-                </button>
+              {/* Quick Actions (Icons Only) */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 block">إجراءات سريعة</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={handleUndo}
+                    disabled={!activeQuestion?.allowUndo || (strokesPerStep[currentStep] || []).length === 0}
+                    className="bg-slate-50 hover:bg-slate-100 border border-slate-100 disabled:opacity-40 text-slate-800 py-1 rounded-lg transition flex items-center justify-center"
+                    title="تراجع خطوة"
+                  >
+                    <Undo className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleRestart}
+                    disabled={activeQuestion && (currentMaxRestarts === 0 || restartCount >= currentMaxRestarts)}
+                    className="bg-slate-50 hover:bg-slate-100 border border-slate-100 disabled:opacity-40 text-slate-800 py-1 rounded-lg transition flex items-center justify-center"
+                    title="إعادة المحاولة"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Pen Size Slider */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                <span>سمك خط الرسم</span>
-                <span className="font-mono text-emerald-700">{penSize} بكسل</span>
+            {/* Pen Size & Chisel Angle inputs (Compact Row) */}
+            <div className={penType === 'chisel' ? "grid grid-cols-2 gap-3" : "w-full"}>
+              {/* Pen Size Numeric Input Box */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
+                  <span>سمك الخط</span>
+                  <span className="font-mono text-emerald-700 text-[10px]">{penSize}px</span>
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={penSize}
+                    onChange={(e) => {
+                      let val = parseInt(e.target.value);
+                      if (isNaN(val)) val = 0;
+                      if (val > 100) val = 100;
+                      if (val < 0) val = 0;
+                      setPenSize(val);
+                    }}
+                    disabled={activeQuestion?.requiredPenSize !== null}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1 px-2 text-center font-bold font-mono text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 h-8"
+                  />
+                </div>
               </div>
-              <input
-                type="range"
-                min="5"
-                max="60"
-                value={penSize}
-                onChange={(e) => setPenSize(parseInt(e.target.value))}
-                disabled={activeQuestion?.requiredPenSize !== null}
-                className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-              />
-              {activeQuestion?.requiredPenSize !== null && (
-                <p className="text-[10px] text-amber-600 font-bold">
-                  * تم قفل السمك إلى {activeQuestion?.requiredPenSize} بكسل لتناسب هذا النموذج.
-                </p>
+
+              {/* Chisel Nib Angle Numeric Input Box */}
+              {penType === 'chisel' && (
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
+                    <span>زاوية ميل القلم</span>
+                    <span className="font-mono text-emerald-700 text-[10px]">{nibAngle}°</span>
+                  </div>
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="180"
+                      value={nibAngle}
+                      onChange={(e) => {
+                        let val = parseInt(e.target.value);
+                        if (isNaN(val)) val = 0;
+                        if (val > 180) val = 180;
+                        if (val < 0) val = 0;
+                        setNibAngle(val);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1 px-2 text-center font-bold font-mono text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 h-8"
+                    />
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Chisel Nib Angle (Chisel pen mode only) */}
-            {penType === 'chisel' && (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                  <span>زاوية ميل القلم</span>
-                  <span className="font-mono text-emerald-700">{nibAngle}° درجة</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="180"
-                  value={nibAngle}
-                  onChange={(e) => setNibAngle(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                />
-              </div>
+            {activeQuestion?.requiredPenSize !== null && (
+              <p className="text-[9px] text-amber-600 font-bold bg-amber-50/50 p-1.5 rounded-lg border border-amber-100 text-center">
+                * تم قفل السمك ({activeQuestion?.requiredPenSize}px) لتناسب هذا النموذج.
+              </p>
             )}
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                onClick={handleUndo}
-                disabled={!activeQuestion?.allowUndo || (strokesPerStep[currentStep] || []).length === 0}
-                className="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 text-sm font-bold py-3 rounded-xl transition flex items-center justify-center gap-1.5"
-              >
-                <Undo className="w-4 h-4" />
-                تراجع خطوة
-              </button>
-              <button
-                onClick={handleRestart}
-                disabled={activeQuestion && (currentMaxRestarts === 0 || restartCount >= currentMaxRestarts)}
-                className="bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 text-sm font-bold py-3 rounded-xl transition flex items-center justify-center gap-1.5"
-              >
-                <RotateCcw className="w-4 h-4" />
-                إعادة المحاولة
-              </button>
-            </div>
-          </div>
-
-          {/* Tutorial / Help box */}
-          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-xs text-slate-600 leading-relaxed space-y-2">
-            <h4 className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              كيف تحقق أعلى نسبة أداء؟
-            </h4>
-            <p>1. قم بمحاكاة النموذج المضيء بالخلفية بشكل متقن ومحكم تماماً.</p>
-            <p>2. استخدم سن القلم المائل لمحاكاة خط الثلث أو الرقعة بطريقة تحاكي أصل الحرف.</p>
-            <p>3. تجنب الاستعجال واحسب مسار الكتابة لتجاوز دقة {activeQuestion?.requiredPercent}% كحد أدنى.</p>
           </div>
         </div>
 
@@ -1837,6 +1887,39 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             >
               موافق 👍
             </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Saving Progress Fullscreen Locked Overlay */}
+      {saving && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[100]" dir="rtl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl border border-slate-100 p-8 text-center max-w-sm w-full space-y-6 shadow-2xl"
+          >
+            <div className="inline-flex bg-amber-50 p-5 rounded-full text-amber-600 animate-pulse">
+              <PenTool className="w-10 h-10 animate-bounce" />
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-slate-900 font-sans">
+                جاري حفظ خطك الجميل... ✍️✨
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                يرجى الانتظار بضع ثوانٍ يا بطل، نقوم الآن بتسجيل أدائك المميز وحفظه في لوحة الإنجازات الخاصة بك.
+              </p>
+              <p className="text-xs text-rose-500 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+                ⚠️ يرجى عدم لمس الشاشة أو الخروج من الصفحة حتى يكتمل الحفظ!
+              </p>
+            </div>
+
+            {/* Spinner Progress bar */}
+            <div className="flex flex-col items-center justify-center gap-3 pt-2">
+              <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+              <span className="text-xs font-bold text-amber-600 tracking-wider animate-pulse font-mono">جاري الاتصال بالسيرفر وحفظ الصورة...</span>
+            </div>
           </motion.div>
         </div>
       )}

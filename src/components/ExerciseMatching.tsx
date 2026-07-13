@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { callGasApi } from '../utils/api';
-import { Student, MatchLesson, MatchQuestion, ExerciseType } from '../types';
+import { Student, MatchLesson, MatchQuestion, ExerciseType, LeftItem, ShuffledRightItem } from '../types';
 import { ChevronRight, CheckCircle, Volume2, RotateCcw, Check, Sparkles, AlertTriangle, ArrowRight, Compass, BookOpen, Gamepad2, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import ExerciseSwitcherModal from './ExerciseSwitcherModal';
@@ -21,6 +21,25 @@ interface Connection {
   rightId: string; // e.g. 'a', 'b', 'c'
 }
 
+interface ClientLeftItem {
+  id: string; // stable original 1-based index (string) e.g., "1", "2"
+  item: LeftItem;
+}
+
+interface ClientRightItem {
+  id: string; // stable original letter ID e.g., "a", "b"
+  item: ShuffledRightItem;
+}
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export default function ExerciseMatching({ student, onBack, onSelectExercise }: ExerciseMatchingProps) {
   const [lessons, setLessons] = useState<MatchLesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number>(-1);
@@ -30,12 +49,27 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const [error, setError] = useState('');
   const [showSwitcher, setShowSwitcher] = useState(false);
 
+  // Lesson statuses (isCompleted, retriesUsed)
+  const [lessonStatuses, setLessonStatuses] = useState<Record<string, { isCompleted: boolean; retriesUsed: number }>>({});
+  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
+    return localStorage.getItem('match_show_completed') !== 'false';
+  });
+  const [retryingLesson, setRetryingLesson] = useState<string | null>(null);
+
   // Game state
   const [connections, setConnections] = useState<Connection[]>([]);
   const [activeResults, setActiveResults] = useState<string>('');
   const [checked, setChecked] = useState(false);
   const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
   const [volume, setVolume] = useState<number>(0.8);
+  const [lessonAnswers, setLessonAnswers] = useState<string[]>(new Array(10).fill(''));
+
+  // Client-side shuffled items
+  const [shuffledLeftItems, setShuffledLeftItems] = useState<ClientLeftItem[]>([]);
+  const [shuffledRightItems, setShuffledRightItems] = useState<ClientRightItem[]>([]);
+
+  const activeLesson = activeLessonIndex >= 0 ? lessons[activeLessonIndex] : null;
+  const activeQuestion = activeLesson ? activeLesson.questions[activeQuestionIndex] : null;
 
   // Audio & Line Drawing State
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -65,6 +99,27 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     setPlayingAudioSrc(null);
   }, [activeQuestionIndex, activeLessonIndex]);
 
+  useEffect(() => {
+    if (!activeQuestion) {
+      setShuffledLeftItems([]);
+      setShuffledRightItems([]);
+      return;
+    }
+
+    const lefts: ClientLeftItem[] = activeQuestion.leftItems.map((item, idx) => ({
+      id: (idx + 1).toString(),
+      item
+    }));
+
+    const rights: ClientRightItem[] = activeQuestion.shuffledRight.map((item, idx) => ({
+      id: activeQuestion.rightIds[idx],
+      item
+    }));
+
+    setShuffledLeftItems(shuffleArray(lefts));
+    setShuffledRightItems(shuffleArray(rights));
+  }, [activeQuestionIndex, activeLessonIndex, lessons, activeQuestion]);
+
   const fetchMatchingLessons = async () => {
     try {
       setLoading(true);
@@ -73,6 +128,24 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       setLessons(data);
       if (data.length > 0) {
         setActiveLessonIndex(-1); // Landing on Lesson list dashboard first!
+        
+        // Fetch statuses in parallel for all loaded matching lessons
+        const statuses: Record<string, { isCompleted: boolean; retriesUsed: number }> = {};
+        await Promise.all(
+          data.map(async (lesson) => {
+            try {
+              const status = await callGasApi<{ isCompleted: boolean; retriesUsed: number }>('getLessonStatus', {
+                studentId: student.id,
+                lessonName: lesson.lessonName,
+              });
+              statuses[lesson.lessonName] = status;
+            } catch (e) {
+              console.error("Error fetching status for Matching Lesson:", lesson.lessonName, e);
+              statuses[lesson.lessonName] = { isCompleted: false, retriesUsed: 0 };
+            }
+          })
+        );
+        setLessonStatuses(statuses);
       }
     } catch (err: any) {
       setError(err.message || 'تعذر تحميل تمارين وصل الكلمات.');
@@ -80,9 +153,6 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       setLoading(false);
     }
   };
-
-  const activeLesson = activeLessonIndex >= 0 ? lessons[activeLessonIndex] : null;
-  const activeQuestion = activeLesson ? activeLesson.questions[activeQuestionIndex] : null;
 
   // Redraw canvas connections on resize or state changes
   useEffect(() => {
@@ -356,15 +426,15 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     // Save score to Google Sheets
     setSaving(true);
     try {
-      // Build a full score compilation matching original results parameter
-      const resultsArray = new Array(10).fill('');
-      resultsArray[activeQuestionIndex] = resultText;
+      const updatedAnswers = [...lessonAnswers];
+      updatedAnswers[activeQuestionIndex] = resultText;
+      setLessonAnswers(updatedAnswers);
 
       await callGasApi('saveAnswers', {
         studentId: student.id,
         studentName: student.name,
         lessonName: activeLesson!.lessonName,
-        results: resultsArray,
+        results: updatedAnswers,
         numQuestions: activeLesson!.questions.length,
       });
 
@@ -375,10 +445,42 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     }
   };
 
+  const handleUndoLastConnection = () => {
+    if (connections.length > 0) {
+      setConnections((prev) => prev.slice(0, -1));
+    }
+  };
+
   const handleResetAnswers = () => {
     setConnections([]);
     setActiveResults('');
     setChecked(false);
+  };
+
+  const handleRetryLesson = async (lessonName: string, lessonIndex: number) => {
+    try {
+      setRetryingLesson(lessonName);
+      await callGasApi('incrementRetry', { studentId: student.id, lessonName });
+      
+      // Refresh local statuses
+      const status = await callGasApi<{ isCompleted: boolean; retriesUsed: number }>('getLessonStatus', {
+        studentId: student.id,
+        lessonName,
+      });
+      setLessonStatuses((prev) => ({ ...prev, [lessonName]: status }));
+      
+      // Start the lesson
+      setActiveLessonIndex(lessonIndex);
+      setActiveQuestionIndex(0);
+      setConnections([]);
+      setActiveResults('');
+      setChecked(false);
+      setLessonAnswers(new Array(10).fill(''));
+    } catch (err: any) {
+      alert(`خطأ في إعادة تهيئة الدرس: ${err.message}`);
+    } finally {
+      setRetryingLesson(null);
+    }
   };
 
   const handleNextQuestion = () => {
@@ -390,6 +492,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     } else {
       alert('تهانينا! لقد أنهيت جميع تمارين التوصيل في هذا الدرس بنجاح 🎉');
       setActiveLessonIndex(-1);
+      fetchMatchingLessons();
     }
   };
 
@@ -453,37 +556,120 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           </div>
         </div>
 
+        {/* Toggle Switch for Completed Lessons */}
+        <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
+          <div>
+            <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس التوصيل</h4>
+            <p className="text-[11px] text-slate-500">
+              يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              const newVal = !showCompleted;
+              setShowCompleted(newVal);
+              localStorage.setItem('match_show_completed', String(newVal));
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 ${
+              showCompleted
+                ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+            }`}
+          >
+            {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍🗨️' : 'إظهار الدروس المكتملة 👁️'}
+          </button>
+        </div>
+
         {/* Lessons List - Sleek Vertical Stack */}
         <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100 overflow-hidden shadow-sm">
-          {lessons.map((lesson, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-4 md:p-5 hover:bg-slate-50/75 transition gap-4 text-right"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="bg-amber-50 text-amber-600 p-2.5 rounded-xl shrink-0">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-slate-900 font-sans text-base md:text-lg">
-                  {lesson.lessonName}
-                </h3>
-              </div>
+          {lessons.filter((lesson) => {
+            const status = lessonStatuses[lesson.lessonName];
+            const isCompleted = status?.isCompleted ?? false;
+            return showCompleted ? true : !isCompleted;
+          }).length > 0 ? (
+            lessons
+              .filter((lesson) => {
+                const status = lessonStatuses[lesson.lessonName];
+                const isCompleted = status?.isCompleted ?? false;
+                return showCompleted ? true : !isCompleted;
+              })
+              .map((lesson) => {
+                const originalIdx = lessons.findIndex((l) => l.lessonName === lesson.lessonName);
+                const status = lessonStatuses[lesson.lessonName];
+                const isCompleted = status?.isCompleted ?? false;
+                const retriesUsed = status?.retriesUsed ?? 0;
+                const remainingRetries = lesson.maxRetries - retriesUsed;
+                const showRetryBtn = isCompleted && lesson.retryAllowed === 'نعم' && remainingRetries > 0;
 
-              <button
-                onClick={() => {
-                  setActiveLessonIndex(idx);
-                  setActiveQuestionIndex(0);
-                  setConnections([]);
-                  setActiveResults('');
-                  setChecked(false);
-                }}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm shrink-0"
-              >
-                فتح الدرس
-                <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
-              </button>
+                return (
+                  <div
+                    key={originalIdx}
+                    className={`flex flex-col sm:flex-row items-center justify-between p-4 md:p-5 hover:bg-slate-50/75 transition gap-4 text-right ${
+                      isCompleted ? 'bg-emerald-50/25 border-r-4 border-r-emerald-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                      <div className={`${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-600'} p-2.5 rounded-xl shrink-0`}>
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h3 className="font-bold text-slate-900 font-sans text-base md:text-lg flex items-center gap-2 flex-wrap">
+                          {lesson.lessonName}
+                        </h3>
+                        {isCompleted && (
+                          <p className="text-[11px] text-emerald-600 font-sans">
+                            تم إكمال هذا التمرين بنجاح! 
+                            {lesson.retryAllowed === 'نعم' && ` المحاولات المستخدمة: ${retriesUsed} من ${lesson.maxRetries}`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                      {showRetryBtn && (
+                        <button
+                          disabled={retryingLesson === lesson.lessonName}
+                          onClick={() => handleRetryLesson(lesson.lessonName, originalIdx)}
+                          className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200 font-bold px-4 py-2 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-xs shrink-0"
+                        >
+                          {retryingLesson === lesson.lessonName ? (
+                            <div className="w-4 h-4 border-2 border-amber-900/50 border-t-amber-900 rounded-full animate-spin" />
+                          ) : (
+                            '🔄 إعادة المحاولة'
+                          )}
+                          <span className="text-[10px] opacity-75">({remainingRetries} متبقي)</span>
+                        </button>
+                      )}
+
+                      {!isCompleted ? (
+                        <button
+                          onClick={() => {
+                            setActiveLessonIndex(originalIdx);
+                            setActiveQuestionIndex(0);
+                            setConnections([]);
+                            setActiveResults('');
+                            setChecked(false);
+                            setLessonAnswers(new Array(10).fill(''));
+                          }}
+                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm shrink-0"
+                        >
+                          فتح الدرس
+                          <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
+                        </button>
+                      ) : (
+                        <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-100 flex items-center gap-1 shadow-2xs">
+                          مكتمل ✅
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+          ) : (
+            <div className="p-8 text-center text-slate-400 font-sans text-sm">
+              جميع التمارين المتاحة مكتملة حالياً! انقر على زر "إظهار الدروس المكتملة" لعرضها ومراجعتها.
             </div>
-          ))}
+          )}
         </div>
 
         {/* Floating Exercise Switcher Modal */}
@@ -498,6 +684,56 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       </div>
     );
   }
+
+  const getLeftCardClassName = (id: string) => {
+    const isLeftConnected = connections.some((c) => c.leftId === id);
+    const baseClasses = "active:scale-105 border rounded-2xl p-2.5 md:p-4 cursor-pointer text-center font-bold text-sm md:text-lg shadow-sm hover:shadow-md transition duration-350 relative flex items-center justify-center min-h-[70px]";
+    
+    if (checked && activeLesson) {
+      const connection = connections.find((c) => c.leftId === id);
+      const correctMatches = activeQuestion ? JSON.parse(activeQuestion.correctMatches) : {};
+      const isCorrect = connection && correctMatches[id]?.includes(connection.rightId);
+      
+      if (activeLesson.colorControl === 'نعم') {
+        return isCorrect 
+          ? `${baseClasses} bg-emerald-50/90 border-emerald-400 text-emerald-950 font-black shadow-emerald-100/50`
+          : `${baseClasses} bg-rose-50/90 border-rose-400 text-rose-950 font-black shadow-rose-100/50`;
+      } else {
+        return `${baseClasses} bg-blue-50/90 border-blue-400 text-blue-950 font-black shadow-blue-100/50`;
+      }
+    }
+
+    if (isLeftConnected) {
+      return `${baseClasses} bg-amber-50/95 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-amber-50/50`;
+    }
+
+    return `${baseClasses} bg-slate-50 hover:bg-slate-100/80 border-slate-200/80 text-slate-800`;
+  };
+
+  const getRightCardClassName = (id: string) => {
+    const isRightConnected = connections.some((c) => c.rightId === id);
+    const baseClasses = "border rounded-2xl p-2.5 md:p-4 text-center font-bold text-sm md:text-lg shadow-sm min-h-[70px] flex items-center justify-center relative transition duration-350";
+
+    if (checked && activeLesson) {
+      const connection = connections.find((c) => c.rightId === id);
+      const correctMatches = activeQuestion ? JSON.parse(activeQuestion.correctMatches) : {};
+      const isCorrect = connection && correctMatches[connection.leftId]?.includes(id);
+
+      if (activeLesson.colorControl === 'نعم') {
+        return isCorrect
+          ? `${baseClasses} bg-emerald-50/90 border-emerald-400 text-emerald-950 font-black shadow-emerald-100/50`
+          : `${baseClasses} bg-rose-50/90 border-rose-400 text-rose-950 font-black shadow-rose-100/50`;
+      } else {
+        return `${baseClasses} bg-blue-50/90 border-blue-400 text-blue-950 font-black shadow-blue-100/50`;
+      }
+    }
+
+    if (isRightConnected) {
+      return `${baseClasses} bg-amber-50/95 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-amber-50/50`;
+    }
+
+    return `${baseClasses} bg-slate-50 border-slate-200/80 text-slate-800`;
+  };
 
   // --- 2. RENDER ACTIVE LESSON GAMEPLAY VIEW ---
   return (
@@ -561,20 +797,20 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           {/* Interactive Line-matching canvas container */}
           <div className="relative border border-slate-100 rounded-3xl bg-white shadow-md p-3 md:p-8 min-h-[400px] select-none">
             {/* Overlay line-drawing canvas */}
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-30" />
 
             {/* Layout Grid columns - Keep side-by-side on mobile */}
             <div className="grid grid-cols-2 gap-4 md:gap-20 relative z-20">
               {/* Left node cards */}
               <div ref={leftItemsContainerRef} className="space-y-6 flex flex-col justify-center">
                 <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الأولى (انقر واسحب للتوصيل)</span>
-                {activeQuestion.leftItems.map((item, idx) => (
+                {shuffledLeftItems.map(({ id, item }) => (
                   <div
-                    key={idx}
-                    data-id={idx + 1}
-                    onMouseDown={(e) => handleStartDraw(e, (idx + 1).toString())}
-                    onTouchStart={(e) => handleStartDraw(e, (idx + 1).toString())}
-                    className="bg-slate-50 hover:bg-slate-100/80 active:scale-105 border border-slate-200/80 rounded-2xl p-2.5 md:p-4 cursor-pointer text-center font-bold text-sm md:text-lg shadow-sm hover:shadow-md transition relative flex items-center justify-center min-h-[70px]"
+                    key={id}
+                    data-id={id}
+                    onMouseDown={(e) => handleStartDraw(e, id)}
+                    onTouchStart={(e) => handleStartDraw(e, id)}
+                    className={getLeftCardClassName(id)}
                   >
                     {item.type === 'audio' || isAudioUrl(item.value) ? (
                       <button
@@ -596,11 +832,11 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
               {/* Right node cards */}
               <div ref={rightItemsContainerRef} className="space-y-6 flex flex-col justify-center">
                 <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">المجموعة الثانية (مستقبل الوصلة)</span>
-                {activeQuestion.shuffledRight.map((item, idx) => (
+                {shuffledRightItems.map(({ id, item }) => (
                   <div
-                    key={idx}
-                    data-id={activeQuestion.rightIds[idx]}
-                    className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5 md:p-4 text-center font-bold text-sm md:text-lg shadow-sm min-h-[70px] flex items-center justify-center relative"
+                    key={id}
+                    data-id={id}
+                    className={getRightCardClassName(id)}
                   >
                     {item.type === 'audio' || isAudioUrl(item.value) ? (
                       <button
@@ -642,9 +878,33 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
             <div>
               {checked ? (
-                <div className="text-emerald-700 font-bold flex items-center gap-1.5 text-sm">
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  نتيجة التوصيل: {activeResults}
+                <div className="flex flex-col gap-1 text-right">
+                  <div className="text-emerald-700 font-bold flex items-center gap-1.5 text-sm">
+                    <CheckCircle className="w-5 h-5 text-emerald-600" />
+                    نتيجة التوصيل: {activeResults}
+                  </div>
+                  {(() => {
+                    const correctMatches = JSON.parse(activeQuestion.correctMatches);
+                    let correctCount = 0;
+                    connections.forEach((conn) => {
+                      if (correctMatches[conn.leftId]?.includes(conn.rightId)) {
+                        correctCount++;
+                      }
+                    });
+                    const total = Object.keys(correctMatches).length;
+                    const errors = total - correctCount;
+                    const isPerfect = errors === 0;
+                    const allowNext = (activeLesson?.nextControl === 'نعم') || (activeLesson?.nextControl === 'لا' && isPerfect);
+                    
+                    if (!allowNext) {
+                      return (
+                        <span className="text-rose-600 font-bold text-xs flex items-center gap-1">
+                          🔒 الانتقال للسؤال التالي مغلق. يجب تكرار المحاولة والحصول على درجة كاملة (بدون أخطاء) للمتابعة.
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 font-sans">
@@ -653,33 +913,68 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {checked ? (
                 <>
-                  <button
-                    onClick={handleResetAnswers}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-sm transition flex items-center gap-1"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    إعادة المحاولة
-                  </button>
-                  <button
-                    onClick={handleNextQuestion}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-sm transition flex items-center gap-1 shadow-sm"
-                  >
-                    التالي
-                    <ArrowRight className="w-4 h-4 rotate-180" />
-                  </button>
+                  {activeLesson?.retryControl === 'نعم' && (
+                    <button
+                      onClick={handleResetAnswers}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-sm transition flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      إعادة المحاولة
+                    </button>
+                  )}
+                  {(() => {
+                    const correctMatches = JSON.parse(activeQuestion.correctMatches);
+                    let correctCount = 0;
+                    connections.forEach((conn) => {
+                      if (correctMatches[conn.leftId]?.includes(conn.rightId)) {
+                        correctCount++;
+                      }
+                    });
+                    const total = Object.keys(correctMatches).length;
+                    const errors = total - correctCount;
+                    const isPerfect = errors === 0;
+                    const allowNext = (activeLesson?.nextControl === 'نعم') || (activeLesson?.nextControl === 'لا' && isPerfect);
+                    
+                    return (
+                      <button
+                        disabled={!allowNext}
+                        onClick={handleNextQuestion}
+                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition flex items-center gap-1 shadow-sm ${
+                          allowNext
+                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                        }`}
+                      >
+                        التالي
+                        <ArrowRight className="w-4 h-4 rotate-180" />
+                      </button>
+                    );
+                  })()}
                 </>
               ) : (
-                <button
-                  onClick={handleCheckMatches}
-                  disabled={saving || connections.length === 0}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition flex items-center gap-1.5 shadow"
-                >
-                  <Check className="w-4 h-4" />
-                  التحقق من التوصيل
-                </button>
+                <>
+                  {activeLesson?.undoControl === 'نعم' && (
+                    <button
+                      onClick={handleUndoLastConnection}
+                      disabled={connections.length === 0}
+                      className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 border border-slate-200 font-bold px-4 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1 shadow-2xs animate-fadeIn"
+                    >
+                      <RotateCcw className="w-4 h-4 rotate-90" />
+                      تراجع
+                    </button>
+                  )}
+                  <button
+                    onClick={handleCheckMatches}
+                    disabled={saving || connections.length === 0}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition flex items-center gap-1.5 shadow"
+                  >
+                    <Check className="w-4 h-4" />
+                    التحقق من التوصيل
+                  </button>
+                </>
               )}
             </div>
           </div>
