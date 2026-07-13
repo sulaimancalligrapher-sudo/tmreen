@@ -379,31 +379,15 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
 
   const normalizeAudioUrl = (url: string): string => {
     if (!url) return '';
-    const trimmed = url.trim();
-    let id = '';
-    
-    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
-    
-    if (isGoogleDrive) {
-      if (trimmed.includes('/file/d/')) {
-        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
-      } else if (trimmed.includes('open?id=')) {
-        id = trimmed.split('open?id=')[1].split('&')[0];
-      } else if (trimmed.includes('id=')) {
-        id = trimmed.split('id=')[1].split('&')[0];
-      }
-    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
-      // Raw Google Drive file ID
-      id = trimmed;
-    }
+    // Strip hash or trailing #audio if present
+    const cleanUrl = url.split('#')[0].trim();
+    const id = getGoogleDriveId(cleanUrl);
     
     if (id) {
-      return `/api/proxy-audio?id=${id}`;
+      // Direct high-performance Google Drive stream/download link that bypasses any local proxies
+      return `https://docs.google.com/uc?export=download&id=${id}`;
     }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return `/api/proxy-audio?url=${encodeURIComponent(trimmed)}`;
-    }
-    return trimmed;
+    return cleanUrl;
   };
 
   const playAudioMedia = (url: string) => {

@@ -736,29 +736,12 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   const normalizeAudioUrl = (url: string): string => {
     if (!url) return '';
-    let trimmed = stripUrlHash(url.trim());
-    let id = '';
-    
-    const isGoogleDrive = trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
-    
-    if (isGoogleDrive) {
-      if (trimmed.includes('/file/d/')) {
-        id = trimmed.split('/file/d/')[1].split('/')[0].split('?')[0];
-      } else if (trimmed.includes('open?id=')) {
-        id = trimmed.split('open?id=')[1].split('&')[0];
-      } else if (trimmed.includes('id=')) {
-        id = trimmed.split('id=')[1].split('&')[0];
-      }
-    } else if (trimmed.match(/^[a-zA-Z0-9_-]{25,110}$/)) {
-      // Raw Google Drive file ID
-      id = trimmed;
-    }
+    const trimmed = stripUrlHash(url.trim());
+    const id = getGoogleDriveId(trimmed);
     
     if (id) {
-      return `/api/proxy-audio?id=${id}`;
-    }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return `/api/proxy-audio?url=${encodeURIComponent(trimmed)}`;
+      // Direct high-performance Google Drive stream/download link that bypasses any local proxies
+      return `https://docs.google.com/uc?export=download&id=${id}`;
     }
     return trimmed;
   };
