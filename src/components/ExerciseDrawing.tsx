@@ -42,9 +42,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   // Custom Selector and Switcher States
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [activeTab, setActiveTab] = useState<'lessons' | 'history'>('lessons');
-  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
-    return localStorage.getItem('draw_show_completed') !== 'false';
-  });
+  const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [writingHistory, setWritingHistory] = useState<any>(null);
   const [drawingResults, setDrawingResults] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);

@@ -586,7 +586,11 @@ function getRandomWord(previousIndex, rowNumber, studentId) {
   
   var availableQuestions = allQuestions.filter(function(q) { return !answeredIndices.includes(q.originalIndex); });
   if (availableQuestions.length === 0) {
-    return { completed: true };
+    return {
+      completed: true,
+      totalQuestions: allQuestions.length,
+      answeredQuestions: answeredIndices.length
+    };
   }
   
   var randomAvailableIdx = Math.floor(Math.random() * availableQuestions.length);
@@ -611,7 +615,9 @@ function getRandomWord(previousIndex, rowNumber, studentId) {
     condition: condition,
     retryCondition: retryCondition,
     showCorrectAnswer: showCorrectAnswer,
-    index: selectedQuestion.originalIndex
+    index: selectedQuestion.originalIndex,
+    totalQuestions: allQuestions.length,
+    answeredQuestions: answeredIndices.length
   };
 }
 

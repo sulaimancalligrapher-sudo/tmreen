@@ -31,6 +31,53 @@ interface ClientRightItem {
   item: ShuffledRightItem;
 }
 
+function ImageWithLoader({ 
+  src, 
+  alt, 
+  className, 
+  onClick 
+}: { 
+  src: string; 
+  alt: string; 
+  className: string; 
+  onClick?: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+  }, [src]);
+
+  return (
+    <div className="relative flex flex-col items-center justify-center w-full min-h-[60px]">
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-2 px-3 animate-pulse">
+          <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-1"></span>
+          <span className="text-[10px] text-slate-500 font-bold">جاري تحميل الصورة...</span>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`${className} ${loading ? 'absolute opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity duration-300`}
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setLoading(false);
+          setError(true);
+        }}
+        onClick={onClick}
+      />
+      {error && (
+        <div className="text-[10px] text-rose-500 font-bold p-1.5 bg-rose-50 border border-rose-100 rounded-lg">
+          ⚠️ تعذر تحميل الصورة
+        </div>
+      )}
+    </div>
+  );
+}
+
 class SoundEffects {
   private static ctx: AudioContext | null = null;
 
@@ -163,9 +210,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   // Lesson statuses (isCompleted, retriesUsed)
   const [lessonStatuses, setLessonStatuses] = useState<Record<string, { isCompleted: boolean; retriesUsed: number }>>({});
-  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
-    return localStorage.getItem('match_show_completed') !== 'false';
-  });
+  const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [retryingLesson, setRetryingLesson] = useState<string | null>(null);
 
   // Game state
@@ -1239,7 +1284,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           )}
                         </button>
                       ) : renderType === 'image' ? (
-                        <img src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
                       ) : (
                         item.value
                       )}
@@ -1279,7 +1324,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           )}
                         </button>
                       ) : renderType === 'image' ? (
-                        <img src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt="مرفق" className="max-h-20 md:max-h-24 object-contain rounded-lg" />
                       ) : (
                         item.value
                       )}

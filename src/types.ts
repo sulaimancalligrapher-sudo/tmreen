@@ -36,6 +36,8 @@ export interface OrderingQuestion {
   retryCondition: string;
   showCorrectAnswer: string;
   index: number;
+  totalQuestions?: number;
+  answeredQuestions?: number;
 }
 
 export interface DrawingQuestion {
