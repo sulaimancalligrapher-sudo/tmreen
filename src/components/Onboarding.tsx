@@ -1117,6 +1117,49 @@ function saveAnswers(studentId, studentName, lessonName, results, numQuestions) 
     }
   }
   
+  // Calculate totalCorrect and totalWrong from results array
+  var totalCorrect = 0;
+  var totalWrong = 0;
+  for (var i = 0; i < results.length; i++) {
+    var resText = results[i];
+    if (resText && resText.toString().trim() !== '') {
+      var matchCorrect = resText.match(/الصحيح:\s*(\d+)/);
+      var matchWrong = resText.match(/الخطأ:\s*(\d+)/);
+      if (matchCorrect) {
+        totalCorrect += parseInt(matchCorrect[1]) || 0;
+      }
+      if (matchWrong) {
+        totalWrong += parseInt(matchWrong[1]) || 0;
+      }
+    }
+  }
+
+  // Fetch AL (totalExpectedCorrect) and AM (maxGrade) from Matches sheet
+  var matchesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Matches');
+  var totalExpectedCorrect = 0;
+  var maxGrade = 10;
+  if (matchesSheet) {
+    var matchesData = matchesSheet.getDataRange().getValues();
+    for (var m = 1; m < matchesData.length; m++) {
+      var rowName = matchesData[m][0] ? matchesData[m][0].toString().trim() : '';
+      if (rowName === lessonName.trim()) {
+        // AL is Column 38 (0-indexed: 37)
+        var alVal = matchesData[m][37];
+        if (alVal !== undefined && alVal !== '') {
+          totalExpectedCorrect = parseInt(alVal) || 0;
+        }
+        // AM is Column 39 (0-indexed: 38)
+        var amVal = matchesData[m][38];
+        if (amVal !== undefined && amVal !== '') {
+          maxGrade = parseFloat(amVal) || 0;
+        }
+        break;
+      }
+    }
+  }
+
+  var percentage = totalExpectedCorrect > 0 ? (totalCorrect / totalExpectedCorrect) * 100 : 0;
+
   if (foundRow > 0) {
     var currentRowData = sheet.getRange(foundRow, 1, 1, 16).getValues()[0];
     for (var j = 0; j < 10; j++) {
@@ -1124,6 +1167,12 @@ function saveAnswers(studentId, studentName, lessonName, results, numQuestions) 
     }
     currentRowData[13] = new Date();
     sheet.getRange(foundRow, 1, 1, 16).setValues([currentRowData]);
+    
+    // Write Q (17), R (18), S (19), T (20)
+    sheet.getRange(foundRow, 17).setValue(totalCorrect + " صحيحة و " + totalWrong + " خطأ");
+    sheet.getRange(foundRow, 18).setValue(totalExpectedCorrect);
+    sheet.getRange(foundRow, 19).setValue(maxGrade);
+    sheet.getRange(foundRow, 20).setValue(percentage.toFixed(1) + "%");
     
     var allCompleted = true;
     for (var k = 0; k < numQuestions; k++) {
@@ -1144,6 +1193,11 @@ function saveAnswers(studentId, studentName, lessonName, results, numQuestions) 
     rowData.push(new Date());
     rowData.push(''); // O (Completed tag)
     rowData.push(0);  // P (Retries)
+    rowData.push(totalCorrect + " صحيحة و " + totalWrong + " خطأ"); // Q (17)
+    rowData.push(totalExpectedCorrect); // R (18)
+    rowData.push(maxGrade); // S (19)
+    rowData.push(percentage.toFixed(1) + "%"); // T (20)
+    
     sheet.appendRow(rowData);
   }
   return { success: true };
@@ -1166,6 +1220,9 @@ function incrementRetry(studentId, lessonName) {
     sheet.getRange(foundRow, 15).clearContent();
     var retriesUsed = sheet.getRange(foundRow, 16).getValue() || 0;
     sheet.getRange(foundRow, 16).setValue(retriesUsed + 1);
+    
+    // Clear Q, R, S, T when retrying
+    sheet.getRange(foundRow, 17, 1, 4).clearContent();
   }
   return { success: true };
 }
