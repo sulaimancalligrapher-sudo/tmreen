@@ -16,6 +16,7 @@ import ExerciseWords from './components/ExerciseWords';
 import ExerciseMatching from './components/ExerciseMatching';
 import ReportDashboard from './components/ReportDashboard';
 import About from './components/About';
+import AdminDashboard from './components/AdminDashboard';
 
 // Icons
 import {
@@ -27,6 +28,7 @@ import {
   Database,
   Sparkles,
   BookOpen,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,7 +49,11 @@ export default function App() {
     const savedId = localStorage.getItem('studentId');
 
     if (savedName && savedId) {
-      setStudent({ name: savedName, id: savedId });
+      const isAdmin = savedId === 'admin';
+      setStudent({ name: savedName, id: savedId, isAdmin });
+      if (isAdmin) {
+        setActiveScreen('admin');
+      }
     }
 
     if (apiConfigured) {
@@ -71,13 +77,19 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('studentName');
     localStorage.removeItem('studentId');
+    sessionStorage.removeItem('adminUser');
+    sessionStorage.removeItem('adminRole');
     setStudent(null);
     setActiveScreen('home');
   };
 
   const handleLoginSuccess = (loggedInStudent: Student) => {
     setStudent(loggedInStudent);
-    setActiveScreen('home');
+    if (loggedInStudent.isAdmin) {
+      setActiveScreen('admin');
+    } else {
+      setActiveScreen('home');
+    }
   };
 
   const handleOnboardingSuccess = () => {
@@ -162,6 +174,13 @@ export default function App() {
         return <ReportDashboard student={student} />;
       case 'about':
         return <About data={generalData} />;
+      case 'admin':
+        return (
+          <AdminDashboard
+            onBackToHome={() => setActiveScreen('home')}
+            onOpenConnectionSettings={() => setActiveScreen('onboarding')}
+          />
+        );
       default:
         return <HomeDashboard student={student} generalData={generalData} onSelectExercise={() => {}} onNavigateTo={(screen) => setActiveScreen(screen)} />;
     }
@@ -258,24 +277,42 @@ export default function App() {
                 </button>
               );
             })}
+
+            {student?.isAdmin && (
+              <button
+                onClick={() => setActiveScreen('admin')}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold transition ${
+                  activeScreen === 'admin'
+                    ? 'bg-slate-950 text-amber-400 shadow-lg'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                لوحة الإدارة
+              </button>
+            )}
           </nav>
 
           {/* User profile & controls */}
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
-              <span className="text-xs text-slate-400 font-bold block">الطالب الحالي:</span>
+              <span className="text-xs text-slate-400 font-bold block">
+                {student.isAdmin ? 'المسؤول الحالي:' : 'الطالب الحالي:'}
+              </span>
               <span className="text-sm font-extrabold text-slate-900 block">{student.name}</span>
             </div>
 
             <div className="h-8 w-px bg-slate-100 hidden sm:block" />
 
-            <button
-              onClick={() => setActiveScreen('onboarding')}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl transition"
-              title="إعدادات الاتصال بالشيت"
-            >
-              <Settings className="w-5 h-5 shrink-0" />
-            </button>
+            {student.isAdmin && (
+              <button
+                onClick={() => setActiveScreen('onboarding')}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl transition"
+                title="إعدادات الاتصال بالشيت"
+              >
+                <Settings className="w-5 h-5 shrink-0" />
+              </button>
+            )}
 
             <button
               onClick={handleLogout}
@@ -316,15 +353,27 @@ export default function App() {
           <Home className="w-5 h-5" />
           الرئيسية
         </button>
-        <button
-          onClick={() => setActiveScreen('reports')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold transition ${
-            activeScreen === 'reports' ? 'text-amber-600' : 'text-slate-400'
-          }`}
-        >
-          <FileText className="w-5 h-5" />
-          تقريري
-        </button>
+        {student?.isAdmin ? (
+          <button
+            onClick={() => setActiveScreen('admin')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition ${
+              activeScreen === 'admin' ? 'text-amber-600' : 'text-slate-400'
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5" />
+            لوحة الإدارة
+          </button>
+        ) : (
+          <button
+            onClick={() => setActiveScreen('reports')}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition ${
+              activeScreen === 'reports' ? 'text-amber-600' : 'text-slate-400'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            تقريري
+          </button>
+        )}
         <button
           onClick={() => setActiveScreen('about')}
           className={`flex flex-col items-center gap-1.5 text-[10px] font-bold transition ${

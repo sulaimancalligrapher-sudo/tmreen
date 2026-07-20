@@ -13,6 +13,7 @@ export interface HeaderData {
 export interface Student {
   name: string;
   id: string;
+  isAdmin?: boolean;
 }
 
 export interface OrderingLessonTopic {

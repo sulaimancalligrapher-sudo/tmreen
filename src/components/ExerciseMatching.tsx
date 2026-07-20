@@ -199,6 +199,19 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
+function getParsedCorrectMatches(q: MatchQuestion | null): Record<string, string[]> {
+  if (!q || !q.correctMatches) return {};
+  if (typeof q.correctMatches === 'string') {
+    try {
+      return JSON.parse(q.correctMatches);
+    } catch (e) {
+      console.error("Error parsing correctMatches:", e);
+      return {};
+    }
+  }
+  return q.correctMatches as unknown as Record<string, string[]>;
+}
+
 export default function ExerciseMatching({ student, onBack, onSelectExercise }: ExerciseMatchingProps) {
   const [lessons, setLessons] = useState<MatchLesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number>(-1);
@@ -461,7 +474,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     try {
       setLoading(true);
       setError('');
-      const data = await callGasApi<MatchLesson[]>('getLessonsFromMatches');
+      const data = await callGasApi<MatchLesson[]>('getLessonsFromMatches', { studentId: student.id });
       setLessons(data);
       if (data.length > 0) {
         setActiveLessonIndex(-1); // Landing on Lesson list dashboard first!
@@ -517,7 +530,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const correctMatches = activeQuestion ? JSON.parse(activeQuestion.correctMatches) : {};
+    const correctMatches = getParsedCorrectMatches(activeQuestion);
 
     // Render active drag line
     if (dragStartPos.current && currentLinePos) {
@@ -851,7 +864,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const handleCheckMatches = async () => {
     if (!activeQuestion) return;
 
-    const correctMatches = JSON.parse(activeQuestion.correctMatches);
+    const correctMatches = getParsedCorrectMatches(activeQuestion);
     let correctCount = 0;
 
     connections.forEach((conn) => {
@@ -1362,7 +1375,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                     نتيجة التوصيل: {activeResults}
                   </div>
                   {(() => {
-                    const correctMatches = JSON.parse(activeQuestion.correctMatches);
+                    const correctMatches = getParsedCorrectMatches(activeQuestion);
                     let correctCount = 0;
                     connections.forEach((conn) => {
                       if (correctMatches[conn.leftId]?.includes(conn.rightId)) {
@@ -1404,7 +1417,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                     </button>
                   )}
                   {(() => {
-                    const correctMatches = JSON.parse(activeQuestion.correctMatches);
+                    const correctMatches = getParsedCorrectMatches(activeQuestion);
                     let correctCount = 0;
                     connections.forEach((conn) => {
                       if (correctMatches[conn.leftId]?.includes(conn.rightId)) {
