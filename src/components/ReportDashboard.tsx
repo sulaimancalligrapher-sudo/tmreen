@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { callGasApi } from '../utils/api';
 import { Student } from '../types';
-import { FileText, Download, CheckCircle, AlertTriangle, Table, Award, Loader2, RefreshCw } from 'lucide-react';
+import { FileText, Download, CheckCircle, AlertTriangle, Table, Award, Loader2, RefreshCw, Star, ListChecks } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ReportDashboardProps {
@@ -22,6 +22,23 @@ interface TableData {
   message?: string;
 }
 
+interface ReminderItem {
+  topic: string;
+  words: { summary: string; pct: string; isDone: boolean };
+  wasl: { summary: string; pct: string; isDone: boolean };
+  writing: { summary: string; pct: string; isDone: boolean };
+  homework: { status: string; isDone: boolean };
+  isCompleted: boolean;
+}
+
+interface ReminderData {
+  success: boolean;
+  todayLessons: ReminderItem[];
+  pendingLessons: ReminderItem[];
+  completedLessons: ReminderItem[];
+  message?: string;
+}
+
 export default function ReportDashboard({ student }: ReportDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all_a');
   const [loading, setLoading] = useState(true);
@@ -30,7 +47,8 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
   const [showPdfBtn, setShowPdfBtn] = useState(false);
 
   // Table states
-  const [allAData, setAllAData] = useState<TableData | null>(null);
+  const [allAData, setAllAData] = useState<ReminderData | null>(null);
+  const [selectedLessonTopic, setSelectedLessonTopic] = useState<string | null>(null);
   const [allVData, setAllVData] = useState<TableData | null>(null);
   const [correctionData, setCorrectionData] = useState<TableData | null>(null);
   const [wordsData, setWordsData] = useState<TableData | null>(null);
@@ -47,7 +65,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
     try {
       // Execute parallel calls to retrieve reports
       const [aReport, vReport, cReport, wReport, waslReport, writReport] = await Promise.all([
-        callGasApi<TableData>('getStudentData', { studentId: student.id }),
+        callGasApi<ReminderData>('getStudentData', { studentId: student.id }),
         callGasApi<TableData>('getStudentVideoData', { studentId: student.id }),
         callGasApi<TableData>('getCorrectionData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
         callGasApi<TableData>('getWordsExerciseData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
@@ -56,6 +74,15 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
       ]);
 
       setAllAData(aReport);
+      if (aReport && aReport.success) {
+        if (aReport.todayLessons && aReport.todayLessons.length > 0) {
+          setSelectedLessonTopic(aReport.todayLessons[0].topic);
+        } else if (aReport.pendingLessons && aReport.pendingLessons.length > 0) {
+          setSelectedLessonTopic(aReport.pendingLessons[0].topic);
+        } else if (aReport.completedLessons && aReport.completedLessons.length > 0) {
+          setSelectedLessonTopic(aReport.completedLessons[0].topic);
+        }
+      }
       setAllVData(vReport);
       setCorrectionData(cReport);
       setWordsData(wReport);
@@ -119,8 +146,6 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
 
   const getActiveTableData = (): TableData | null => {
     switch (activeTab) {
-      case 'all_a':
-        return allAData;
       case 'all_v':
         return allVData;
       case 'correction':
@@ -208,7 +233,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          النهائي (المرسل)
+          تذكير
         </button>
         <button
           onClick={() => setActiveTab('all_v')}
@@ -218,7 +243,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          تركيز الفيديو
+          الدروس المرسلة
         </button>
         <button
           onClick={() => setActiveTab('correction')}
@@ -262,71 +287,338 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
         </button>
       </div>
 
-      {/* Main Table Card */}
+      {/* Main Table Card or Reminders View */}
       <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-500">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
             <span className="text-sm">جاري جلب تقارير الدرجات المباشرة...</span>
           </div>
+        ) : activeTab === 'all_a' ? (
+          (() => {
+            const todayLessons = allAData?.todayLessons || [];
+            const pendingLessons = allAData?.pendingLessons || [];
+            const completedLessons = allAData?.completedLessons || [];
+
+            return (
+              <div className="p-6 md:p-8 space-y-8">
+                {/* Header intro */}
+                <div className="bg-slate-50 border border-slate-100/70 rounded-3xl p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-right">
+                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                      </span>
+                      قائمة التذكير والمتابعة الذكية
+                    </h3>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      استعرض دروسك اليومية، الدروس السابقة غير المكتملة، وتابع إنجازاتك من خلال النقر على أي درس لعرض بطاقة تفاصيله الفورية والنجوم المكتسبة مباشرة تحته!
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-1.5 bg-indigo-50 text-indigo-800 text-xs font-extrabold px-3.5 py-1.5 rounded-2xl border border-indigo-100">
+                    <span>إجمالي الدروس المجدولة: {todayLessons.length + pendingLessons.length + completedLessons.length}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  {/* 1. Today's Lesson Column */}
+                  <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
+                    <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      <h4 className="font-extrabold text-slate-900 text-sm">درس اليوم مقرر</h4>
+                    </div>
+                    <div className="space-y-3.5">
+                      {todayLessons.length === 0 ? (
+                        <div className="bg-slate-50/50 border border-slate-100/60 text-slate-400 rounded-2xl p-6 text-center text-xs">
+                          لا يوجد درس مقرر لليوم يا بطل!
+                        </div>
+                      ) : (
+                        todayLessons.map((lesson) => {
+                          const isSelected = selectedLessonTopic === lesson.topic;
+                          return (
+                            <div key={lesson.topic} className="space-y-2.5">
+                              <button
+                                onClick={() => setSelectedLessonTopic(isSelected ? null : lesson.topic)}
+                                className={`w-full text-right p-4 rounded-2xl border-2 transition-all duration-200 flex items-center justify-between gap-3 ${
+                                  isSelected 
+                                    ? "border-amber-400 ring-4 ring-amber-400/15 bg-amber-50/30" 
+                                    : "border-amber-100/80 hover:border-amber-200/80 bg-amber-50/10 hover:bg-amber-50/20"
+                                } cursor-pointer`}
+                              >
+                                <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
+                                <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 shrink-0">
+                                  درس اليوم 🌟
+                                </span>
+                              </button>
+
+                              {isSelected && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="bg-slate-50/70 border border-slate-150/60 rounded-2xl p-4 space-y-4 shadow-inner">
+                                    <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                      <TaskStatus label="تمارين الكلمات" isDone={lesson.words.isDone} summary={lesson.words.summary} pct={lesson.words.pct} />
+                                      <TaskStatus label="تمارين الوصل" isDone={lesson.wasl.isDone} summary={lesson.wasl.summary} pct={lesson.wasl.pct} />
+                                      <TaskStatus label="تمارين الكتابة" isDone={lesson.writing.isDone} summary={lesson.writing.summary} pct={lesson.writing.pct} />
+                                      <TaskStatus label="الواجب والتصحيح" isDone={lesson.homework.isDone} summary={lesson.homework.status} />
+                                    </div>
+                                    
+                                    {(() => {
+                                      const parsePctVal = (p: string) => {
+                                        const clean = String(p || '').replace('%', '').trim();
+                                        const num = parseInt(clean);
+                                        return isNaN(num) ? 0 : num;
+                                      };
+                                      const wordsPct = parsePctVal(lesson.words.pct);
+                                      const waslPct = parsePctVal(lesson.wasl.pct);
+                                      const writingPct = parsePctVal(lesson.writing.pct);
+                                      const homeworkPct = lesson.homework.isDone ? 100 : 0;
+                                      const lessonAvg = Math.round((wordsPct + waslPct + writingPct + homeworkPct) / 4);
+
+                                      return (
+                                        <div className="pt-2.5 border-t border-slate-200/50">
+                                          <CompactStarsRating percentage={lessonAvg} />
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 2. Unfinished Lessons Column */}
+                  <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
+                    <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
+                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                      <h4 className="font-extrabold text-slate-900 text-sm">دروس غير مكتملة</h4>
+                    </div>
+                    <div className="space-y-3.5">
+                      {pendingLessons.length === 0 ? (
+                        <div className="bg-emerald-50/40 border border-emerald-100/50 text-emerald-800 rounded-2xl p-6 text-center text-xs font-bold">
+                          رائع جداً! لا توجد دروس سابقة معلقة، أنت بطل ومجتهد دائماً! 🎉👏
+                        </div>
+                      ) : (
+                        pendingLessons.map((lesson) => {
+                          const isSelected = selectedLessonTopic === lesson.topic;
+                          return (
+                            <div key={lesson.topic} className="space-y-2.5">
+                              <button
+                                onClick={() => setSelectedLessonTopic(isSelected ? null : lesson.topic)}
+                                className={`w-full text-right p-4 rounded-2xl border-2 transition-all duration-200 flex items-center justify-between gap-3 ${
+                                  isSelected 
+                                    ? "border-rose-400 ring-4 ring-rose-400/15 bg-rose-50/30" 
+                                    : "border-rose-100/80 hover:border-rose-200/80 bg-rose-50/10 hover:bg-rose-50/20"
+                                } cursor-pointer`}
+                              >
+                                <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
+                                <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 shrink-0">
+                                  بحاجة لإكمال ⚠️
+                                </span>
+                              </button>
+
+                              {isSelected && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="bg-slate-50/70 border border-slate-150/60 rounded-2xl p-4 space-y-4 shadow-inner">
+                                    <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                      <TaskStatus label="تمارين الكلمات" isDone={lesson.words.isDone} summary={lesson.words.summary} pct={lesson.words.pct} />
+                                      <TaskStatus label="تمارين الوصل" isDone={lesson.wasl.isDone} summary={lesson.wasl.summary} pct={lesson.wasl.pct} />
+                                      <TaskStatus label="تمارين الكتابة" isDone={lesson.writing.isDone} summary={lesson.writing.summary} pct={lesson.writing.pct} />
+                                      <TaskStatus label="الواجب والتصحيح" isDone={lesson.homework.isDone} summary={lesson.homework.status} />
+                                    </div>
+                                    
+                                    {(() => {
+                                      const parsePctVal = (p: string) => {
+                                        const clean = String(p || '').replace('%', '').trim();
+                                        const num = parseInt(clean);
+                                        return isNaN(num) ? 0 : num;
+                                      };
+                                      const wordsPct = parsePctVal(lesson.words.pct);
+                                      const waslPct = parsePctVal(lesson.wasl.pct);
+                                      const writingPct = parsePctVal(lesson.writing.pct);
+                                      const homeworkPct = lesson.homework.isDone ? 100 : 0;
+                                      const lessonAvg = Math.round((wordsPct + waslPct + writingPct + homeworkPct) / 4);
+
+                                      return (
+                                        <div className="pt-2.5 border-t border-slate-200/50">
+                                          <CompactStarsRating percentage={lessonAvg} />
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3. Completed Lessons Column */}
+                  <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
+                    <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <h4 className="font-extrabold text-slate-900 text-sm">الدروس المكتملة</h4>
+                    </div>
+                    <div className="space-y-3.5">
+                      {completedLessons.length === 0 ? (
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center text-slate-500 text-sm">
+                          لم يتم إكمال أي دروس بالكامل حتى الآن. استمر بالدراسة والحل لتراها هنا يا بطل!
+                        </div>
+                      ) : (
+                        completedLessons.map((lesson) => {
+                          const isSelected = selectedLessonTopic === lesson.topic;
+                          return (
+                            <div key={lesson.topic} className="space-y-2.5">
+                              <button
+                                onClick={() => setSelectedLessonTopic(isSelected ? null : lesson.topic)}
+                                className={`w-full text-right p-4 rounded-2xl border-2 transition-all duration-200 flex items-center justify-between gap-3 ${
+                                  isSelected 
+                                    ? "border-emerald-400 ring-4 ring-emerald-400/15 bg-emerald-50/30" 
+                                    : "border-emerald-100/80 hover:border-emerald-200/80 bg-emerald-50/10 hover:bg-emerald-50/20"
+                                } cursor-pointer`}
+                              >
+                                <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
+                                <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
+                                  مكتمل ✓
+                                </span>
+                              </button>
+
+                              {isSelected && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="bg-slate-50/70 border border-slate-150/60 rounded-2xl p-4 space-y-4 shadow-inner">
+                                    <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                      <TaskStatus label="تمارين الكلمات" isDone={lesson.words.isDone} summary={lesson.words.summary} pct={lesson.words.pct} />
+                                      <TaskStatus label="تمارين الوصل" isDone={lesson.wasl.isDone} summary={lesson.wasl.summary} pct={lesson.wasl.pct} />
+                                      <TaskStatus label="تمارين الكتابة" isDone={lesson.writing.isDone} summary={lesson.writing.summary} pct={lesson.writing.pct} />
+                                      <TaskStatus label="الواجب والتصحيح" isDone={lesson.homework.isDone} summary={lesson.homework.status} />
+                                    </div>
+                                    
+                                    {(() => {
+                                      const parsePctVal = (p: string) => {
+                                        const clean = String(p || '').replace('%', '').trim();
+                                        const num = parseInt(clean);
+                                        return isNaN(num) ? 0 : num;
+                                      };
+                                      const wordsPct = parsePctVal(lesson.words.pct);
+                                      const waslPct = parsePctVal(lesson.wasl.pct);
+                                      const writingPct = parsePctVal(lesson.writing.pct);
+                                      const homeworkPct = lesson.homework.isDone ? 100 : 0;
+                                      const lessonAvg = Math.round((wordsPct + waslPct + writingPct + homeworkPct) / 4);
+
+                                      return (
+                                        <div className="pt-2.5 border-t border-slate-200/50">
+                                          <CompactStarsRating percentage={lessonAvg} />
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         ) : currentTable && currentTable.success ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-right border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-100">
-                  {currentTable.headers.map((h, index) => (
-                    <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
-                      {h}
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-right border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-100">
+                    {currentTable.headers.map((h, index) => (
+                      <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
+                        {h}
+                      </th>
+                    ))}
+                    <th className="p-4 md:p-5 whitespace-nowrap text-center bg-indigo-50/40 text-indigo-950 font-black">
+                      التقييم والنجوم ⭐
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {currentTable.data.map((row, rIdx) => (
-                  <tr key={rIdx} className="hover:bg-slate-50/50 transition">
-                    {row.map((cell, cIdx) => {
-                      // Formatting yes/no color tags in ALL-A
-                      const cellTrim = String(cell || '').trim();
-                      let content: React.ReactNode = cell;
-
-                      // Check if it's a URL
-                      if (cellTrim.startsWith('http')) {
-                        content = (
-                          <a
-                            href={cellTrim}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
-                          >
-                            🔗 افتح الملف
-                          </a>
-                        );
-                      } else if (cellTrim === 'Yes' || cellTrim === 'YES') {
-                        content = (
-                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold">
-                            نعم (مكتمل)
-                          </span>
-                        );
-                      } else if (cellTrim === 'No' || cellTrim === 'NO') {
-                        content = (
-                          <span className="bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full text-xs font-bold">
-                            لا (غير مكتمل)
-                          </span>
-                        );
-                      } else if (cellTrim === '') {
-                        content = <span className="text-slate-300">-</span>;
-                      }
-
-                      return (
-                        <td key={cIdx} className="p-4 md:p-5 whitespace-normal leading-relaxed">
-                          {content}
-                        </td>
-                      );
-                    })}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {currentTable.data.map((row, rIdx) => {
+                    const rowPct = getRowPercentage(row, currentTable.headers);
+                    return (
+                      <tr key={rIdx} className="hover:bg-slate-50/50 transition">
+                        {row.map((cell, cIdx) => {
+                          const cellTrim = String(cell || '').trim();
+                          let content: React.ReactNode = cell;
+
+                          if (cellTrim.startsWith('http')) {
+                            content = (
+                              <a
+                                href={cellTrim}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                              >
+                                🔗 افتح الملف
+                              </a>
+                            );
+                          } else if (cellTrim === 'Yes' || cellTrim === 'YES') {
+                            content = (
+                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold">
+                                نعم (مكتمل)
+                              </span>
+                            );
+                          } else if (cellTrim === 'No' || cellTrim === 'NO') {
+                            content = (
+                              <span className="bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full text-xs font-bold">
+                                لا (غير مكتمل)
+                              </span>
+                            );
+                          } else if (cellTrim === '') {
+                            content = <span className="text-slate-300">-</span>;
+                          }
+
+                          return (
+                            <td key={cIdx} className="p-4 md:p-5 whitespace-normal leading-relaxed">
+                              {content}
+                            </td>
+                          );
+                        })}
+                        <td className="p-4 md:p-5 text-center whitespace-nowrap min-w-[180px] bg-indigo-50/5">
+                          <CompactStarsRating percentage={rowPct} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Stars rating and custom encouragement footer for standard tables */}
+            <div className="p-6 md:p-8 border-t border-slate-100 bg-slate-50/10">
+              <StarsRating percentage={calculateTableAverage(currentTable)} />
+            </div>
           </div>
         ) : (
           <div className="p-16 text-center space-y-3">
@@ -337,6 +629,277 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
             </p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TaskStatus({ label, isDone, summary, pct }: { label: string; isDone: boolean; summary: string; pct?: string }) {
+  return (
+    <div className="flex flex-col p-2.5 bg-white border border-slate-100 rounded-xl space-y-1 text-right shadow-sm">
+      <span className="text-slate-400 font-bold text-[10px]">{label}</span>
+      <div className="flex items-center justify-between gap-1.5 mt-0.5">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? 'bg-emerald-500' : 'bg-rose-400'}`} />
+        <span className="font-bold text-slate-800 text-[11px] truncate max-w-[100px] text-left" title={summary}>
+          {summary || '-'}
+        </span>
+      </div>
+      {pct && (
+        <span className={`text-[9px] font-bold ${isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
+          النسبة: {pct}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function calculateTableAverage(table: TableData | null): number {
+  if (!table || !table.data || table.data.length === 0) return 0;
+  
+  const pctColIndexes: number[] = [];
+  table.headers.forEach((h, index) => {
+    const headerLower = h.toLowerCase();
+    if (
+      headerLower.includes('النسبة') || 
+      headerLower.includes('درجة') || 
+      headerLower.includes('درجات') || 
+      headerLower.includes('نسبة') || 
+      headerLower.includes('score') || 
+      headerLower.includes('percent')
+    ) {
+      pctColIndexes.push(index);
+    }
+  });
+
+  let sum = 0;
+  let count = 0;
+
+  table.data.forEach((row) => {
+    if (pctColIndexes.length > 0) {
+      pctColIndexes.forEach((idx) => {
+        const val = row[idx];
+        if (val !== undefined && val !== null && val !== '') {
+          const valStr = String(val).trim();
+          const cleanVal = valStr.replace('%', '').trim();
+          const parsed = parseFloat(cleanVal);
+          if (!isNaN(parsed)) {
+            if (valStr.indexOf('%') === -1 && parsed <= 1 && parsed > 0) {
+              sum += parsed * 100;
+            } else {
+              sum += parsed;
+            }
+            count++;
+          }
+        }
+      });
+    } else {
+      row.forEach((cell) => {
+        const cellStr = String(cell || '').trim();
+        if (cellStr.includes('%')) {
+          const cleanVal = cellStr.replace('%', '').trim();
+          const parsed = parseFloat(cleanVal);
+          if (!isNaN(parsed)) {
+            sum += parsed;
+            count++;
+          }
+        }
+      });
+    }
+  });
+
+  if (count > 0) {
+    return Math.round(sum / count);
+  }
+  
+  let yesCount = 0;
+  let totalCellCount = 0;
+  table.data.forEach((row) => {
+    row.forEach((cell) => {
+      const cellStr = String(cell || '').trim().toLowerCase();
+      if (cellStr === 'yes' || cellStr === 'نعم' || cellStr === 'مكتمل' || cellStr === 'تم') {
+        yesCount++;
+      }
+      if (cellStr !== '') {
+        totalCellCount++;
+      }
+    });
+  });
+
+  if (totalCellCount > 0 && yesCount > 0) {
+    return Math.round((yesCount / totalCellCount) * 100);
+  }
+
+  return 0;
+}
+
+function StarsRating({ percentage }: { percentage: number }) {
+  const activeStars = Math.round((percentage / 100) * 10);
+  
+  let encouragement = '';
+  if (percentage >= 95) {
+    encouragement = 'مستوى مبهر جداً! أداء متكامل وإتقان تام للدروس والتمارين. استمر في التميز والنجاح يا بطل! 👑🏆🌟';
+  } else if (percentage >= 85) {
+    encouragement = 'أداء رائع وممتاز! مهارات لغوية متفوقة وحل دقيق. أحسنت صنعاً وتستحق التقدير! 👏⭐🎖️';
+  } else if (percentage >= 75) {
+    encouragement = 'ممتاز جداً! درجات عالية تدل على فهم متميز وحرص كبير على الاستمرار والتفوق. 👍✨🚀';
+  } else if (percentage >= 60) {
+    encouragement = 'جيد جداً! خطوت خطوات ممتازة وبإمكانك تحقيق المزيد بالمزيد من التدرب والتركيز. 💪😊📈';
+  } else if (percentage >= 50) {
+    encouragement = 'جيد! فهم مقبول ولكن تحتاج لمزيد من المراجعة والتركيز لتصل إلى درجات القمة اللغوية. ✊📚📝';
+  } else if (percentage > 0) {
+    encouragement = 'بداية طيبة! استمر بالمحاولة والتعلم بانتظام فكل تدريب تحله يجعلك أكثر تميزاً وذكاءً. 🏃‍♂️🧭✨';
+  } else {
+    encouragement = 'لم تبدأ حل التمارين في هذا القسم بعد. نحن واثقون من قدرتك الفائقة على تحقيق العلامة الكاملة بمجرد البدء! 🚀🎯💫';
+  }
+
+  return (
+    <div className="bg-slate-50 border border-slate-100/80 rounded-2xl p-5 md:p-6 text-center space-y-3.5 shadow-sm">
+      <div className="text-slate-400 font-bold text-xs">تقييم الأداء والنجوم المكتسبة</div>
+      
+      <div className="flex items-center justify-center gap-1.5 flex-row-reverse">
+        {Array.from({ length: 10 }).map((_, i) => {
+          const isActive = i < activeStars;
+          return (
+            <Star
+              key={i}
+              className={`w-6 h-6 md:w-7 md:h-7 transition-all duration-300 ${
+                isActive 
+                  ? 'text-amber-500 fill-amber-400 drop-shadow-[0_2px_4px_rgba(245,158,11,0.25)] scale-110' 
+                  : 'text-slate-300 stroke-[1.5]'
+              }`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="space-y-1">
+        <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 text-xs font-black px-3 py-1 rounded-full border border-amber-200/50">
+          <span>النسبة المحققة: {percentage}%</span>
+          <span className="text-[10px]">({activeStars}/10 نجوم)</span>
+        </div>
+        <p className="text-slate-700 font-bold text-xs md:text-sm leading-relaxed max-w-xl mx-auto pt-1">
+          {encouragement}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function getRowPercentage(row: string[], headers: string[]): number {
+  if (!row || row.length === 0) return 0;
+  
+  const pctColIndexes: number[] = [];
+  headers.forEach((h, index) => {
+    const headerLower = h.toLowerCase();
+    if (
+      headerLower.includes('النسبة') || 
+      headerLower.includes('درجة') || 
+      headerLower.includes('درجات') || 
+      headerLower.includes('نسبة') || 
+      headerLower.includes('score') || 
+      headerLower.includes('percent') ||
+      headerLower.includes('تصحيح') ||
+      headerLower.includes('علامة')
+    ) {
+      pctColIndexes.push(index);
+    }
+  });
+
+  let sum = 0;
+  let count = 0;
+
+  if (pctColIndexes.length > 0) {
+    pctColIndexes.forEach((idx) => {
+      const val = row[idx];
+      if (val !== undefined && val !== null && val !== '') {
+        const valStr = String(val).trim();
+        const cleanVal = valStr.replace('%', '').trim();
+        const parsed = parseFloat(cleanVal);
+        if (!isNaN(parsed)) {
+          if (valStr.indexOf('%') === -1 && parsed <= 1 && parsed > 0) {
+            sum += parsed * 100;
+          } else {
+            sum += parsed;
+          }
+          count++;
+        }
+      }
+    });
+  }
+
+  if (count > 0) {
+    return Math.round(sum / count);
+  }
+
+  let yesCount = 0;
+  let totalCellCount = 0;
+  row.forEach((cell) => {
+    const cellStr = String(cell || '').trim().toLowerCase();
+    if (cellStr.includes('%')) {
+      const cleanVal = cellStr.replace('%', '').trim();
+      const parsed = parseFloat(cleanVal);
+      if (!isNaN(parsed)) {
+        sum += parsed;
+        count++;
+      }
+    } else if (cellStr === 'yes' || cellStr === 'نعم' || cellStr === 'مكتمل' || cellStr === 'تم') {
+      yesCount++;
+      totalCellCount++;
+    } else if (cellStr === 'no' || cellStr === 'لا' || cellStr === 'غير مكتمل') {
+      totalCellCount++;
+    }
+  });
+
+  if (count > 0) {
+    return Math.round(sum / count);
+  }
+
+  if (totalCellCount > 0) {
+    return Math.round((yesCount / totalCellCount) * 100);
+  }
+
+  return 0;
+}
+
+function CompactStarsRating({ percentage }: { percentage: number }) {
+  const activeStars = Math.round((percentage / 100) * 10);
+  
+  let encouragement = '';
+  if (percentage >= 95) {
+    encouragement = 'مستوى مذهل وإتقان كامل! 👑🏆';
+  } else if (percentage >= 85) {
+    encouragement = 'أداء رائع وممتاز جداً! ⭐👏';
+  } else if (percentage >= 75) {
+    encouragement = 'ممتاز، فهم متميز للغاية! 👍✨';
+  } else if (percentage >= 60) {
+    encouragement = 'جيد جداً، واصل التقدم والتركيز! 🚀📈';
+  } else if (percentage >= 50) {
+    encouragement = 'جيد، ولديك القدرة على الأفضل! 😊💪';
+  } else if (percentage > 0) {
+    encouragement = 'محاولة طيبة، استمر في التميز! 🏃‍♂️🎯';
+  } else {
+    encouragement = 'بانتظار البدء لتحقيق العلامة الكاملة! 💫';
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center p-3 bg-indigo-50/20 border border-indigo-100/40 rounded-2xl text-center space-y-1 shadow-sm">
+      <div className="flex items-center justify-center gap-0.5 flex-row-reverse">
+        {Array.from({ length: 10 }).map((_, i) => {
+          const isActive = i < activeStars;
+          return (
+            <Star
+              key={i}
+              className={`w-3.5 h-3.5 transition-all duration-300 ${
+                isActive 
+                  ? 'text-amber-500 fill-amber-400 drop-shadow-[0_1px_2px_rgba(245,158,11,0.2)] scale-105' 
+                  : 'text-slate-200 stroke-[1.5]'
+              }`}
+            />
+          );
+        })}
+      </div>
+      <div className="text-[10px] md:text-[11px] font-bold text-slate-700 leading-tight">
+        {encouragement} <span className="text-indigo-600 font-extrabold">({percentage}%)</span>
       </div>
     </div>
   );

@@ -300,6 +300,14 @@ function doPost(e) {
       result = getWaslExerciseData(request.studentId);
     } else if (action === 'getWritingExerciseData') {
       result = getWritingExerciseData(request.studentId);
+    } else if (action === 'syncConsolidatedEvaluations') {
+      result = syncConsolidatedEvaluations(request.studentId, request.studentName);
+    } else if (action === 'getStudentsEvaluations') {
+      result = getStudentsEvaluations();
+    } else if (action === 'getStudentConsolidatedEvaluation') {
+      result = getStudentConsolidatedEvaluation(request.studentId, request.studentName);
+    } else if (action === 'generateStudentConsolidatedPDF') {
+      result = generateStudentConsolidatedPDF(request.studentId, request.studentName);
     } else if (action === 'generateStudentPDF') {
       result = generateStudentPDF(request.studentId, 'student');
     } else if (action === 'getPdfControlForStudent') {
@@ -618,9 +626,9 @@ function getRandomWord(previousIndex, rowNumber, studentId) {
   if (rowData.length < 1 || !rowData[0]) return null;
   
   var topic = rowData[0] || 'موضوع غير محدد';
-  var condition = sheet.getRange(rowNumber, 83).getValue().toString().trim();
-  var retryCondition = sheet.getRange(rowNumber, 84).getValue().toString().trim();
-  var showCorrectAnswer = sheet.getRange(rowNumber, 82).getValue().toString().trim();
+  var condition = sheet.getRange(rowNumber, 83).getValue().toString().trim() || 'لا';
+  var retryCondition = sheet.getRange(rowNumber, 84).getValue().toString().trim() || 'نعم';
+  var showCorrectAnswer = sheet.getRange(rowNumber, 82).getValue().toString().trim() || 'نعم';
   
   var allQuestions = [];
   for (var q = 1; q <= 20; q++) {
@@ -1513,99 +1521,379 @@ function incrementRetry(studentId, lessonName) {
 
 function getStudentData(studentId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var allASheet = ss.getSheetByName('ALL-A');
-  if (!allASheet) return { success: false, message: 'ورقة ALL-A غير موجودة' };
+  var questionsSheet = ss.getSheetByName('Questions');
+  if (!questionsSheet) return { success: false, message: 'ورقة Questions غير موجودة' };
   
-  var data = allASheet.getDataRange().getValues();
-  for (var col = 0; col < data[0].length; col += 2) {
-    if (data[0][col] && data[0][col].toString() === studentId.toString()) {
-      var studentName = data[1][col] || 'غير معروف';
-      var oldStudentData = [];
-      for (var row = 5; row < data.length; row++) {
-        var rowData = [];
-        var isEmpty = true;
-        for (var c = 0; c < 2; c++) {
-          var cellValue = data[row][col + c] || '';
-          rowData.push(cellValue);
-          if (cellValue !== '' && cellValue !== ' ') isEmpty = false;
-        }
-        if (!isEmpty) oldStudentData.push(rowData);
-      }
-      
-      var headers = ['موضوع الدرس', 'أسئلة الفيديو', 'أسئلة الصوت', 'تسجيل الصوت', 'رفع صورة', 'تمارين الوصل', 'تمارين الكلمات', 'تمارين الكتابة'];
-      var studentData = [];
-      oldStudentData.forEach(function(oldRow) {
-        var topic = oldRow[0] || '';
-        var statusStr = oldRow[1] || '';
-        var statuses = new Array(7).fill('');
-        
-        if (statusStr) {
-          var parts = statusStr.split('|').map(function(p) { return p.trim(); });
-          parts.forEach(function(p) {
-            var match = p.match(/(\\d+)\\s+(Yes|No)/i);
-            if (match) {
-              var num = parseInt(match[1]);
-              var val = match[2];
-              var index = num - 1;
-              if (index >= 0 && index < 7) statuses[index] = val;
-            }
-          });
-        }
-        studentData.push([topic].concat(statuses));
-      });
-      
-      return { success: true, studentId: studentId, studentName: studentName, headers: headers, data: studentData };
+  var schedule = getStudentSchedule(studentId);
+  var effSchedule = getEffectiveScheduleForSheet(schedule, 'Questions');
+  
+  var unlockedCount = 99999;
+  var daysToKeep = 99999;
+  if (effSchedule && effSchedule.startDate !== '') {
+    unlockedCount = getUnlockedCount(effSchedule.startDate, effSchedule.activeDays, effSchedule.lessonsPerWeek, new Date());
+    if (effSchedule.daysToKeep && effSchedule.daysToKeep.toString().trim() !== '') {
+      daysToKeep = parseInt(effSchedule.daysToKeep) || 99999;
     }
   }
-  return { success: false, message: 'رقم الطالب غير موجود في ALL-A' };
+  
+  // Get all topics
+  var lastRow = questionsSheet.getLastRow();
+  if (lastRow < 2) return { success: true, todayLessons: [], pendingLessons: [], completedLessons: [] };
+  
+  var topicsRange = questionsSheet.getRange(2, 1, lastRow - 1, 91).getValues();
+  var unlockedLessons = [];
+  var activeLessonCount = 0;
+  
+  for (var i = 0; i < topicsRange.length; i++) {
+    var rowData = topicsRange[i];
+    var topicName = rowData[0] ? rowData[0].toString().trim() : '';
+    if (topicName !== '') {
+      var row = i + 2;
+      var showDateVal = rowData[88] || '';
+      var hideDateVal = rowData[89] || '';
+      var currentStatusVal = rowData[90] || '';
+      
+      var status = getOrUpdateStatus(questionsSheet, row, 91, showDateVal, hideDateVal, currentStatusVal);
+      status = getStudentLessonStatus(schedule, 'Questions', topicName, status);
+      
+      if (status !== 'ظهور') {
+        continue;
+      }
+      
+      var hasOverride = false;
+      if (schedule && schedule.examOverrides) {
+        try {
+          var ov = JSON.parse(schedule.examOverrides);
+          if (ov && ov['Questions'] && ov['Questions'][topicName]) {
+            hasOverride = true;
+          }
+        } catch (e) {}
+      }
+      var isExamLesson = (showDateVal.toString().trim() !== '' || hideDateVal.toString().trim() !== '' || hasOverride);
+      
+      if (effSchedule && effSchedule.startDate !== '') {
+        if (!isExamLesson) {
+          activeLessonCount++;
+          if (activeLessonCount > unlockedCount) {
+            continue;
+          }
+          if (daysToKeep !== 99999) {
+            var lessonsPerDay = parseInt(effSchedule.lessonsPerWeek) || 3;
+            var activeDayIndexForLesson = Math.ceil(activeLessonCount / lessonsPerDay);
+            var unlockDate = getActiveStudyDayDate(effSchedule.startDate, effSchedule.activeDays, activeDayIndexForLesson);
+            if (unlockDate) {
+              var today = new Date();
+              today.setHours(0, 0, 0, 0);
+              var diffMs = today.getTime() - unlockDate.getTime();
+              var diffDays = Math.floor(diffMs / (24 * 3600 * 1000));
+              if (diffDays >= daysToKeep) {
+                continue;
+              }
+            }
+          }
+        }
+      }
+      unlockedLessons.push(topicName);
+    }
+  }
+  
+  // Now we have the list of unlocked lesson names. Let's get status maps!
+  // Answers-Questions (Words)
+  var wordsMap = {};
+  var aqSheet = ss.getSheetByName('Answers-Questions');
+  if (aqSheet) {
+    var aqData = aqSheet.getDataRange().getValues();
+    for (var r = 1; r < aqData.length; r++) {
+      var rId = aqData[r][0] ? aqData[r][0].toString().trim() : '';
+      if (rId === studentId.toString().trim()) {
+        var topic = aqData[r][2] ? aqData[r][2].toString().trim() : '';
+        if (topic) {
+          var pct = formatPercentage(aqData[r][30]);
+          var isDone = (pct === '100%');
+          wordsMap[topic] = { summary: aqData[r][27] ? aqData[r][27].toString().trim() : 'لم يبدأ', pct: pct, isDone: isDone };
+        }
+      }
+    }
+  }
+  
+  // Answers (Wasl)
+  var waslMap = {};
+  var aSheet = ss.getSheetByName('Answers');
+  if (aSheet) {
+    var aData = aSheet.getDataRange().getValues();
+    for (var r = 1; r < aData.length; r++) {
+      var rId = aData[r][0] ? aData[r][0].toString().trim() : '';
+      if (rId === studentId.toString().trim()) {
+        var topic = aData[r][2] ? aData[r][2].toString().trim() : '';
+        if (topic) {
+          var pct = formatPercentage(aData[r][19]);
+          var isDone = (pct === '100%' || aData[r][14].toString().trim() === 'تم');
+          waslMap[topic] = { summary: aData[r][16] ? aData[r][16].toString().trim() : 'لم يبدأ', pct: pct, isDone: isDone };
+        }
+      }
+    }
+  }
+  
+  // Progress (Writing)
+  var progMap = {};
+  var pSheet = ss.getSheetByName('Progress');
+  if (pSheet) {
+    var pData = pSheet.getDataRange().getValues();
+    for (var r = 1; r < pData.length; r++) {
+      var rId = pData[r][0] ? pData[r][0].toString().trim() : '';
+      if (rId === studentId.toString().trim()) {
+        var topic = pData[r][3] ? pData[r][3].toString().trim() : '';
+        if (topic) {
+          var pct = formatPercentage(pData[r][37]);
+          var isDone = (pct === '100%');
+          progMap[topic] = { summary: pData[r][35] ? pData[r][35].toString().trim() : 'لم يبدأ', pct: pct, isDone: isDone };
+        }
+      }
+    }
+  }
+  
+  // correction (Homework)
+  var hwMap = {};
+  var corrSheet = ss.getSheetByName('correction');
+  if (corrSheet) {
+    var corrData = corrSheet.getDataRange().getValues();
+    for (var r = 1; r < corrData.length; r++) {
+      var rId = corrData[r][0] ? corrData[r][0].toString().trim() : '';
+      if (rId === studentId.toString().trim()) {
+        var topic = corrData[r][2] ? corrData[r][2].toString().trim() : '';
+        if (topic) {
+          var correctedText = corrData[r][21] ? corrData[r][21].toString().trim() : '';
+          var isDone = (correctedText !== '');
+          hwMap[topic] = { status: isDone ? 'تم التصحيح والتقييم' : 'بانتظار التصحيح', isDone: isDone };
+        }
+      }
+    }
+  }
+  
+  // Now categorize lessons
+  var todayLessons = [];
+  var pendingLessons = [];
+  var completedLessons = [];
+  
+  // Let's decide which is today's lesson:
+  // Since they are listed chronologically, the last one in unlockedLessons is today's lesson.
+  var todayCount = 1; // normally 1 lesson is today's lesson
+  if (effSchedule && effSchedule.lessonsPerWeek) {
+    var parsedLPD = parseInt(effSchedule.lessonsPerWeek);
+    if (!isNaN(parsedLPD) && parsedLPD > 1) {
+      todayCount = parsedLPD;
+    }
+  }
+  // Clamp todayCount to unlocked count
+  if (todayCount > unlockedLessons.length) todayCount = unlockedLessons.length;
+  
+  for (var k = 0; k < unlockedLessons.length; k++) {
+    var topic = unlockedLessons[k];
+    
+    var wInfo = wordsMap[topic] || { summary: 'لم يبدأ', pct: '0%', isDone: false };
+    var waInfo = waslMap[topic] || { summary: 'لم يبدأ', pct: '0%', isDone: false };
+    var prInfo = progMap[topic] || { summary: 'لم يبدأ', pct: '0%', isDone: false };
+    var hInfo = hwMap[topic] || { status: 'لم يرسل بعد', isDone: false };
+    
+    var isLessonDone = wInfo.isDone && waInfo.isDone && prInfo.isDone && hInfo.isDone;
+    
+    var lessonObj = {
+      topic: topic,
+      words: wInfo,
+      wasl: waInfo,
+      writing: prInfo,
+      homework: hInfo,
+      isCompleted: isLessonDone
+    };
+    
+    // Check if this belongs to today's lessons (the last ones in unlocked array)
+    if (k >= unlockedLessons.length - todayCount) {
+      todayLessons.push(lessonObj);
+    } else {
+      if (isLessonDone) {
+        completedLessons.push(lessonObj);
+      } else {
+        pendingLessons.push(lessonObj);
+      }
+    }
+  }
+  
+  return {
+    success: true,
+    todayLessons: todayLessons,
+    pendingLessons: pendingLessons,
+    completedLessons: completedLessons
+  };
 }
 
 function getStudentVideoData(studentId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var allVSheet = ss.getSheetByName('ALL-V');
-  if (!allVSheet) return { success: false, message: 'ورقة ALL-V غير موجودة' };
+  var correctionSheet = ss.getSheetByName('correction');
+  if (!correctionSheet) return { success: false, message: 'ورقة correction غير موجودة' };
   
-  var data = allVSheet.getDataRange().getValues();
-  for (var col = 2; col < data[0].length; col += 12) {
-    if (data[0][col] && data[0][col].toString() === studentId.toString()) {
-      var studentName = data[1][col] || 'غير معروف';
-      var headers = ['رقم الدرس'];
-      for (var h = 0; h < 12; h++) headers.push(data[4][col + h] || '');
-      headers.push('تشجيع');
-      
-      var studentData = [];
-      for (var row = 5; row < data.length; row++) {
-        var rowData = [];
-        var isEmpty = true;
-        var lessonNumber = data[row][1] || '';
-        rowData.push(lessonNumber);
-        if (lessonNumber !== '' && lessonNumber !== ' ') isEmpty = false;
-        
-        var lastCellValue = '';
-        for (var c = 0; c < 12; c++) {
-          var cellValue = data[row][col + c] || '';
-          if (c === 11 && typeof cellValue === 'number' && !isNaN(cellValue)) {
-            cellValue = (cellValue * 100) + '%';
-          }
-          rowData.push(cellValue);
-          if (cellValue !== '' && cellValue !== ' ') isEmpty = false;
-          if (c === 11) lastCellValue = cellValue;
-        }
-        
-        var encouragement = getEncouragement(lastCellValue);
-        rowData.push(encouragement);
-        if (!isEmpty) studentData.push(rowData);
+  var data = correctionSheet.getDataRange().getDisplayValues();
+  if (data.length < 1) return { success: false, message: 'الورقة فارغة' };
+  
+  var headers = [
+    'موضوع الدرس',
+    'صورة الواجب',
+    'تسجيل صوت',
+    'تصحيح',
+    'درجات الصورة',
+    'درجات الصوت',
+    'اضافة صورة',
+    'اضافة فيديو',
+    'اضافة صوت',
+    'تاريخ التصحيح'
+  ];
+  
+  // Columns map to indexes in correction:
+  // C (2), E (4), G (6), V (21), U (20), W (22), X (23), Y (24), Z (25), AA (26)
+  var cols = [2, 4, 6, 21, 20, 22, 23, 24, 25, 26];
+  
+  var studentData = [];
+  var studentName = 'غير معروف';
+  
+  for (var row = 1; row < data.length; row++) {
+    if (data[row][0] && data[row][0].toString().trim() === studentId.toString().trim()) {
+      if (data[row][1]) {
+        studentName = data[row][1].toString().trim();
       }
-      return { success: true, studentId: studentId, studentName: studentName, headers: headers, data: studentData };
+      var rowData = cols.map(function(c) {
+        var val = data[row][c];
+        return val !== undefined && val !== null ? val.toString().trim() : '';
+      });
+      studentData.push(rowData);
     }
   }
-  return { success: false, message: 'رقم الطالب غير موجود في ALL-V' };
+  
+  if (studentData.length === 0) {
+    return { success: false, message: 'لا توجد دروس مرسلة مسجلة لهذا الطالب في ورقة التصحيح' };
+  }
+  
+  return { success: true, studentId: studentId, studentName: studentName, headers: headers, data: studentData };
 }
 
 function getCorrectionData(studentId) { return getCorrectionColumnGroup(studentId, [2, 8, 9, 10, 11]); }
-function getWordsExerciseData(studentId) { return getCorrectionColumnGroup(studentId, [2, 29, 30, 31, 32]); }
-function getWaslExerciseData(studentId) { return getCorrectionColumnGroup(studentId, [2, 34, 35, 36, 37]); }
-function getWritingExerciseData(studentId) { return getCorrectionColumnGroup(studentId, [2, 39, 40, 41]); }
+
+function formatPercentage(val) {
+  if (val === undefined || val === null || val === '') return '0%';
+  var str = val.toString().trim();
+  if (str.indexOf('%') !== -1) return str;
+  var num = parseFloat(str);
+  if (isNaN(num)) return '0%';
+  if (num <= 1.0) {
+    return Math.round(num * 100) + '%';
+  } else {
+    return Math.round(num) + '%';
+  }
+}
+
+function getWordsExerciseData(studentId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Answers-Questions');
+  if (!sheet) return { success: false, message: 'ورقة Answers-Questions غير موجودة' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, headers: ['موضوع الدرس', 'النتيجة والتفاصيل', 'النسبة المئوية', 'آخر تحديث'], data: [] };
+  
+  var maxCols = Math.max(31, sheet.getLastColumn());
+  var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getValues();
+  var studentData = [];
+  
+  data.forEach(function(row) {
+    var rowId = row[0] ? row[0].toString().trim() : '';
+    if (rowId === studentId.toString().trim()) {
+      var topic = row[2] ? row[2].toString().trim() : '';
+      var summary = row[27] ? row[27].toString().trim() : 'لم يبدأ';
+      var pct = formatPercentage(row[30]);
+      var lastUpdated = '';
+      if (row[23] instanceof Date) {
+        var d = row[23];
+        lastUpdated = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes();
+      } else {
+        lastUpdated = row[23] ? row[23].toString() : '';
+      }
+      studentData.push([topic, summary, pct, lastUpdated]);
+    }
+  });
+  
+  return {
+    success: true,
+    headers: ['موضوع الدرس', 'النتيجة والتفاصيل', 'النسبة المئوية', 'آخر تحديث'],
+    data: studentData
+  };
+}
+
+function getWaslExerciseData(studentId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Answers');
+  if (!sheet) return { success: false, message: 'ورقة Answers غير موجودة' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, headers: ['موضوع الدرس', 'النتيجة والتفاصيل', 'النسبة المئوية', 'عدد المحاولات', 'آخر تحديث'], data: [] };
+  
+  var maxCols = Math.max(20, sheet.getLastColumn());
+  var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getValues();
+  var studentData = [];
+  
+  data.forEach(function(row) {
+    var rowId = row[0] ? row[0].toString().trim() : '';
+    if (rowId === studentId.toString().trim()) {
+      var topic = row[2] ? row[2].toString().trim() : '';
+      var summary = row[16] ? row[16].toString().trim() : 'لم يبدأ';
+      var pct = formatPercentage(row[19]);
+      var retries = row[15] !== undefined ? row[15].toString().trim() : '0';
+      var lastUpdated = '';
+      if (row[13] instanceof Date) {
+        var d = row[13];
+        lastUpdated = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes();
+      } else {
+        lastUpdated = row[13] ? row[13].toString() : '';
+      }
+      studentData.push([topic, summary, pct, retries, lastUpdated]);
+    }
+  });
+  
+  return {
+    success: true,
+    headers: ['موضوع الدرس', 'النتيجة والتفاصيل', 'النسبة المئوية', 'عدد المحاولات', 'آخر تحديث'],
+    data: studentData
+  };
+}
+
+function getWritingExerciseData(studentId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Progress');
+  if (!sheet) return { success: false, message: 'ورقة Progress غير موجودة' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, headers: ['موضوع الدرس', 'عدد الجمل المكتملة', 'النسبة المئوية', 'آخر تحديث'], data: [] };
+  
+  var maxCols = Math.max(38, sheet.getLastColumn());
+  var data = sheet.getRange(2, 1, lastRow - 1, maxCols).getValues();
+  var studentData = [];
+  
+  data.forEach(function(row) {
+    var rowId = row[0] ? row[0].toString().trim() : '';
+    if (rowId === studentId.toString().trim()) {
+      var topic = row[3] ? row[3].toString().trim() : '';
+      var summary = row[35] ? row[35].toString().trim() : '0/0';
+      var pct = formatPercentage(row[37]);
+      var lastUpdated = '';
+      if (row[2] instanceof Date) {
+        var d = row[2];
+        lastUpdated = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes();
+      } else {
+        lastUpdated = row[2] ? row[2].toString() : '';
+      }
+      studentData.push([topic, summary, pct, lastUpdated]);
+    }
+  });
+  
+  return {
+    success: true,
+    headers: ['موضوع الدرس', 'عدد الجمل المكتملة', 'النسبة المئوية', 'آخر تحديث'],
+    data: studentData
+  };
+}
 
 function getCorrectionColumnGroup(studentId, cols) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1646,16 +1934,26 @@ function getEncouragement(percentageStr) {
 
 function getPdfControlForStudent(studentId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pdfUrl = '';
+  var control = '';
+
   var pdfSheet = ss.getSheetByName('PDF');
-  if (!pdfSheet) return { success: true, control: '' };
-  
-  var pdfData = pdfSheet.getDataRange().getValues();
-  for (var i = 1; i < pdfData.length; i++) {
-    if (pdfData[i][1] && pdfData[i][1].toString() === studentId.toString()) {
-      return { success: true, control: pdfData[i][2] ? pdfData[i][2].toString().trim() : '' };
+  if (pdfSheet) {
+    var pdfData = pdfSheet.getDataRange().getValues();
+    for (var i = 1; i < pdfData.length; i++) {
+      if (pdfData[i][1] && pdfData[i][1].toString().trim() === studentId.toString().trim()) {
+        control = pdfData[i][2] ? pdfData[i][2].toString().trim() : '';
+        pdfUrl = pdfData[i][4] ? pdfData[i][4].toString().trim() : '';
+        break;
+      }
     }
   }
-  return { success: true, control: '' };
+
+  return { 
+    success: true, 
+    control: control,
+    pdfUrl: pdfUrl
+  };
 }
 
 function getHoomDataForStudent(username) {
@@ -1730,7 +2028,7 @@ function generateStudentPDF(studentId, source) {
   var pdfName = 'تقرير_الطالب_' + studentName.replace(/\\s+/g, '_') + '_' + studentId + '.pdf';
   var pdfBlob = DriveApp.getFileById(tempDocId).getBlob().getAs('application/pdf').setName(pdfName);
   
-  var PDF_FOLDER_ID = settings['pdf_folder_student'] || '1AdbBeqxna2pfYTd1vAWSSL3WaWz05bwI';
+  var PDF_FOLDER_ID = settings['pdf_folder_student'] || '1EVR179MPDGGC2-2tdjtfhiX-7doE7cXH';
   var folder = DriveApp.getFolderById(PDF_FOLDER_ID);
   var pdfFile = folder.createFile(pdfBlob);
   var pdfUrl = pdfFile.getUrl();
@@ -1869,7 +2167,7 @@ function getLessonDetails(type, lessonName) {
           questions.push({
             question: questionText,
             media: media,
-            letters: lettersRaw.toString().split(/\s+/).filter(function(l) { return l.trim() !== ''; }),
+            letters: lettersRaw.toString().split(/\\s+/).filter(function(l) { return l.trim() !== ''; }),
             correct: correctRaw.toString().split(',').map(function(c) { return c.trim(); }).filter(function(c) { return c !== ''; })
           });
         }
@@ -1879,8 +2177,8 @@ function getLessonDetails(type, lessonName) {
           lessonData: {
             lessonName: lessonName,
             showCorrectAnswer: rowData[81] ? rowData[81].toString().trim() : 'نعم',
-            condition: rowData[82] ? rowData[82].toString().trim() : 'عشوائي',
-            retryCondition: rowData[83] ? rowData[83].toString().trim() : 'مباشر',
+            condition: rowData[82] ? rowData[82].toString().trim() : 'لا',
+            retryCondition: rowData[83] ? rowData[83].toString().trim() : 'نعم',
             resetCondition: rowData[84] ? rowData[84].toString().trim() : 'نعم',
             maxResets: rowData[85] !== undefined ? rowData[85] : 9999,
             totalQuestionsToAnswer: rowData[86] !== undefined ? rowData[86] : questions.length,
@@ -2064,8 +2362,8 @@ function addOrUpdateLessonWords(lessonData) {
   }
   
   rowData[81] = lessonData.showCorrectAnswer || 'نعم';
-  rowData[82] = lessonData.condition || 'عشوائي';
-  rowData[83] = lessonData.retryCondition || 'مباشر';
+  rowData[82] = lessonData.condition || 'لا';
+  rowData[83] = lessonData.retryCondition || 'نعم';
   rowData[84] = lessonData.resetCondition || 'نعم';
   
   // Safe parsing to avoid NaN issues
@@ -2285,7 +2583,7 @@ function ensureColumns(sheet, requiredColumns) {
 function cleanString(str) {
   if (!str) return '';
   return str.toString()
-    .replace(/[\s\u00a0\u200b]+/g, ' ')
+    .replace(/[\\s\u00a0\u200b]+/g, ' ')
     .trim();
 }
 
@@ -2303,13 +2601,33 @@ function parseScore(resText) {
   var correct = 0;
   var wrong = 0;
 
-  var numbers = str.match(/\d+/g);
-  if (numbers) {
+  // استخدام تعبير منتظم مبني بشكل آمن جداً لمنع أي مشاكل في سقوط الباك سلاش أثناء النسخ
+  var numbers = [];
+  var match;
+  var re = new RegExp('\\\\d+', 'g');
+  while ((match = re.exec(str)) !== null) {
+    numbers.push(parseInt(match[0]) || 0);
+  }
+
+  // البحث الدقيق عن الكلمات المفتاحية
+  var correctMatch = str.match(new RegExp('(?:الصحيح|صحيح|صحيحة)\\\\s*[:\\\\s-]*\\\\s*(\\\\d+)', 'i'));
+  var wrongMatch = str.match(new RegExp('(?:الخطأ|الخطا|خطأ|خاطئ|خاطئة)\\\\s*[:\\\\s-]*\\\\s*(\\\\d+)', 'i'));
+
+  if (correctMatch) {
+    correct = parseInt(correctMatch[1]) || 0;
+  }
+  if (wrongMatch) {
+    wrong = parseInt(wrongMatch[1]) || 0;
+  }
+
+  // احتياطي: إذا لم يتم العثور على الكلمات المفتاحية بشكل مباشر ولكن توجد أرقام
+  if (!correctMatch && !wrongMatch) {
     if (numbers.length >= 2) {
-      correct = parseInt(numbers[0]) || 0;
-      wrong = parseInt(numbers[1]) || 0;
+      correct = numbers[0];
+      wrong = numbers[1];
     } else if (numbers.length === 1) {
-      correct = parseInt(numbers[0]) || 0;
+      correct = numbers[0];
+      wrong = 0;
     }
   }
 
@@ -3063,4 +3381,661 @@ function updateStudentSchedule(studentId, startDate, activeDays, lessonsPerWeek,
   SpreadsheetApp.flush();
   return { success: true, message: 'تم تحديث جدولة الطالب بنجاح' };
 }
+
+function getTenStars(percentageStr) {
+  if (percentageStr === undefined || percentageStr === null || percentageStr === '') return '☆☆☆☆☆☆☆☆☆☆';
+  var str = String(percentageStr).replace('%', '').trim();
+  var num = parseFloat(str);
+  if (isNaN(num)) return '☆☆☆☆☆☆☆☆☆☆';
+  if (num < 0) num = 0;
+  if (num > 100) num = 100;
+  var filledCount = Math.round(num / 10);
+  var result = '';
+  for (var i = 0; i < 10; i++) {
+    if (i < filledCount) {
+      result += '⭐';
+    } else {
+      result += '☆';
+    }
+  }
+  return result;
+}
+
+function syncConsolidatedEvaluations(studentId, studentName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+  
+  var CONSOLIDATED_HEADERS = [
+    'رقم الطالب',
+    'اسم الطالب',
+    'موضوع الدرس',
+    'حالة الدروس المرسلة',
+    'درجات الصورة',
+    'درجات الصوت',
+    'حالة درجات التركيز',
+    'الدرجة النهائية',
+    'التقييم بالنجوم',
+    'حالة تمارين الكلمات',
+    'تفاصيل الكلمات',
+    'النسبة المئوية للكلمات',
+    'التقييم بالنجوم للكلمات',
+    'حالة تمارين الوصل',
+    'تفاصيل الوصل',
+    'النسبة المئوية للوصل',
+    'التقييم بالنجوم للوصل',
+    'حالة تمارين الكتابة',
+    'تفاصيل الكتابة',
+    'النسبة المئوية للكتابة',
+    'التقييم بالنجوم للكتابة',
+    'حالة الموضوع'
+  ];
+
+  if (!sheet) {
+    sheet = ss.insertSheet('ConsolidatedEvaluations');
+  }
+
+  // Ensure sheet has at least 22 columns
+  if (sheet.getMaxColumns() < 22) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
+  }
+
+  // Always update row 1 headers with the latest 22-column structure
+  sheet.getRange(1, 1, 1, 22).setValues([CONSOLIDATED_HEADERS]);
+  sheet.getRange(1, 1, 1, 22).setFontWeight('bold').setBackground('#f1f5f9');
+
+  // Get all active lesson names from definition sheets
+  var lessonsSet = {};
+  
+  var qSheet = getSheetByNameFlexible(ss, 'Questions');
+  if (qSheet && qSheet.getLastRow() >= 2) {
+    var qData = qSheet.getRange(2, 1, qSheet.getLastRow() - 1, 1).getValues();
+    qData.forEach(function(row) { if (row[0]) lessonsSet[row[0].toString().trim()] = true; });
+  }
+  
+  var mSheet = getSheetByNameFlexible(ss, 'Matches');
+  if (mSheet && mSheet.getLastRow() >= 2) {
+    var mData = mSheet.getRange(2, 1, mSheet.getLastRow() - 1, 1).getValues();
+    mData.forEach(function(row) { if (row[0]) lessonsSet[row[0].toString().trim()] = true; });
+  }
+  
+  var qrSheet = getSheetByNameFlexible(ss, 'Questions-R');
+  if (qrSheet && qrSheet.getLastRow() >= 2) {
+    var qrData = qrSheet.getRange(2, 1, qrSheet.getLastRow() - 1, 1).getValues();
+    qrData.forEach(function(row) { if (row[0]) lessonsSet[row[0].toString().trim()] = true; });
+  }
+  
+  var lessonNames = Object.keys(lessonsSet);
+  if (lessonNames.length === 0) return { success: false, message: 'لم يتم العثور على أي دروس.' };
+
+  // Load student records from correction (Homework / Focus grades / Sent lessons)
+  var corrMap = {};
+  var corrSheet = getSheetByNameFlexible(ss, 'correction');
+  if (corrSheet && corrSheet.getLastRow() >= 2) {
+    var maxCols = Math.max(23, corrSheet.getLastColumn());
+    var corrData = corrSheet.getRange(2, 1, corrSheet.getLastRow() - 1, maxCols).getValues();
+    corrData.forEach(function(row) {
+      var rowId = row[0] ? row[0].toString().trim() : '';
+      var rowTopic = row[2] ? row[2].toString().trim() : '';
+      if (rowId === studentId.toString().trim() && rowTopic !== '') {
+        var picVal = row[20] !== undefined && row[20] !== null ? row[20].toString().trim() : '';
+        var audioVal = row[22] !== undefined && row[22] !== null ? row[22].toString().trim() : '';
+        var finalVal = row[21] !== undefined && row[21] !== null ? row[21].toString().trim() : '';
+        var fg = formatPercentage(finalVal || picVal || audioVal || '100%');
+        corrMap[rowTopic] = {
+          sentStatus: 'تم',
+          picGrade: picVal || '-',
+          audioGrade: audioVal || '-',
+          finalGrade: fg,
+          hasFocus: (picVal !== '' || audioVal !== '' || finalVal !== '')
+        };
+      }
+    });
+  }
+
+  // Load student records from Answers-Questions (AB=27, AE=30)
+  var wordsMap = {};
+  var aqSheet = getSheetByNameFlexible(ss, 'Answers-Questions');
+  if (aqSheet && aqSheet.getLastRow() >= 2) {
+    var maxCols = Math.max(31, aqSheet.getLastColumn());
+    var aqData = aqSheet.getRange(2, 1, aqSheet.getLastRow() - 1, maxCols).getValues();
+    aqData.forEach(function(row) {
+      var rowId = row[0] ? row[0].toString().trim() : '';
+      var rowTopic = row[2] ? row[2].toString().trim() : '';
+      if (rowId === studentId.toString().trim() && rowTopic !== '') {
+        wordsMap[rowTopic] = {
+          summary: row[27] ? row[27].toString().trim() : '',
+          pct: formatPercentage(row[30])
+        };
+      }
+    });
+  }
+
+  // Load student records from Answers (Q=16, T=19)
+  var waslMap = {};
+  var aSheet = getSheetByNameFlexible(ss, 'Answers');
+  if (aSheet && aSheet.getLastRow() >= 2) {
+    var maxCols = Math.max(20, aSheet.getLastColumn());
+    var aData = aSheet.getRange(2, 1, aSheet.getLastRow() - 1, maxCols).getValues();
+    aData.forEach(function(row) {
+      var rowId = row[0] ? row[0].toString().trim() : '';
+      var rowTopic = row[2] ? row[2].toString().trim() : '';
+      if (rowId === studentId.toString().trim() && rowTopic !== '') {
+        waslMap[rowTopic] = {
+          summary: row[16] ? row[16].toString().trim() : '',
+          pct: formatPercentage(row[19])
+        };
+      }
+    });
+  }
+
+  // Load student records from Progress (AJ=35, AL=37)
+  var progMap = {};
+  var pSheet = getSheetByNameFlexible(ss, 'Progress');
+  if (pSheet && pSheet.getLastRow() >= 2) {
+    var maxCols = Math.max(38, pSheet.getLastColumn());
+    var pData = pSheet.getRange(2, 1, pSheet.getLastRow() - 1, maxCols).getValues();
+    pData.forEach(function(row) {
+      var rowId = row[0] ? row[0].toString().trim() : '';
+      var rowTopic = row[3] ? row[3].toString().trim() : '';
+      if (rowId === studentId.toString().trim() && rowTopic !== '') {
+        progMap[rowTopic] = {
+          summary: row[35] ? row[35].toString().trim() : '',
+          pct: formatPercentage(row[37])
+        };
+      }
+    });
+  }
+
+  // Read existing rows from row 2 onwards in memory
+  var lastRow = sheet.getLastRow();
+  var existingRows = [];
+  if (lastRow >= 2) {
+    existingRows = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+  }
+
+  var rowMap = {};
+  existingRows.forEach(function(row, idx) {
+    if (row[0] && row[2]) {
+      var key = row[0].toString().trim() + '||' + row[2].toString().trim();
+      rowMap[key] = idx;
+    }
+  });
+
+  lessonNames.forEach(function(lessonName) {
+    var c = corrMap[lessonName] || { sentStatus: 'لم', picGrade: '-', audioGrade: '-', finalGrade: '0%', hasFocus: false };
+    var w = wordsMap[lessonName] || { summary: '-', pct: '0%' };
+    var ws = waslMap[lessonName] || { summary: '-', pct: '0%' };
+    var p = progMap[lessonName] || { summary: '-', pct: '0%' };
+
+    var sentStatus = c.sentStatus; // 'تم' or 'لم'
+    var picGrade = c.picGrade;
+    var audioGrade = c.audioGrade;
+    var focusStatus = c.hasFocus ? 'تم' : 'لم';
+    var finalGrade = c.finalGrade;
+    var focusStars = getTenStars(finalGrade);
+
+    var wordsSummary = (w.summary && w.summary !== '-' && w.summary !== 'لم يبدأ') ? w.summary : '-';
+    var wordsStatus = (wordsSummary !== '-') ? 'تم' : 'لم';
+    var wordsPct = w.pct || '0%';
+    var wordsStars = getTenStars(wordsPct);
+
+    var waslSummary = (ws.summary && ws.summary !== '-' && ws.summary !== 'لم يبدأ') ? ws.summary : '-';
+    var waslStatus = (waslSummary !== '-') ? 'تم' : 'لم';
+    var waslPct = ws.pct || '0%';
+    var waslStars = getTenStars(waslPct);
+
+    var writingSummary = (p.summary && p.summary !== '-' && p.summary !== '0/0' && p.summary !== 'لم يبدأ') ? p.summary : '-';
+    var writingStatus = (writingSummary !== '-') ? 'تم' : 'لم';
+    var writingPct = p.pct || '0%';
+    var writingStars = getTenStars(writingPct);
+
+    // Topic completion status calculates based on submission (Sent + Words + Wasl + Writing)
+    var isTopicCompleted = (sentStatus === 'تم' && wordsStatus === 'تم' && waslStatus === 'تم' && writingStatus === 'تم');
+    var topicStatus = isTopicCompleted ? 'اكتمل' : 'لم يكتمل';
+
+    var rowKey = studentId.toString().trim() + '||' + lessonName;
+
+    var rowValues = [
+      studentId,             // Col 1
+      studentName,           // Col 2
+      lessonName,            // Col 3
+      sentStatus,            // Col 4
+      picGrade,              // Col 5
+      audioGrade,            // Col 6
+      focusStatus,           // Col 7
+      finalGrade,            // Col 8
+      focusStars,            // Col 9
+      wordsStatus,           // Col 10
+      wordsSummary,          // Col 11
+      wordsPct,              // Col 12
+      wordsStars,            // Col 13
+      waslStatus,            // Col 14
+      waslSummary,           // Col 15
+      waslPct,               // Col 16
+      waslStars,             // Col 17
+      writingStatus,         // Col 18
+      writingSummary,        // Col 19
+      writingPct,            // Col 20
+      writingStars,          // Col 21
+      topicStatus            // Col 22
+    ];
+
+    if (rowMap[rowKey] !== undefined) {
+      existingRows[rowMap[rowKey]] = rowValues;
+    } else {
+      existingRows.push(rowValues);
+      rowMap[rowKey] = existingRows.length - 1;
+    }
+  });
+
+  // Single bulk write operation for all rows!
+  if (existingRows.length > 0) {
+    sheet.getRange(2, 1, existingRows.length, 22).setValues(existingRows);
+  }
+
+  return { success: true };
+}
+
+function getStudentsEvaluations() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+  if (!sheet) {
+    // Call sync with dummy to create sheet and headers
+    syncConsolidatedEvaluations('dummy', 'dummy');
+    sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+  }
+  
+  if (sheet && sheet.getMaxColumns() < 22) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
+  }
+
+  // 1. Get all active students from Settings sheet Z:AA
+  var settingsSheet = getSheetByNameFlexible(ss, 'Settings');
+  var activeStudents = [];
+  if (settingsSheet) {
+    var lastSettingsRow = settingsSheet.getLastRow();
+    if (lastSettingsRow >= 2) {
+      var usersData = settingsSheet.getRange("Z2:AA" + lastSettingsRow).getValues();
+      for (var i = 0; i < usersData.length; i++) {
+        var sName = usersData[i][0] ? usersData[i][0].toString().trim() : '';
+        var sId = usersData[i][1] ? usersData[i][1].toString().trim() : '';
+        if (sId !== '' && sName !== '' && sId !== 'DEFAULT_STUDENT') {
+          activeStudents.push({ id: sId, name: sName });
+        }
+      }
+    }
+  }
+
+  // 2. See who is already in ConsolidatedEvaluations
+  var lastRow = sheet ? sheet.getLastRow() : 0;
+  var studentsInEvaluations = {};
+  if (sheet && lastRow >= 2) {
+    var existingIds = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    existingIds.forEach(function(row) {
+      if (row[0]) {
+        studentsInEvaluations[row[0].toString().trim()] = true;
+      }
+    });
+  }
+
+  // 3. For any active student NOT in ConsolidatedEvaluations, run a sync!
+  var syncedAny = false;
+  activeStudents.forEach(function(student) {
+    if (!studentsInEvaluations[student.id] && student.id !== 'dummy') {
+      try {
+        syncConsolidatedEvaluations(student.id, student.name);
+        syncedAny = true;
+      } catch (e) {
+        Logger.log('Error syncing student ' + student.id + ': ' + e.message);
+      }
+    }
+  });
+
+  if (syncedAny) {
+    SpreadsheetApp.flush();
+    sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+    if (sheet && sheet.getMaxColumns() < 22) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
+    }
+    lastRow = sheet ? sheet.getLastRow() : 0;
+  }
+
+  var DEFAULT_HEADERS = [
+    'رقم الطالب',
+    'اسم الطالب',
+    'موضوع الدرس',
+    'حالة الدروس المرسلة',
+    'درجات الصورة',
+    'درجات الصوت',
+    'حالة درجات التركيز',
+    'الدرجة النهائية',
+    'التقييم بالنجوم',
+    'حالة تمارين الكلمات',
+    'تفاصيل الكلمات',
+    'النسبة المئوية للكلمات',
+    'التقييم بالنجوم للكلمات',
+    'حالة تمارين الوصل',
+    'تفاصيل الوصل',
+    'النسبة المئوية للوصل',
+    'التقييم بالنجوم للوصل',
+    'حالة تمارين الكتابة',
+    'تفاصيل الكتابة',
+    'النسبة المئوية للكتابة',
+    'التقييم بالنجوم للكتابة',
+    'حالة الموضوع'
+  ];
+
+  if (!sheet || lastRow < 2) {
+    return { success: true, headers: DEFAULT_HEADERS, data: [] };
+  }
+
+  var headers = sheet.getRange(1, 1, 1, 22).getValues()[0];
+  var data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+  
+  // Filter out dummy data if any
+  data = data.filter(function(row) {
+    return row[0].toString().trim() !== 'dummy';
+  });
+
+  return { success: true, headers: headers, data: data };
+}
+
+function getStudentConsolidatedEvaluation(studentId, studentName) {
+  try {
+    syncConsolidatedEvaluations(studentId, studentName);
+  } catch (e) {}
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+  if (!sheet) return { success: false, data: [] };
+  if (sheet.getMaxColumns() < 22) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, data: [] };
+  var data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+  var filtered = data.filter(function(row) {
+    return row[0].toString().trim() === studentId.toString().trim() && row[0].toString().trim() !== 'dummy';
+  });
+  
+  return { success: true, data: filtered };
+}
+
+function generateStudentConsolidatedPDF(studentId, studentName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    syncConsolidatedEvaluations(studentId, studentName);
+  } catch (e) {}
+  
+  var sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
+  if (!sheet) return { success: false, message: 'لا توجد ورقة بيانات تقييم' };
+  if (sheet.getMaxColumns() < 22) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
+  }
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: false, message: 'لا توجد بيانات مسجلة للطالب' };
+  
+  var data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+  var studentRecords = data.filter(function(row) {
+    return row[0].toString().trim() === studentId.toString().trim();
+  });
+  
+  if (studentRecords.length === 0) {
+    return { success: false, message: 'لم يتم العثور على أي نتائج مسجلة لهذا الطالب' };
+  }
+  
+  var issueDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy/MM/dd');
+
+  var htmlContent = '<html><head><meta charset="UTF-8">';
+  htmlContent += '<style>';
+  htmlContent += 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; direction: rtl; text-align: right; padding: 20px; color: #1e293b; background-color: #ffffff; }';
+  htmlContent += '.header { text-align: center; border-bottom: 3px double #cbd5e1; padding-bottom: 15px; margin-bottom: 20px; }';
+  htmlContent += '.header h1 { color: #0f172a; font-size: 24px; margin: 0 0 6px 0; font-weight: 800; }';
+  htmlContent += '.header p { color: #64748b; font-size: 14px; margin: 0; }';
+  htmlContent += '.info-box { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 25px; }';
+  htmlContent += '.info-box table { width: 100%; border-collapse: collapse; }';
+  htmlContent += '.info-box td { padding: 6px; font-size: 13px; color: #334155; }';
+  htmlContent += '.info-box td.label { font-weight: bold; color: #0f172a; width: 140px; }';
+  htmlContent += '.section-header { font-size: 16px; font-weight: bold; color: #1e1b4b; background-color: #f1f5f9; padding: 10px 14px; border-radius: 8px; margin-bottom: 15px; border-right: 5px solid #4f46e5; }';
+  htmlContent += 'table.results-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }';
+  htmlContent += 'table.results-table th { background-color: #0f172a; color: #ffffff; padding: 10px 6px; font-size: 11px; font-weight: bold; text-align: center; border: 1px solid #0f172a; }';
+  htmlContent += 'table.results-table td { padding: 9px 6px; font-size: 11px; text-align: center; border: 1px solid #cbd5e1; color: #334155; }';
+  htmlContent += 'table.results-table tr:nth-child(even) { background-color: #f8fafc; }';
+  htmlContent += '.badge-success { color: #15803d; font-weight: bold; background-color: #f0fdf4; padding: 3px 8px; border-radius: 6px; border: 1px solid #bbf7d0; display: inline-block; }';
+  htmlContent += '.badge-fail { color: #b91c1c; font-weight: bold; background-color: #fef2f2; padding: 3px 8px; border-radius: 6px; border: 1px solid #fecaca; display: inline-block; }';
+  htmlContent += '.page-break { page-break-before: always; }';
+  htmlContent += '.footer { text-align: center; margin-top: 30px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15px; }';
+  htmlContent += '.notes-card { background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 18px; color: #92400e; margin-top: 15px; }';
+  htmlContent += '.notes-card-success { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 18px; color: #166534; margin-top: 15px; }';
+  htmlContent += '</style>';
+  htmlContent += '</head><body>';
+  
+  // Header Block template helper
+  function buildMiniHeader() {
+    var h = '<div class="header">';
+    h += '<h1>التقرير التقييمي الشامل والدرجات للمرحلة الدراسية</h1>';
+    h += '<p>منصة اللغة العربية التفاعلية للأطفال</p>';
+    h += '</div>';
+    h += '<div class="info-box"><table>';
+    h += '<tr><td class="label">اسم الطالب البطل:</td><td>' + studentName + '</td><td class="label">تاريخ الإصدار:</td><td>' + issueDate + '</td></tr>';
+    h += '<tr><td class="label">رقم الطالب (ID):</td><td>' + studentId + '</td><td class="label">عدد الدروس:</td><td>' + studentRecords.length + ' درس</td></tr>';
+    h += '</table></div>';
+    return h;
+  }
+
+  function formatPercentage(val) {
+    if (val === null || val === undefined || val === '') return '0%';
+    var str = val.toString().trim();
+    if (str === '-' || str === '0') return '0%';
+    if (str.indexOf('%') !== -1) {
+      var parsedPct = parseFloat(str.replace('%', '').trim());
+      if (!isNaN(parsedPct)) return Math.round(parsedPct) + '%';
+      return str;
+    }
+    var num = parseFloat(str);
+    if (isNaN(num)) return str;
+    if (num > 0 && num <= 1) {
+      num = Math.round(num * 100);
+    } else {
+      num = Math.round(num);
+    }
+    return num + '%';
+  }
+
+  // --- Page 1: جدول الدروس المرسلة ---
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">1. جدول الدروس المرسلة</div>';
+  htmlContent += '<table class="results-table"><thead><tr>';
+  htmlContent += '<th>موضوع</th>';
+  htmlContent += '<th>درجات الصورة</th>';
+  htmlContent += '<th>درجات الصوت</th>';
+  htmlContent += '</tr></thead><tbody>';
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var pic = row[4] || '-';
+    var audio = row[5] || '-';
+    htmlContent += '<tr>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:40%;">' + topic + '</td>';
+    htmlContent += '<td>' + pic + '</td>';
+    htmlContent += '<td>' + audio + '</td>';
+    htmlContent += '</tr>';
+  });
+  htmlContent += '</tbody></table>';
+
+  // --- Page 2: جدول التركيز في الدروس ---
+  htmlContent += '<div class="page-break"></div>';
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">2. جدول التركيز في الدروس</div>';
+  htmlContent += '<table class="results-table"><thead><tr>';
+  htmlContent += '<th>موضوع</th>';
+  htmlContent += '<th>الدرجة النهائية</th>';
+  htmlContent += '<th>تقييم النجوم</th>';
+  htmlContent += '</tr></thead><tbody>';
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var finalGrade = formatPercentage(row[7]);
+    var stars = row[8] || '☆☆☆☆☆☆☆☆☆☆';
+    htmlContent += '<tr>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:40%;">' + topic + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + finalGrade + '</td>';
+    htmlContent += '<td style="letter-spacing:1px; font-size:11px;">' + stars + '</td>';
+    htmlContent += '</tr>';
+  });
+  htmlContent += '</tbody></table>';
+
+  // --- Page 3: جدول تمارين الكلمات ---
+  htmlContent += '<div class="page-break"></div>';
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">3. جدول تمارين الكلمات</div>';
+  htmlContent += '<table class="results-table"><thead><tr>';
+  htmlContent += '<th>موضوع</th>';
+  htmlContent += '<th>تفاصيل</th>';
+  htmlContent += '<th>الدرجة النهائية</th>';
+  htmlContent += '<th>تقييم النجوم</th>';
+  htmlContent += '</tr></thead><tbody>';
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var details = row[10] || '-';
+    var finalGrade = formatPercentage(row[11]);
+    var stars = row[12] || '☆☆☆☆☆☆☆☆☆☆';
+    htmlContent += '<tr>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:30%;">' + topic + '</td>';
+    htmlContent += '<td>' + details + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + finalGrade + '</td>';
+    htmlContent += '<td style="letter-spacing:1px; font-size:11px;">' + stars + '</td>';
+    htmlContent += '</tr>';
+  });
+  htmlContent += '</tbody></table>';
+
+  // --- Page 4: جدول تمارين الوصل ---
+  htmlContent += '<div class="page-break"></div>';
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">4. جدول تمارين الوصل</div>';
+  htmlContent += '<table class="results-table"><thead><tr>';
+  htmlContent += '<th>موضوع</th>';
+  htmlContent += '<th>تفاصيل</th>';
+  htmlContent += '<th>الدرجة النهائية</th>';
+  htmlContent += '<th>تقييم النجوم</th>';
+  htmlContent += '</tr></thead><tbody>';
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var details = row[14] || '-';
+    var finalGrade = formatPercentage(row[15]);
+    var stars = row[16] || '☆☆☆☆☆☆☆☆☆☆';
+    htmlContent += '<tr>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:30%;">' + topic + '</td>';
+    htmlContent += '<td>' + details + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + finalGrade + '</td>';
+    htmlContent += '<td style="letter-spacing:1px; font-size:11px;">' + stars + '</td>';
+    htmlContent += '</tr>';
+  });
+  htmlContent += '</tbody></table>';
+
+  // --- Page 5: جدول تمارين الكتابة ---
+  htmlContent += '<div class="page-break"></div>';
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">5. جدول تمارين الكتابة</div>';
+  htmlContent += '<table class="results-table"><thead><tr>';
+  htmlContent += '<th>موضوع</th>';
+  htmlContent += '<th>تفاصيل</th>';
+  htmlContent += '<th>الدرجة النهائية</th>';
+  htmlContent += '<th>تقييم النجوم</th>';
+  htmlContent += '</tr></thead><tbody>';
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var details = row[18] || '-';
+    var finalGrade = formatPercentage(row[19]);
+    var stars = row[20] || '☆☆☆☆☆☆☆☆☆☆';
+    htmlContent += '<tr>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:30%;">' + topic + '</td>';
+    htmlContent += '<td>' + details + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + finalGrade + '</td>';
+    htmlContent += '<td style="letter-spacing:1px; font-size:11px;">' + stars + '</td>';
+    htmlContent += '</tr>';
+  });
+  htmlContent += '</tbody></table>';
+
+  // --- Page 6: قسم التوصيات والملاحظات ---
+  htmlContent += '<div class="page-break"></div>';
+  htmlContent += buildMiniHeader();
+  htmlContent += '<div class="section-header">6. قسم التوصيات والملاحظات</div>';
+
+  var incompleteList = [];
+  studentRecords.forEach(function(row) {
+    var topic = row[2];
+    var sent = row[3];
+    var words = row[9];
+    var wasl = row[13];
+    var writing = row[17];
+    var topicStatus = row[21];
+    if (topicStatus !== 'اكتمل' || sent !== 'تم' || words !== 'تم' || wasl !== 'تم' || writing !== 'تم') {
+      var missingParts = [];
+      if (sent !== 'تم') missingParts.push('إرسال الواجب');
+      if (words !== 'تم') missingParts.push('تمارين الكلمات');
+      if (wasl !== 'تم') missingParts.push('تمارين الوصل');
+      if (writing !== 'تم') missingParts.push('تمارين الكتابة');
+      incompleteList.push({
+        topic: topic,
+        missingStr: missingParts.join(' ، ')
+      });
+    }
+  });
+
+  if (incompleteList.length > 0) {
+    htmlContent += '<div class="notes-card">';
+    htmlContent += '<h3 style="margin-top:0; color:#92400e; font-size:15px; font-weight:bold;">⚠️ تنبيه: توجد دروس بحاجة لإكمال تسليم الواجبات أو التمارين التفاعلية:</h3>';
+    htmlContent += '<ul style="margin:10px 0 0 0; padding-right:20px; font-size:13px; line-height:1.8;">';
+    incompleteList.forEach(function(item) {
+      htmlContent += '<li><strong>درس (' + item.topic + '):</strong> يرجى إكمال [' + item.missingStr + '].</li>';
+    });
+    htmlContent += '</ul></div>';
+  } else {
+    htmlContent += '<div class="notes-card-success">';
+    htmlContent += '<h3 style="margin-top:0; color:#166534; font-size:15px; font-weight:bold;">🎉 تهانينا المتميزة!</h3>';
+    htmlContent += '<p style="margin:5px 0 0 0; font-size:13px; line-height:1.6;">لقد قام الطالب البطل بإكمال جميع الواجبات والتمارين لكافة الدروس المقررة بنجاح وبصورة مكتملة 100%.</p>';
+    htmlContent += '</div>';
+  }
+
+  htmlContent += '<div class="footer">';
+  htmlContent += 'تم إنتاج هذا الملف التقييمي تلقائياً بواسطة منصة اللغة العربية للأطفال، وهو معتمد رسمياً لدى إدارة المتابعة.';
+  htmlContent += '</div>';
+  htmlContent += '</body></html>';
+  
+  var htmlBlob = HtmlService.createHtmlOutput(htmlContent).getBlob();
+  var pdfBlob = htmlBlob.getAs('application/pdf').setName('تقرير_تقييم_شامل_' + studentName.replace(/\s+/g, '_') + '_' + studentId + '.pdf');
+  
+  var settings = getSettings();
+  var PDF_FOLDER_ID = settings['pdf_folder_student'] || '1EVR179MPDGGC2-2tdjtfhiX-7doE7cXH';
+  var folder;
+  try {
+    folder = DriveApp.getFolderById(PDF_FOLDER_ID);
+  } catch (e) {
+    folder = DriveApp.getRootFolder();
+  }
+  var pdfFile = folder.createFile(pdfBlob);
+  pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var pdfUrl = pdfFile.getUrl();
+  
+  var pdfSheet = ss.getSheetByName('PDF') || ss.insertSheet('PDF');
+  var pdfData = pdfSheet.getDataRange().getValues();
+  var foundRow = -1;
+  for (var i = 1; i < pdfData.length; i++) {
+    if (pdfData[i][1] && pdfData[i][1].toString().trim() === studentId.toString().trim()) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+  
+  var creationDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy/MM/dd HH:mm:ss');
+  if (foundRow !== -1) {
+    pdfSheet.getRange(foundRow, 5).setValue(pdfUrl);
+    pdfSheet.getRange(foundRow, 6).setValue(creationDate);
+  } else {
+    pdfSheet.appendRow([studentName, studentId, '', '', pdfUrl, creationDate]);
+  }
+  
+  return { success: true, pdfUrl: pdfUrl };
+}
 `;
+

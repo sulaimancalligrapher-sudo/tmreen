@@ -1194,208 +1194,125 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           </div>
         </div>
 
-        {/* Tabs switcher */}
-        <div className="flex border-b border-slate-100 pb-px gap-6">
-          <button
-            onClick={() => setActiveTab('lessons')}
-            className={`pb-4 text-sm font-bold transition relative ${
-              activeTab === 'lessons' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            الدروس المتوفرة ({lessons.length})
-            {activeTab === 'lessons' && (
-              <motion.div layoutId="tab-underline" className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500" />
-            )}
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('history');
-              fetchWritingHistory();
-            }}
-            className={`pb-4 text-sm font-bold transition relative flex items-center gap-1 ${
-              activeTab === 'history' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            سجل درجاتي بالخط والخطوط
-            {activeTab === 'history' && (
-              <motion.div layoutId="tab-underline" className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500" />
-            )}
-          </button>
-        </div>
-
-        {/* Tab content */}
-        {activeTab === 'lessons' ? (
-          <div className="space-y-4">
-            {/* Toggle Switch for Completed Lessons */}
-            <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
-              <div>
-                <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس الخط</h4>
-                <p className="text-[11px] text-slate-500">
-                  يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  const newVal = !showCompleted;
-                  setShowCompleted(newVal);
-                  localStorage.setItem('draw_show_completed', String(newVal));
-                }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 ${
-                  showCompleted
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
-                }`}
-              >
-                {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍🗨️' : 'إظهار الدروس المكتملة 👁️'}
-              </button>
+        {/* Lessons List */}
+        <div className="space-y-4">
+          {/* Toggle Switch for Completed Lessons */}
+          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس الخط</h4>
+              <p className="text-[11px] text-slate-500">
+                يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+              </p>
             </div>
+            <button
+              onClick={() => {
+                const newVal = !showCompleted;
+                setShowCompleted(newVal);
+                localStorage.setItem('draw_show_completed', String(newVal));
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0 ${
+                showCompleted
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍عون' : 'إظهار الدروس المكتملة 👁️'}
+            </button>
+          </div>
 
-            {/* Lessons List - Sleek Vertical Stack */}
-            <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm divide-y divide-slate-100">
-              {visibleLessons.length > 0 ? (
-                visibleLessons.map((lesson) => {
-                  const originalIdx = lessons.findIndex((l) => l && l.label === lesson.label);
-                  const completedCount = (lesson.questions || []).filter(q => q && q.isCompleted).length;
-                  const totalCount = (lesson.questions || []).length;
-                  
-                  return (
-                    <div
-                      key={lesson.label}
-                      className={`flex flex-col sm:flex-row items-center justify-between p-5 hover:bg-slate-50/50 transition gap-4 text-right ${
-                        lesson.isCompleted ? 'bg-emerald-50/20 border-r-4 border-r-emerald-500' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5 w-full sm:w-auto">
-                        <div className={`${lesson.isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-50 text-emerald-600'} p-2.5 rounded-xl shrink-0`}>
-                          <BookOpen className="w-5.5 h-5.5" />
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-bold text-slate-900 font-sans text-base">
-                              {lesson.label}
-                            </h3>
-                            {lesson.isCompleted && (
-                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shrink-0">
-                                مكتمل ✅
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-slate-500 text-xs">
-                            تم إنجاز {completedCount} من أصل {totalCount} نموذج للرسم والخط ({Math.round(totalCount === 0 ? 0 : (completedCount / totalCount) * 100)}%)
-                          </p>
-                        </div>
+          {/* Lessons List - Sleek Vertical Stack */}
+          <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm divide-y divide-slate-100">
+            {visibleLessons.length > 0 ? (
+              visibleLessons.map((lesson) => {
+                const originalIdx = lessons.findIndex((l) => l && l.label === lesson.label);
+                const completedCount = (lesson.questions || []).filter(q => q && q.isCompleted).length;
+                const totalCount = (lesson.questions || []).length;
+                
+                return (
+                  <div
+                    key={lesson.label}
+                    className={`flex flex-col sm:flex-row items-center justify-between p-5 hover:bg-slate-50/50 transition gap-4 text-right ${
+                      lesson.isCompleted ? 'bg-emerald-50/20 border-r-4 border-r-emerald-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                      <div className={`${lesson.isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-50 text-emerald-600'} p-2.5 rounded-xl shrink-0`}>
+                        <BookOpen className="w-5.5 h-5.5" />
                       </div>
-
-                      {(() => {
-                        const drawingRecord = drawingResults.find((r) => r && r.label && String(r.label).trim() === String(lesson.label).trim());
-                        const isResetAllowed = drawingRecord ? drawingRecord.allowReset !== 'لا' : true;
-                        const isResettingThis = resettingLessonLabel === lesson.label;
-
-                        return (
-                          <button
-                            disabled={(lesson.isCompleted && !isResetAllowed) || isResettingThis}
-                            onClick={() => {
-                              if (lesson.isCompleted) {
-                                handleResetAndStart(lesson, originalIdx);
-                              } else {
-                                if (originalIdx >= 0) {
-                                  setActiveLessonIndex(originalIdx);
-                                  setActiveQuestionIndex(0);
-                                  setCurrentStep(0);
-                                  setStrokesPerStep([]);
-                                  setCurrentRepetition(0);
-                                  setRestartCount(0);
-                                  setResultModal(null);
-                                }
-                              }
-                            }}
-                            className={`font-black px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0 w-full sm:w-auto justify-center ${
-                              isResettingThis
-                                ? 'bg-slate-100 text-slate-500 cursor-wait'
-                                : lesson.isCompleted
-                                  ? !isResetAllowed
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
-                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            }`}
-                          >
-                            {isResettingThis ? (
-                              <>
-                                <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin shrink-0" />
-                                <span>جاري التهيئة...</span>
-                              </>
-                            ) : lesson.isCompleted ? (
-                              !isResetAllowed ? 'مكتمل ومغلق 🔒' : 'مراجعة وإعادة الرسم 🔄'
-                            ) : (
-                              'بدء الدرس والتدريب ✍️'
-                            )}
-                            {!isResettingThis && <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />}
-                          </button>
-                        );
-                      })()}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-900 font-sans text-base">
+                            {lesson.label}
+                          </h3>
+                          {lesson.isCompleted && (
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shrink-0">
+                              مكتمل ✅
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-500 text-xs">
+                          تم إنجاز {completedCount} من أصل {totalCount} نموذج للرسم والخط ({Math.round(totalCount === 0 ? 0 : (completedCount / totalCount) * 100)}%)
+                        </p>
+                      </div>
                     </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-12 text-slate-400">
-                  <p className="text-sm font-bold">لا توجد دروس متوفرة مطابقة لخيار التصفية</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* History logs tab */
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-            {loadingHistory ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
-                <div className="w-8 h-8 border-3 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
-                <span className="text-xs">جاري جلب سجل درجاتك...</span>
-              </div>
-            ) : writingHistory && writingHistory.data && writingHistory.data.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-right text-slate-600" dir="rtl">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-400 text-xs font-black uppercase">
-                      {(writingHistory.headers || []).map((header: string, i: number) => (
-                        <th key={i} className="px-4 py-3 font-medium">
-                          {header}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {writingHistory.data.map((row: string[], rowIdx: number) => (
-                      <tr key={rowIdx} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                        {row.map((cell: string, cellIdx: number) => (
-                          <td key={cellIdx} className="px-4 py-3.5 font-sans font-medium text-slate-700">
-                            {cellIdx === 3 ? (
-                              <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-lg border border-emerald-100">
-                                {cell}
-                              </span>
-                            ) : cellIdx === 4 ? (
-                              <span className="bg-amber-50 text-amber-800 text-xs font-black px-2.5 py-0.5 rounded-lg border border-amber-100">
-                                ⭐ {cell}
-                              </span>
-                            ) : (
-                              cell
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+
+                    {(() => {
+                      const drawingRecord = drawingResults.find((r) => r && r.label && String(r.label).trim() === String(lesson.label).trim());
+                      const isResetAllowed = drawingRecord ? drawingRecord.allowReset !== 'لا' : true;
+                      const isResettingThis = resettingLessonLabel === lesson.label;
+
+                      return (
+                        <button
+                          disabled={(lesson.isCompleted && !isResetAllowed) || isResettingThis}
+                          onClick={() => {
+                            if (lesson.isCompleted) {
+                              handleResetAndStart(lesson, originalIdx);
+                            } else {
+                              if (originalIdx >= 0) {
+                                setActiveLessonIndex(originalIdx);
+                                setActiveQuestionIndex(0);
+                                setCurrentStep(0);
+                                setStrokesPerStep([]);
+                                setCurrentRepetition(0);
+                                setRestartCount(0);
+                                setResultModal(null);
+                              }
+                            }
+                          }}
+                          className={`font-black px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0 w-full sm:w-auto justify-center ${
+                            isResettingThis
+                              ? 'bg-slate-100 text-slate-500 cursor-wait'
+                              : lesson.isCompleted
+                                ? !isResetAllowed
+                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          }`}
+                        >
+                          {isResettingThis ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin shrink-0" />
+                              <span>جاري التهيئة...</span>
+                            </>
+                          ) : lesson.isCompleted ? (
+                            !isResetAllowed ? 'مكتمل ومغلق 🔒' : 'مراجعة وإعادة الرسم 🔄'
+                          ) : (
+                            'بدء الدرس والتدريب ✍️'
+                          )}
+                          {!isResettingThis && <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />}
+                        </button>
+                      );
+                    })()}
+                  </div>
+                );
+              })
             ) : (
-              <div className="text-center py-12 text-slate-400 space-y-2">
-                <Award className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-bold">لا يوجد سجل درجات مسجل بعد لهذا التمرين</p>
-                <p className="text-xs">ابدأ بحل التمارين وحقّق نسبة الدقة المطلوبة ليتم حفظ درجاتك في النظام.</p>
+              <div className="text-center py-12 text-slate-400">
+                <p className="text-sm font-bold">لا توجد دروس متوفرة مطابقة لخيار التصفية</p>
               </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* Switcher Modal */}
         {onSelectExercise && (

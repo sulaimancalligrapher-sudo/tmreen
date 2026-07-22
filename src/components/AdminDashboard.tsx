@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { callGasApi } from '../utils/api';
 import { Student } from '../types';
 import StudentScheduleCard, { StudentSchedule } from './StudentScheduleCard';
+import ReportDashboard from './ReportDashboard';
 import {
   Database,
   Plus,
@@ -28,7 +29,10 @@ import {
   Loader2,
   AlertCircle,
   Sliders,
-  Calendar
+  Calendar,
+  FileText,
+  Download,
+  FolderDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -69,7 +73,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [lessonsError, setLessonsError] = useState('');
 
   // Editing state
-  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'students'>('words');
+  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'students' | 'reports'>('words');
   const [isEditing, setIsEditing] = useState(false);
   const [editingLessonType, setEditingLessonType] = useState<'words' | 'matching' | 'drawing'>('words');
   const [originalLessonName, setOriginalLessonName] = useState('');
@@ -79,6 +83,22 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
+
+  // Consolidated evaluation and report states
+  const [evaluations, setEvaluations] = useState<{ headers: string[]; data: any[][] }>({ headers: [], data: [] });
+  const [loadingEvaluations, setLoadingEvaluations] = useState(false);
+  const [syncingStudentId, setSyncingStudentId] = useState<string | null>(null);
+  const [generatingStudentPdfId, setGeneratingStudentPdfId] = useState<string | null>(null);
+  const [bulkPdfGenerating, setBulkPdfGenerating] = useState(false);
+  const [showBulkPdfConfirmModal, setShowBulkPdfConfirmModal] = useState(false);
+  const [skipExistingPdfs, setSkipExistingPdfs] = useState(true);
+  const [bulkPdfProgress, setBulkPdfProgress] = useState<{ current: number; total: number; currentStudentName: string }>({ current: 0, total: 0, currentStudentName: '' });
+  const [selectedReportStudentId, setSelectedReportStudentId] = useState<string | null>(null);
+  const [selectedReportStudent, setSelectedReportStudent] = useState<StudentSchedule | null>(null);
+  const [studentSavedPdfUrl, setStudentSavedPdfUrl] = useState<string>('');
+  const [loadingPdfUrl, setLoadingPdfUrl] = useState(false);
+  const [reportLessonFilter, setReportLessonFilter] = useState('');
+  const [reportCompletionFilter, setReportCompletionFilter] = useState<'all' | 'completed' | 'not_started' | 'partial'>('all');
 
   // Custom student exam/lesson overrides modal state
   const [customizingStudent, setCustomizingStudent] = useState<StudentSchedule | null>(null);
@@ -94,8 +114,8 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   // Words Form State (Questions)
   const [wordsName, setWordsName] = useState('');
   const [wordsShowCorrect, setWordsShowCorrect] = useState('نعم');
-  const [wordsCondition, setWordsCondition] = useState('عشوائي');
-  const [wordsRetryCond, setWordsRetryCond] = useState('مباشر');
+  const [wordsCondition, setWordsCondition] = useState('لا');
+  const [wordsRetryCond, setWordsRetryCond] = useState('نعم');
   const [wordsResetCond, setWordsResetCond] = useState('نعم');
   const [wordsMaxResets, setWordsMaxResets] = useState('9999');
   const [wordsTotalToAnswer, setWordsTotalToAnswer] = useState('10');
@@ -146,6 +166,187 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       fetchLessons();
     }
   }, [admin]);
+
+  useEffect(() => {
+    if (admin && activeTab === 'reports') {
+      fetchStudentSchedules();
+      fetchEvaluations();
+    }
+  }, [admin, activeTab]);
+
+  const fetchEvaluations = async () => {
+    try {
+      setLoadingEvaluations(true);
+      const res = await callGasApi<any>('getStudentsEvaluations');
+      if (res && res.success) {
+        setEvaluations({
+          headers: res.headers || [],
+          data: res.data || []
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch evaluations:', err);
+    } finally {
+      setLoadingEvaluations(false);
+    }
+  };
+
+  const handleSyncStudent = async (studentId: string, studentName: string) => {
+    try {
+      setSyncingStudentId(studentId);
+      const res = await callGasApi<any>('syncConsolidatedEvaluations', { studentId, studentName });
+      if (res && res.success) {
+        alert('تم مزامنة وتقييم الطالب بنجاح!');
+        fetchEvaluations();
+      } else {
+        alert('فشل تحديث مزامنة التقييمات.');
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء المزامنة: ${err.message}`);
+    } finally {
+      setSyncingStudentId(null);
+    }
+  };
+
+  const handleGenerateStudentConsolidatedPDF = async (studentId: string, studentName: string) => {
+    try {
+      setGeneratingStudentPdfId(studentId);
+      const res = await callGasApi<{ success: boolean; pdfUrl?: string; message?: string }>('generateStudentConsolidatedPDF', { studentId, studentName });
+      if (res && res.success && res.pdfUrl) {
+        alert('تم توليد التقرير التقييمي الشامل (PDF) بنجاح وحفظه على جوجل درايف!');
+        window.open(res.pdfUrl, '_blank');
+      } else {
+        alert(res.message || 'فشل توليد ملف الـ PDF حالياً.');
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء استخراج ملف الـ PDF: ${err.message}`);
+    } finally {
+      setGeneratingStudentPdfId(null);
+    }
+  };
+
+  const handleSelectReportStudent = async (student: StudentSchedule) => {
+    setSelectedReportStudent(student);
+    setStudentSavedPdfUrl('');
+    setLoadingPdfUrl(true);
+    try {
+      const response = await callGasApi<{ success: boolean; control: string; pdfUrl?: string }>('getPdfControlForStudent', {
+        studentId: student.studentId
+      });
+      if (response && response.success && response.pdfUrl) {
+        setStudentSavedPdfUrl(response.pdfUrl);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch student saved PDF url:', err);
+    } finally {
+      setLoadingPdfUrl(false);
+    }
+  };
+
+  const handleGenerateStudentReportPDF = async (student: StudentSchedule) => {
+    try {
+      setGeneratingStudentPdfId(student.studentId);
+      const res = await callGasApi<{ success: boolean; pdfUrl?: string; message?: string }>('generateStudentConsolidatedPDF', { 
+        studentId: student.studentId, 
+        studentName: student.studentName 
+      });
+      if (res && res.success && res.pdfUrl) {
+        setStudentSavedPdfUrl(res.pdfUrl);
+        alert('تم توليد التقرير التقييمي الشامل (PDF) بنجاح وحفظه على جوجل درايف!\n\nيمكنك الآن النقر على زر "فتح وتحميل ملف الـ PDF" الأخضر في الأسفل للفتح والتحميل.');
+        try {
+          window.open(res.pdfUrl, '_blank');
+        } catch (e) {
+          console.warn('Popup blocked:', e);
+        }
+      } else {
+        alert(res.message || 'فشل توليد ملف الـ PDF حالياً.');
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء استخراج ملف الـ PDF: ${err.message}`);
+    } finally {
+      setGeneratingStudentPdfId(null);
+    }
+  };
+
+  const handleGenerateBulkPdfs = async () => {
+    let activeStudents = studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT');
+    if (!activeStudents || activeStudents.length === 0) {
+      try {
+        setLoadingStudents(true);
+        const data = await callGasApi<StudentSchedule[]>('getAllStudentsSchedule');
+        if (data && Array.isArray(data)) {
+          setStudentSchedules(data);
+          activeStudents = data.filter(s => s.studentId !== 'DEFAULT_STUDENT');
+        }
+      } catch (err) {
+        console.error('Error loading students for bulk export:', err);
+      } finally {
+        setLoadingStudents(false);
+      }
+    }
+
+    if (!activeStudents || activeStudents.length === 0) {
+      alert('لا يوجد طلاب مسجلين للتصدير حالياً.');
+      return;
+    }
+
+    setShowBulkPdfConfirmModal(true);
+  };
+
+  const executeBulkPdfExport = async () => {
+    setShowBulkPdfConfirmModal(false);
+    const activeStudents = studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT');
+    if (!activeStudents || activeStudents.length === 0) return;
+
+    setBulkPdfGenerating(true);
+    setBulkPdfProgress({ current: 0, total: activeStudents.length, currentStudentName: '' });
+
+    let successCount = 0;
+    let skippedCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < activeStudents.length; i++) {
+      const student = activeStudents[i];
+      const displayName = student.studentName || student.studentId;
+      setBulkPdfProgress({ current: i + 1, total: activeStudents.length, currentStudentName: displayName });
+
+      // If smart skip is enabled, check if student already has a saved PDF URL
+      if (skipExistingPdfs) {
+        try {
+          const checkRes = await callGasApi<{ success: boolean; pdfUrl?: string }>('getPdfControlForStudent', {
+            studentId: student.studentId
+          });
+          if (checkRes && checkRes.pdfUrl && checkRes.pdfUrl.trim().length > 0) {
+            skippedCount++;
+            continue; // Skip re-generating
+          }
+        } catch (checkErr) {
+          console.warn('Could not check existing PDF for student:', student.studentId, checkErr);
+        }
+      }
+
+      try {
+        const res = await callGasApi<{ success: boolean; pdfUrl?: string; message?: string }>('generateStudentConsolidatedPDF', {
+          studentId: student.studentId,
+          studentName: student.studentName
+        });
+        if (res && res.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+    }
+
+    setBulkPdfGenerating(false);
+    alert(`🎉 اكتملت عملية التصدير الجماعي للتقارير بنجاح!\n\n✅ تم إنشاء وتجديد: ${successCount} ملف PDF\n⏩ تم تخطيهم (موجودين مسبقاً): ${skippedCount} طالب\n❌ تعذر معالجة: ${failCount} طالب`);
+
+    if (selectedReportStudent) {
+      handleSelectReportStudent(selectedReportStudent);
+    }
+  };
 
   const fetchLessons = async () => {
     try {
@@ -409,8 +610,8 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
     setOriginalLessonName('');
     setWordsName('');
     setWordsShowCorrect('نعم');
-    setWordsCondition('عشوائي');
-    setWordsRetryCond('مباشر');
+    setWordsCondition('لا');
+    setWordsRetryCond('نعم');
     setWordsResetCond('نعم');
     setWordsMaxResets('9999');
     setWordsTotalToAnswer('10');
@@ -986,25 +1187,25 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block mr-1">شرط توجيه الأسئلة</label>
+                <label className="text-xs font-bold text-slate-700 block mr-1">إتاحة الانتقال للسؤال التالي عند الخطأ؟ (CE)</label>
                 <select
                   value={wordsCondition}
                   onChange={(e) => setWordsCondition(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
                 >
-                  <option value="عشوائي">عشوائي (اختيار الأسئلة بترتيب عشوائي)</option>
-                  <option value="تسلسلي">تسلسلي (توجيه الأسئلة بالترتيب المدخل)</option>
+                  <option value="نعم">نعم (يمكنه الانتقال للسؤال التالي حتى لو الإجابة خاطئة)</option>
+                  <option value="لا">لا (يجب عليه محاولة الإجابة بشكل صحيح أولاً)</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block mr-1">تعديل الإجابة الخاطئة</label>
+                <label className="text-xs font-bold text-slate-700 block mr-1">إظهار زر إعادة المحاولة عند الخطأ؟ (CF)</label>
                 <select
                   value={wordsRetryCond}
                   onChange={(e) => setWordsRetryCond(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
                 >
-                  <option value="مباشر">مباشر (إرجاع الحرف الخاطئ فوراً)</option>
-                  <option value="نهائي">نهائي (التحقق عند اكتمال كامل الكلمة)</option>
+                  <option value="نعم">نعم (يظهر زر إعادة المحاولة للطفل)</option>
+                  <option value="لا">لا (يُخفى زر إعادة المحاولة عند الخطأ)</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -1934,30 +2135,36 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       </div>
 
       {/* Tabs configuration */}
-      <div className="flex border-b border-slate-100 mb-6 font-bold text-sm">
+      <div className="flex flex-wrap border-b border-slate-100 mb-6 font-bold text-sm gap-y-2">
         <button
           onClick={() => setActiveTab('words')}
           className={`pb-4 px-4 border-b-2 transition ${activeTab === 'words' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
-          تمارين الكلمات وترتيب الحروف ({lessons.questionsLessons.length})
+          تمارين الكلمات ({lessons.questionsLessons.length})
         </button>
         <button
           onClick={() => setActiveTab('matching')}
           className={`pb-4 px-4 border-b-2 transition ${activeTab === 'matching' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
-          تمارين توصيل العناصر (Matches) ({lessons.matchesLessons.length})
+          تمارين توصيل ({lessons.matchesLessons.length})
         </button>
         <button
           onClick={() => setActiveTab('drawing')}
           className={`pb-4 px-4 border-b-2 transition ${activeTab === 'drawing' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
-          تمارين الكتابة وتتبع الحروف ({lessons.drawingLessons.length})
+          تمارين الكتابة ({lessons.drawingLessons.length})
         </button>
         <button
           onClick={() => setActiveTab('students')}
           className={`pb-4 px-4 border-b-2 transition ${activeTab === 'students' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
-          جدولة وتخصيص الطلاب
+          تخصيص
+        </button>
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`pb-4 px-4 border-b-2 transition ${activeTab === 'reports' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          تقارير وتقييم
         </button>
       </div>
 
@@ -2122,6 +2329,8 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
               )}
             </div>
           )}
+        </div>
+      )}
 
           {/* Active Tab: Students */}
           {activeTab === 'students' && (() => {
@@ -2191,18 +2400,23 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                       <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
                       <p className="text-slate-400 text-xs font-bold">جاري جلب قائمة الطلاب وجدولاتهم...</p>
                     </div>
-                  ) : regularSchedules.length === 0 ? (
-                    <div className="py-10 border border-dashed border-slate-200 rounded-3xl text-center text-slate-400 text-sm">
-                      لا توجد بيانات طلاب حالية في ورقة Settings.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {regularSchedules
-                        .filter(s => 
-                          s.studentName.toLowerCase().includes(studentSearch.toLowerCase()) || 
-                          s.studentId.toLowerCase().includes(studentSearch.toLowerCase())
-                        )
-                        .map((student) => (
+                  ) : (() => {
+                    const filteredRegularSchedules = regularSchedules.filter(s => 
+                      s.studentName.toLowerCase().includes(studentSearch.toLowerCase()) || 
+                      s.studentId.toLowerCase().includes(studentSearch.toLowerCase())
+                    );
+
+                    if (filteredRegularSchedules.length === 0) {
+                      return (
+                        <div className="py-10 border border-dashed border-slate-200 rounded-3xl text-center text-slate-400 text-sm">
+                          لا توجد بيانات طلاب حالية في ورقة Settings.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {filteredRegularSchedules.map((student) => (
                           <button
                             key={student.studentId}
                             type="button"
@@ -2229,11 +2443,185 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                               <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition rotate-180 shrink-0" />
                             </div>
                           </button>
-                        ))
-                      }
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
+              </div>
+            );
+          })()}
+
+      {/* Active Tab: Reports */}
+      {activeTab === 'reports' && selectedReportStudent && (
+        <div className="space-y-6 text-right animate-fade-in">
+          {/* Header Card for student reports details */}
+          <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setSelectedReportStudent(null)}
+                className="p-3 bg-white hover:bg-slate-100 text-slate-700 rounded-2xl transition border border-slate-200 shadow-sm shrink-0"
+                title="الرجوع لقائمة الطلاب"
+              >
+                <ArrowRight className="w-5 h-5 font-bold" />
+              </button>
+              <div>
+                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-1 rounded-full border border-indigo-100">بطاقة الطالب التقييمية</span>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-xl mt-1">
+                  {selectedReportStudent.studentName}
+                </h3>
+                <p className="text-slate-400 text-xs font-mono mt-0.5">
+                  رقم الطالب: {selectedReportStudent.studentId}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleSyncStudent(selectedReportStudent.studentId, selectedReportStudent.studentName)}
+                disabled={syncingStudentId === selectedReportStudent.studentId}
+                className="flex items-center gap-2 px-4 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-2xl transition font-extrabold text-xs disabled:opacity-50"
+                title="تحديث ورقة ConsolidatedEvaluations ببيانات الطالب"
+              >
+                {syncingStudentId === selectedReportStudent.studentId ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-700" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                تحديث الشيت المجمع (Sync Sheet)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateStudentReportPDF(selectedReportStudent)}
+                disabled={generatingStudentPdfId === selectedReportStudent.studentId}
+                className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl transition font-extrabold text-xs shadow-md shadow-amber-200/50 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {generatingStudentPdfId === selectedReportStudent.studentId ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                عمل ملف بي دي اف (PDF)
+              </button>
+            </div>
+          </div>
+
+          {/* Saved PDF Link Display on the student card */}
+          <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-3">
+            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm">🔗 رابط ملف التقرير المرفق (PDF)</h4>
+            {loadingPdfUrl ? (
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                <span>جاري البحث عن روابط PDF سابقة للطالب...</span>
+              </div>
+            ) : studentSavedPdfUrl ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/50 border border-emerald-100 p-3 rounded-2xl text-right">
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100/60 px-2 py-0.5 rounded-full">جاهز للتحميل 🏆</span>
+                  <p className="text-[11px] text-slate-600 mt-1 truncate max-w-md font-sans" dir="ltr">{studentSavedPdfUrl}</p>
+                </div>
+                <a
+                  href={studentSavedPdfUrl}
+                  target="_blank"
+                  rel="noreferrer referrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 font-sans"
+                >
+                  <Eye className="w-4 h-4" />
+                  فتح وتحميل ملف الـ PDF
+                </a>
+              </div>
+            ) : (
+              <div className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl text-center text-slate-400 text-xs">
+                لا يوجد تقرير PDF محفوظ ومسجل في الشيت حالياً لهذا الطالب. اضغط على زر "عمل ملف بي دي اف" في الأعلى لإنشاء الرابط وحفظه.
+              </div>
+            )}
+          </div>
+
+          {/* Embedded 6-table student assessment dashboard */}
+          <div className="bg-white border border-slate-100 rounded-3xl p-2 shadow-sm">
+            <ReportDashboard student={{ id: selectedReportStudent.studentId, name: selectedReportStudent.studentName }} />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'reports' && !selectedReportStudent && (
+        <div className="space-y-6 text-right animate-fade-in">
+          <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                تقارير وتقييم الطلاب الشاملة 📊
+              </h3>
+              <p className="text-slate-500 text-xs mt-0.5">
+                اختر أي طالب بطل من القائمة بالأسفل لفتح وعرض جداول التقييم الستة الشاملة واستخراج ملف التقرير PDF.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={handleGenerateBulkPdfs}
+                disabled={bulkPdfGenerating || loadingStudents}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-2xl shadow-md transition disabled:opacity-50 shrink-0"
+                title="توليد ملفات PDF الشاملة لجميع الطلاب دفعة واحدة وتحديث روابطها في شيت PDF"
+              >
+                <FolderDown className="w-4 h-4" />
+                تصدير PDF لجميع الطلاب (دفعة واحدة)
+              </button>
+              <input
+                type="text"
+                placeholder="البحث عن طالب بالاسم أو الرقم..."
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none w-full md:w-64 text-right font-sans"
+              />
+            </div>
+          </div>
+
+          {loadingStudents ? (
+            <div className="py-20 flex flex-col items-center justify-center space-y-3">
+              <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
+              <p className="text-slate-400 text-xs font-bold">جاري تحميل قائمة الطلاب الأبطال...</p>
+            </div>
+          ) : (() => {
+            const regularSchedules = studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT');
+            const filteredStudents = regularSchedules.filter(s => 
+              s.studentName.toLowerCase().includes(studentSearch.toLowerCase()) || 
+              s.studentId.toLowerCase().includes(studentSearch.toLowerCase())
+            );
+
+            if (filteredStudents.length === 0) {
+              return (
+                <div className="py-12 border border-dashed border-slate-200 rounded-3xl text-center text-slate-400 text-sm">
+                  لا توجد نتائج مطابقة لبحثك عن الطلاب.
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredStudents.map((student) => (
+                  <button
+                    key={student.studentId}
+                    type="button"
+                    onClick={() => handleSelectReportStudent(student)}
+                    className="flex items-center justify-between p-5 bg-white hover:bg-amber-50/30 hover:border-amber-300 border border-slate-100 rounded-3xl cursor-pointer transition text-right w-full group shadow-sm hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-base group-hover:bg-amber-100 transition">
+                        {student.studentName.charAt(0)}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-extrabold text-slate-800 text-xs sm:text-sm group-hover:text-amber-950 transition">{student.studentName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">رقم الطالب: {student.studentId}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 group-hover:bg-amber-100/50 px-3 py-1.5 rounded-xl transition">
+                      <span>عرض التقييم الشامل</span>
+                      <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                    </div>
+                  </button>
+                ))}
               </div>
             );
           })()}
@@ -2734,6 +3122,112 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
           </div>
         );
       })()}
+
+      {/* Bulk PDF Generation Confirmation Modal */}
+      {showBulkPdfConfirmModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center animate-scale-up">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <FolderDown className="w-8 h-8 text-emerald-600" />
+            </div>
+
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                تصدير PDF لجميع الطلاب 📁
+              </h3>
+              <p className="text-slate-500 text-xs mt-2 leading-relaxed">
+                هل تريد البدء في تصدير وتوليد ملفات الـ PDF التقييمية لجميع الطلاب الأبطال المسجلين (عددهم <span className="font-extrabold text-emerald-600 font-sans text-sm">{studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT').length}</span> طالب)؟
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right space-y-2.5 text-xs text-slate-600">
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>سيتم إنشاء وتحديث ملف PDF لكل طالب منفرد</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>حفظ الرابط المباشر في ورقة PDF لتسهيل الوصول</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-800">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>تتم المعالجة تتابعياً لتفادي أي مهلة زمنية</span>
+              </div>
+
+              <label className="flex items-center gap-2.5 pt-2 border-t border-slate-200 mt-2 cursor-pointer font-extrabold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={skipExistingPdfs}
+                  onChange={(e) => setSkipExistingPdfs(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-slate-300"
+                />
+                <span className="text-emerald-700">تخطي الطلاب الذين تمت المتابعة وإنشاء PDF لهم مسبقاً (الاستئناف المباشر)</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={executeBulkPdfExport}
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 transition"
+              >
+                تأكيد وتوليد الآن 🚀
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkPdfConfirmModal(false)}
+                className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-2xl transition"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk PDF Generation Progress Overlay */}
+      {bulkPdfGenerating && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center animate-scale-up">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+              <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+            
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">جاري تصدير ملفات الـ PDF الشاملة 🚀</h3>
+              <p className="text-slate-500 text-xs mt-1">
+                جاري تجميع درجات وتقييمات الطلاب واستخراج ملفات الـ PDF وحفظها في جوجل درايف...
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+              <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                <span>نسبة الإنجاز:</span>
+                <span className="font-sans text-emerald-600 font-extrabold text-sm">
+                  {Math.round((bulkPdfProgress.current / Math.max(bulkPdfProgress.total, 1)) * 100)}% ({bulkPdfProgress.current} من {bulkPdfProgress.total})
+                </span>
+              </div>
+              
+              <div className="w-full bg-slate-200 h-3.5 rounded-full overflow-hidden p-0.5">
+                <div 
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${Math.round((bulkPdfProgress.current / Math.max(bulkPdfProgress.total, 1)) * 100)}%` }}
+                />
+              </div>
+
+              <div className="pt-1 text-right">
+                <p className="text-xs text-slate-600 font-bold truncate">
+                  الطالب الحالي: <span className="text-indigo-600 font-extrabold">{bulkPdfProgress.currentStudentName}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-amber-700 font-bold bg-amber-50 p-3 rounded-xl border border-amber-100">
+              💡 معالجة الطلاب تتم تتابعياً لضمان الدقة وعدم تجاوز مهلة جوجل، يرجى عدم إغلاق هذه النافذة.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
