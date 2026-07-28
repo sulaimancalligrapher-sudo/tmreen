@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { callGasApi, setApiUrl, getApiUrl } from '../utils/api';
-import { Database, Key, CheckCircle, Copy, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { callGasApi, setApiUrl, getApiUrl, resetApiUrlToDefault, DEFAULT_GAS_API_URL } from '../utils/api';
+import { Database, Key, CheckCircle, Copy, AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface OnboardingProps {
@@ -119,11 +119,11 @@ export default function Onboarding({ onSuccess, onBack, showBackOnly = false }: 
                 className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-left font-mono text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
                 dir="ltr"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={handleTestConnection}
                   disabled={testing || !url.trim()}
-                  className="bg-slate-950 text-white font-medium px-6 py-3 rounded-xl hover:bg-slate-800 disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2 min-w-[140px]"
+                  className="bg-slate-950 text-white font-medium px-6 py-3 rounded-xl hover:bg-slate-800 disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2 min-w-[130px]"
                 >
                   {testing ? (
                     <>
@@ -141,7 +141,29 @@ export default function Onboarding({ onSuccess, onBack, showBackOnly = false }: 
                 >
                   حفظ فقط
                 </button>
+                <button
+                  onClick={() => {
+                    resetApiUrlToDefault();
+                    setUrl(getApiUrl());
+                    setTestResult({
+                      success: true,
+                      message: 'تم استعادة الرابط الافتراضي بنجاح.'
+                    });
+                  }}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-3 rounded-xl transition flex items-center gap-1 text-xs"
+                  title="استعادة الرابط الافتراضي المعتمد"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  الافتراضي
+                </button>
               </div>
+            </div>
+
+            <div className="bg-amber-50/60 border border-amber-100 p-3.5 rounded-xl text-xs text-amber-900 leading-relaxed font-sans space-y-1">
+              <span className="font-bold block text-amber-950">💡 نصيحة للتشغيل التلقائي على جميع الأجهزة (Vercel):</span>
+              <p>
+                لكي يفتح الموقع مباشرة على كافة الجوالات والأجهزة دون مطالبات بإدخال الرابط، يمكنك وضع متغيّر البيئة <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold">VITE_GAS_API_URL</code> برابط الـ Apps Script في إعدادات مشروعك بـ Vercel، أو تحديث قيمة <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold">DEFAULT_GAS_API_URL</code> داخل ملف <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold">src/utils/api.ts</code>.
+              </p>
             </div>
 
             {testResult && (

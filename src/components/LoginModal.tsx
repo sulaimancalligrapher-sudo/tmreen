@@ -12,10 +12,19 @@ import { motion, AnimatePresence } from 'motion/react';
 interface LoginModalProps {
   onLoginSuccess: (student: Student) => void;
   onOpenSettings: () => void;
+  forcedMode?: 'student' | 'admin';
+  onGoToStudentPage?: () => void;
+  onGoToAdminPage?: () => void;
 }
 
-export default function LoginModal({ onLoginSuccess, onOpenSettings }: LoginModalProps) {
-  const [loginMode, setLoginMode] = useState<'student' | 'admin'>('student');
+export default function LoginModal({
+  onLoginSuccess,
+  onOpenSettings,
+  forcedMode,
+  onGoToStudentPage,
+  onGoToAdminPage,
+}: LoginModalProps) {
+  const [loginMode, setLoginMode] = useState<'student' | 'admin'>(forcedMode || 'student');
   
   // Student fields
   const [studentName, setStudentName] = useState('');
@@ -149,23 +158,25 @@ export default function LoginModal({ onLoginSuccess, onOpenSettings }: LoginModa
           </p>
         </div>
 
-        {/* Segmented control for login type */}
-        <div className="bg-slate-100 p-1 rounded-xl flex">
-          <button
-            type="button"
-            onClick={() => { setLoginMode('student'); setError(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'student' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            تسجيل دخول الطلاب
-          </button>
-          <button
-            type="button"
-            onClick={() => { setLoginMode('admin'); setError(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'admin' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            بوابة الإدارة والتحكم
-          </button>
-        </div>
+        {/* Segmented control for login type (only if not forced to a single mode) */}
+        {!forcedMode && (
+          <div className="bg-slate-100 p-1 rounded-xl flex">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('student'); setError(''); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'student' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              تسجيل دخول الطلاب
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('admin'); setError(''); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'admin' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              بوابة الإدارة والتحكم
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <AnimatePresence mode="wait">
@@ -283,17 +294,39 @@ export default function LoginModal({ onLoginSuccess, onOpenSettings }: LoginModa
           </button>
         </form>
 
-        <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <Smartphone className="w-4 h-4 text-slate-400" />
-            <span>حماية الأجهزة مفعّلة</span>
+        <div className="border-t border-slate-100 pt-4 flex flex-col gap-3 text-xs text-slate-500">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Smartphone className="w-4 h-4 text-slate-400" />
+              <span>حماية الأجهزة مفعّلة</span>
+            </div>
+            {loginMode === 'admin' && (
+              <button
+                onClick={onOpenSettings}
+                className="text-amber-600 hover:text-amber-500 font-bold transition decoration-dotted underline underline-offset-4"
+              >
+                إعدادات الربط بالشيت
+              </button>
+            )}
           </div>
-          {loginMode === 'admin' && (
+
+          {forcedMode === 'admin' && onGoToStudentPage && (
             <button
-              onClick={onOpenSettings}
-              className="text-amber-600 hover:text-amber-500 font-bold transition decoration-dotted underline underline-offset-4"
+              type="button"
+              onClick={onGoToStudentPage}
+              className="text-slate-500 hover:text-slate-900 font-bold text-center transition pt-1 border-t border-slate-50"
             >
-              إعدادات الربط بالشيت
+              الذهاب إلى صفحة تمارين الطلاب ←
+            </button>
+          )}
+
+          {forcedMode === 'student' && onGoToAdminPage && (
+            <button
+              type="button"
+              onClick={onGoToAdminPage}
+              className="text-slate-400 hover:text-slate-700 font-medium text-center transition pt-1 border-t border-slate-50 text-[11px]"
+            >
+              بوابة الإدارة والمسؤولين (?page=admin)
             </button>
           )}
         </div>
