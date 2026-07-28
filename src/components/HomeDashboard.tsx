@@ -4,16 +4,12 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { callGasApi } from '../utils/api';
-import { Student, HoomWidget, ExerciseType, GeneralData } from '../types';
+import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
+import { Student, HomeContentItem, ExerciseType, GeneralData } from '../types';
 import {
   Sparkles,
   Compass,
-  HelpCircle,
-  Pencil,
   MoveLeft,
-  Eye,
-  Award,
   Gamepad2,
   X,
   ChevronRight,
@@ -21,6 +17,17 @@ import {
   Play,
   Maximize2,
   ExternalLink,
+  Megaphone,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Link as LinkIcon,
+  Info,
+  UserCheck,
+  Globe,
+  GraduationCap,
+  Tv,
+  Bell,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -32,231 +39,515 @@ interface HomeDashboardProps {
 }
 
 // ==========================================
-// 🌟 SUB-COMPONENT: Image Slideshow & Lightbox
+// 📸 SUB-COMPONENT: Photo Slideshow
 // ==========================================
-interface ImageSlideshowProps {
-  images: string[];
-  title: string;
+interface PhotoSlideshowProps {
+  photos: HomeContentItem[];
+  onOpenLightbox: (index: number) => void;
 }
 
-function ImageSlideshow({ images, title }: ImageSlideshowProps) {
+function PhotoSlideshow({ photos, onOpenLightbox }: PhotoSlideshowProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const autoplayTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const total = images.length;
+  if (photos.length === 0) return null;
 
-  // Autoplay function
-  useEffect(() => {
-    if (total <= 1) return;
-    
-    autoplayTimer.current = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % total);
-    }, 4500);
-
-    return () => {
-      if (autoplayTimer.current) clearInterval(autoplayTimer.current);
-    };
-  }, [total]);
-
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev + 1) % total);
-  };
+  const current = photos[currentIndex] || photos[0];
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev - 1 + total) % total);
+    setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
   };
 
-  const openLightbox = (idx: number) => {
-    setLightboxIndex(idx);
-  };
-
-  const closeLightbox = () => {
-    setLightboxIndex(null);
-  };
-
-  const handleLightboxNext = (e: React.MouseEvent) => {
+  const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex + 1) % total);
-    }
+    setCurrentIndex((prev) => (prev + 1) % photos.length);
   };
-
-  const handleLightboxPrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex - 1 + total) % total);
-    }
-  };
-
-  if (total === 0) return null;
 
   return (
-    <div className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/60 shadow-sm group">
-      {/* Current Slide */}
-      <div 
-        className="relative h-56 md:h-64 flex items-center justify-center cursor-zoom-in overflow-hidden"
-        onClick={() => openLightbox(currentIndex)}
-      >
-        <motion.img
-          key={currentIndex}
-          src={images[currentIndex]}
-          alt={`${title} - ${currentIndex + 1}`}
-          initial={{ opacity: 0, scale: 1.02 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="w-full h-full object-cover"
-        />
-        
-        {/* Hover overlay hint */}
-        <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-          <div className="bg-white/90 text-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md">
-            <Maximize2 className="w-3.5 h-3.5" />
-            تكبير الصورة
-          </div>
-        </div>
-
-        {/* Slides Counter Tag */}
-        <span className="absolute top-3 right-3 bg-slate-950/70 text-white text-[10px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-          {currentIndex + 1} / {total}
-        </span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
+          <ImageIcon className="w-5 h-5 text-indigo-500" />
+          معرض الصور (سلايدشو) 🖼️
+        </h2>
+        {photos.length > 1 && (
+          <span className="text-xs font-extrabold bg-indigo-50 text-indigo-700 px-3.5 py-1 rounded-full border border-indigo-100">
+            {currentIndex + 1} من {photos.length}
+          </span>
+        )}
       </div>
 
-      {/* Slide Navigation Buttons */}
-      {total > 1 && (
-        <>
-          <button
-            onClick={handlePrev}
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-800 p-2 rounded-full shadow-md transition transform hover:scale-105"
-            title="الصورة السابقة"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleNext}
-            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-slate-800 p-2 rounded-full shadow-md transition transform hover:scale-105"
-            title="الصورة التالية"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        </>
-      )}
+      {/* Main Slideshow Player */}
+      <div 
+        className="relative bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-800 group aspect-[16/9] max-h-[420px] flex items-center justify-center cursor-zoom-in"
+        onClick={() => onOpenLightbox(currentIndex)}
+      >
+        <img
+          src={transformGoogleDriveImageUrl(current.content)}
+          alt={current.title || 'صورة'}
+          className="w-full h-full object-contain transition duration-300"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800';
+          }}
+        />
 
-      {/* Dots Indicator */}
-      {total > 1 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-slate-950/40 px-2.5 py-1.5 rounded-full backdrop-blur-sm">
-          {images.map((_, idx) => (
+        {/* Title overlay */}
+        {current.title && (
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-transparent p-4 sm:p-6 text-right">
+            <p className="text-white font-extrabold text-sm sm:text-base">{current.title}</p>
+          </div>
+        )}
+
+        {/* Fullscreen Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenLightbox(currentIndex);
+          }}
+          className="absolute top-4 left-4 bg-black/60 hover:bg-black/80 text-white p-2.5 rounded-2xl backdrop-blur border border-white/20 opacity-90 hover:opacity-100 transition shadow-lg flex items-center gap-1.5 text-xs font-bold"
+        >
+          <Maximize2 className="w-4 h-4" />
+          <span className="hidden sm:inline">تكبير الشاشة</span>
+        </button>
+
+        {/* Navigation Arrows */}
+        {photos.length > 1 && (
+          <>
+            <button
+              onClick={handlePrev}
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-amber-500 hover:text-slate-950 text-white p-3 rounded-full transition backdrop-blur border border-white/20 shadow-xl"
+              title="الصورة السابقة"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-amber-500 hover:text-slate-950 text-white p-3 rounded-full transition backdrop-blur border border-white/20 shadow-xl"
+              title="الصورة التالية"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Thumbnail Bar */}
+      {photos.length > 1 && (
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+          {photos.map((p, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                idx === currentIndex ? 'bg-amber-400' : 'bg-white/50'
+              className={`relative h-16 w-24 rounded-2xl overflow-hidden border-2 transition shrink-0 ${
+                idx === currentIndex
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/30 scale-105 shadow-md'
+                  : 'border-slate-200 opacity-60 hover:opacity-100'
               }`}
-            />
+            >
+              <img src={transformGoogleDriveImageUrl(p.content)} alt="" className="w-full h-full object-cover" />
+            </button>
           ))}
         </div>
       )}
-
-      {/* Lightbox Modal */}
-      <AnimatePresence>
-        {lightboxIndex !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4"
-            onClick={closeLightbox}
-          >
-            <div 
-              className="relative max-w-4xl w-full flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={closeLightbox}
-                className="absolute -top-12 left-0 bg-white/10 hover:bg-white/25 text-white p-2.5 rounded-full transition"
-                title="إغلاق المعاينة"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              {total > 1 && (
-                <button
-                  onClick={handleLightboxPrev}
-                  className="absolute right-2 md:-right-16 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition"
-                  title="السابق"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              )}
-
-              <img
-                src={images[lightboxIndex]}
-                alt={`${title} - ${lightboxIndex + 1}`}
-                className="max-h-[80vh] max-w-full rounded-2xl object-contain border border-white/10 shadow-2xl"
-              />
-
-              {total > 1 && (
-                <button
-                  onClick={handleLightboxNext}
-                  className="absolute left-2 md:-left-16 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition"
-                  title="التالي"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-              )}
-            </div>
-
-            {/* Lightbox status bar */}
-            <div className="text-white text-xs font-bold mt-4 bg-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
-              {title} • {lightboxIndex + 1} من {total}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 // ==========================================
-// 📺 SUB-COMPONENT: Video Slideshow
+// 🎥 SUB-COMPONENT: Video Gallery Slideshow
 // ==========================================
 interface VideoSlideshowProps {
-  videos: string[];
-  title: string;
+  videos: HomeContentItem[];
+  onPlayVideo: (url: string) => void;
+  getYoutubeId: (url: string) => string;
+  isDirectVideo: (url: string) => boolean;
 }
 
-function VideoSlideshow({ videos, title }: VideoSlideshowProps) {
+function VideoSlideshow({ videos, onPlayVideo, getYoutubeId, isDirectVideo }: VideoSlideshowProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
-  const autoplayTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const total = videos.length;
+  if (videos.length === 0) return null;
 
-  useEffect(() => {
-    if (total <= 1) return;
-    
-    autoplayTimer.current = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % total);
-    }, 6000);
-
-    return () => {
-      if (autoplayTimer.current) clearInterval(autoplayTimer.current);
-    };
-  }, [total]);
-
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev + 1) % total);
-  };
+  const current = videos[currentIndex] || videos[0];
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev - 1 + total) % total);
+    setCurrentIndex((prev) => (prev - 1 + videos.length) % videos.length);
   };
 
-  // Extract YouTube ID to show a high-res cover image
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev + 1) % videos.length);
+  };
+
+  const ytId = getYoutubeId(current.content);
+  const coverUrl = ytId
+    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+    : 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800';
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
+          <VideoIcon className="w-5 h-5 text-rose-500" />
+          المقاطع المرئية والتعليمية 🎥
+        </h2>
+        {videos.length > 1 && (
+          <span className="text-xs font-extrabold bg-rose-50 text-rose-700 px-3.5 py-1 rounded-full border border-rose-100">
+            {currentIndex + 1} من {videos.length}
+          </span>
+        )}
+      </div>
+
+      {/* Video Main Slide Player Box */}
+      <div className="relative bg-slate-950 rounded-3xl overflow-hidden shadow-xl border border-slate-800 aspect-[16/9] max-h-[420px] flex items-center justify-center group">
+        {isDirectVideo(current.content) ? (
+          <video
+            src={current.content}
+            preload="metadata"
+            className="w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <img
+            src={coverUrl}
+            alt={current.title || 'فيديو'}
+            className="w-full h-full object-cover filter brightness-75 group-hover:brightness-90 transition duration-300"
+          />
+        )}
+
+        {/* Play Overlay Button */}
+        <button
+          onClick={() => onPlayVideo(current.content)}
+          className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition group cursor-pointer"
+        >
+          <div className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-5 rounded-full shadow-2xl group-hover:scale-110 transition flex items-center justify-center gap-2">
+            <Play className="w-8 h-8 fill-slate-950" />
+          </div>
+        </button>
+
+        {/* Title overlay */}
+        {current.title && (
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/90 via-slate-950/50 to-transparent p-4 sm:p-6 text-right pointer-events-none">
+            <p className="text-white font-extrabold text-sm sm:text-base flex items-center gap-2">
+              <Tv className="w-4 h-4 text-amber-400" />
+              {current.title}
+            </p>
+          </div>
+        )}
+
+        {/* Navigation Arrows */}
+        {videos.length > 1 && (
+          <>
+            <button
+              onClick={handlePrev}
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/70 hover:bg-amber-500 hover:text-slate-950 text-white p-3 rounded-full transition backdrop-blur border border-white/20 shadow-xl"
+              title="المقطع السابق"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/70 hover:bg-amber-500 hover:text-slate-950 text-white p-3 rounded-full transition backdrop-blur border border-white/20 shadow-xl"
+              title="المقطع التالي"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Video Thumbnails Strip */}
+      {videos.length > 1 && (
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+          {videos.map((v, idx) => {
+            const vYtId = getYoutubeId(v.content);
+            const vCover = vYtId
+              ? `https://img.youtube.com/vi/${vYtId}/hqdefault.jpg`
+              : 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800';
+
+            return (
+              <button
+                key={idx}
+                onClick={() => setCurrentIndex(idx)}
+                className={`relative h-16 w-28 rounded-2xl overflow-hidden border-2 transition shrink-0 bg-slate-900 ${
+                  idx === currentIndex
+                    ? 'border-rose-500 ring-2 ring-rose-500/30 scale-105 shadow-md'
+                    : 'border-slate-800 opacity-60 hover:opacity-100'
+                }`}
+              >
+                {isDirectVideo(v.content) ? (
+                  <div className="w-full h-full bg-slate-950 flex items-center justify-center text-amber-400">
+                    <VideoIcon className="w-6 h-6" />
+                  </div>
+                ) : (
+                  <img src={vCover} alt="" className="w-full h-full object-cover" />
+                )}
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <Play className="w-4 h-4 text-white fill-white" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+interface LightboxModalProps {
+  images: Array<{ url: string; title: string }>;
+  currentIndex: number;
+  onClose: () => void;
+  onNavigate: (index: number) => void;
+}
+
+function LightboxModal({ images, currentIndex, onClose, onNavigate }: LightboxModalProps) {
+  const currentImage = images[currentIndex];
+  if (!currentImage) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <div 
+          className="relative max-w-4xl w-full flex flex-col items-center justify-center space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onClose}
+            className="absolute -top-12 left-0 bg-white/10 hover:bg-white/25 text-white p-2.5 rounded-full transition"
+            title="إغلاق المعاينة"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <div className="relative flex items-center justify-center w-full">
+            <img
+              src={transformGoogleDriveImageUrl(currentImage.url)}
+              alt={currentImage.title}
+              className="max-h-[75vh] max-w-full rounded-2xl object-contain border border-white/10 shadow-2xl"
+            />
+
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={() => onNavigate((currentIndex - 1 + images.length) % images.length)}
+                  className="absolute right-3 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full transition border border-white/20 backdrop-blur shadow-lg"
+                  title="الصورة السابقة"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => onNavigate((currentIndex + 1) % images.length)}
+                  className="absolute left-3 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full transition border border-white/20 backdrop-blur shadow-lg"
+                  title="الصورة التالية"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {currentImage.title && (
+              <div className="text-white text-sm font-bold bg-white/10 px-4 py-2 rounded-xl backdrop-blur-md text-center">
+                {currentImage.title}
+              </div>
+            )}
+            {images.length > 1 && (
+              <div className="text-amber-300 text-xs font-extrabold bg-white/10 px-3 py-2 rounded-xl backdrop-blur-md">
+                {currentIndex + 1} من {images.length}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ==========================================
+// 🏠 MAIN COMPONENT: HomeDashboard
+// ==========================================
+export default function HomeDashboard({ student, generalData, onSelectExercise, onNavigateTo }: HomeDashboardProps) {
+  const [items, setItems] = useState<HomeContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
+  const [activeEnlargedImage, setActiveEnlargedImage] = useState<{ url: string; title: string } | null>(null);
+
+  useEffect(() => {
+    const fetchHomeContent = async () => {
+      try {
+        // Try to load cached content for instant display without slowness
+        const cacheKey = `cached_home_content_${student.id || student.name || 'ALL'}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsedCache = JSON.parse(cached);
+            if (Array.isArray(parsedCache) && parsedCache.length > 0) {
+              setItems(parsedCache);
+              setLoading(false);
+            }
+          } catch (e) {}
+        } else {
+          setLoading(true);
+        }
+
+        setError('');
+        const rawData = await callGasApi<any>('getHomeContent', {
+          username: student.name || (student as any).studentName || student.id || (student as any).studentId || '',
+          isAdmin: true
+        });
+
+        let parsedItems: HomeContentItem[] = [];
+
+        if (Array.isArray(rawData)) {
+          const tempList: HomeContentItem[] = [];
+
+          rawData.forEach((item: any) => {
+            let type = '';
+            let title = '';
+            let rawContent = '';
+            let targetStudent = 'ALL';
+            let status = 'active';
+
+            let rawTypeStr = '';
+            if (Array.isArray(item)) {
+              rawTypeStr = (item[0] || '').toString().trim();
+              title = (item[1] || '').toString().trim();
+              rawContent = (item[2] || '').toString().trim();
+              targetStudent = (item[3] || 'ALL').toString().trim();
+              status = (item[4] || 'active').toString().trim();
+            } else if (typeof item === 'object' && item !== null) {
+              rawTypeStr = (item.type || '').toString().trim();
+              title = (item.title || '').toString().trim();
+              rawContent = (item.content || '').toString().trim();
+              targetStudent = (item.targetStudent || item.Target_Student || 'ALL').toString().trim();
+              status = (item.status || item.Status || 'active').toString().trim();
+            }
+
+            const cleanType = rawTypeStr.toLowerCase();
+            if (cleanType === 'إعلان' || cleanType === 'اعlan' || cleanType === 'اعلان' || cleanType === 'announcement') type = 'announcement';
+            else if (cleanType === 'صورة' || cleanType === 'صور' || cleanType === 'photo' || cleanType === 'image') type = 'photo';
+            else if (cleanType === 'فيديو' || cleanType === 'مرئي' || cleanType === 'video') type = 'video';
+            else if (cleanType === 'تعليمات' || cleanType === 'توجيه' || cleanType === 'instruction') type = 'instruction';
+            else if (cleanType === 'رابط' || cleanType === 'روابط' || cleanType === 'link') type = 'link';
+            else if (cleanType === 'درس' || cleanType === 'دروس' || cleanType === 'lesson' || cleanType === 'lesson_link' || cleanType === 'lesson link' || cleanType === 'رابط درس') type = 'lesson';
+            else type = cleanType || 'announcement';
+
+            if (!title && !rawContent) return;
+
+            // Split multiple URLs separated by commas or linebreaks for photos, videos, links or lessons
+            if ((type === 'photo' || type === 'video' || type === 'link' || type === 'lesson') && (rawContent.includes(',') || rawContent.includes('\n'))) {
+              const parts = rawContent.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+              if (parts.length > 1) {
+                parts.forEach((partUrl, subIdx) => {
+                  tempList.push({
+                    type,
+                    title: parts.length > 1 ? `${title} (${subIdx + 1})` : title,
+                    content: partUrl,
+                    targetStudent,
+                    status,
+                  });
+                });
+                return;
+              }
+            }
+
+            tempList.push({
+              type,
+              title,
+              content: rawContent,
+              targetStudent,
+              status,
+            });
+          });
+
+          // Extra safety check for student targeting
+          const studentName = (student.name || (student as any).studentName || '').toLowerCase().trim();
+          const studentId = (student.id || (student as any).studentId || '').toLowerCase().trim();
+
+          parsedItems = tempList.filter((i) => {
+            const statusStr = (i.status || 'active').toLowerCase().trim();
+            if (statusStr === 'hidden' || statusStr === 'مخفي' || statusStr === 'inactive' || statusStr === 'غير نشط') {
+              return false;
+            }
+
+            const rawTarget = (i.targetStudent || 'ALL').trim();
+            const lowerTarget = rawTarget.toLowerCase();
+            if (lowerTarget === 'all' || lowerTarget === '' || lowerTarget === '-') return true;
+
+            // Check if EXCEPTION / EXCLUDE mode
+            if (
+              lowerTarget.startsWith('except:') ||
+              lowerTarget.startsWith('all_except:') ||
+              lowerTarget.startsWith('استثناء:') ||
+              lowerTarget.startsWith('!')
+            ) {
+              const excludedList = lowerTarget
+                .replace(/^(except:|all_except:|استثناء:|!)/i, '')
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean);
+
+              const isExcluded = excludedList.some((ex) => {
+                if (!ex) return false;
+                if (studentName && (ex === studentName || ex.includes(studentName) || studentName.includes(ex))) return true;
+                if (studentId && (ex === studentId || ex.includes(studentId) || studentId.includes(ex))) return true;
+                return false;
+              });
+
+              return !isExcluded;
+            }
+
+            // Standard INCLUDE mode
+            const targets = lowerTarget.split(',').map((t) => t.trim()).filter(Boolean);
+            return targets.some((t) => {
+              if (studentName && (t === studentName || t.includes(studentName) || studentName.includes(t))) return true;
+              if (studentId && (t === studentId || t.includes(studentId) || studentId.includes(t))) return true;
+              return false;
+            });
+          });
+        }
+
+        setItems(parsedItems);
+        // Save to cache for instant load next time
+        try {
+          const cacheKey = `cached_home_content_${student.id || student.name || 'ALL'}`;
+          localStorage.setItem(cacheKey, JSON.stringify(parsedItems));
+        } catch (e) {}
+      } catch (err: any) {
+        console.warn('Home_Content fetch error:', err);
+        setError('تعذر جلب بيانات ورقة Home_Content حالياً.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHomeContent();
+  }, [student.name, student.id]);
+
+  const handleLaunchButton = (url: string) => {
+    if (!url || url === '#' || url === '-') return;
+    if (url.startsWith('http')) {
+      window.open(url, '_blank', 'noreferrer');
+    } else if (url.startsWith('#')) {
+      const page = url.substring(1);
+      onNavigateTo(page);
+    } else {
+      onNavigateTo(url);
+    }
+  };
+
+  // Helper YouTube ID extractor
   const getYoutubeId = (url: string) => {
     if (!url) return '';
     let id = '';
@@ -270,6 +561,20 @@ function VideoSlideshow({ videos, title }: VideoSlideshowProps) {
     return id;
   };
 
+  const isDirectVideo = (url: string) => {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return (
+      lower.endsWith('.mp4') ||
+      lower.endsWith('.webm') ||
+      lower.endsWith('.mov') ||
+      lower.endsWith('.ogg') ||
+      lower.includes('/releases/download/') ||
+      lower.includes('.mp4?') ||
+      lower.includes('video/mp4')
+    );
+  };
+
   const getEmbedUrl = (url: string) => {
     const id = getYoutubeId(url);
     if (id) {
@@ -278,204 +583,14 @@ function VideoSlideshow({ videos, title }: VideoSlideshowProps) {
     return url;
   };
 
-  if (total === 0) return null;
-
-  const currentVideo = videos[currentIndex];
-  const ytId = getYoutubeId(currentVideo);
-  const coverUrl = ytId 
-    ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` 
-    : 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800';
-
-  return (
-    <div className="relative w-full max-w-xl mx-auto rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl group">
-      {/* Current Video Cover Card */}
-      <div 
-        className="relative h-56 md:h-64 flex items-center justify-center cursor-pointer overflow-hidden group"
-        onClick={() => setActiveVideoUrl(currentVideo)}
-      >
-        <motion.img
-          key={currentIndex}
-          src={coverUrl}
-          onError={(e) => {
-            // fallback to medium quality if maxres doesn't exist
-            (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-          }}
-          alt={`${title} video cover`}
-          initial={{ opacity: 0.8 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4 }}
-          className="w-full h-full object-cover filter brightness-[0.7] group-hover:scale-105 transition duration-300"
-        />
-
-        {/* Big play button */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-amber-500 text-slate-950 p-4 rounded-full hover:bg-amber-400 transition transform hover:scale-110 shadow-lg flex items-center justify-center">
-            <Play className="w-6 h-6 fill-slate-950" />
-          </div>
-        </div>
-
-        {/* Slide navigation counter */}
-        <span className="absolute top-3 right-3 bg-slate-950/70 text-white text-[10px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-          فيديو {currentIndex + 1} / {total}
-        </span>
-      </div>
-
-      {/* Video navigation controls */}
-      {total > 1 && (
-        <>
-          <button
-            onClick={handlePrev}
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-slate-800 p-2 rounded-full shadow-md transition transform hover:scale-105"
-            title="الفيديو السابق"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleNext}
-            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-slate-800 p-2 rounded-full shadow-md transition transform hover:scale-105"
-            title="الفيديو التالي"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        </>
-      )}
-
-      {/* Dots */}
-      {total > 1 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-slate-950/40 px-2.5 py-1.5 rounded-full backdrop-blur-sm">
-          {videos.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentIndex(idx)}
-              className={`w-2 h-2 rounded-full transition-colors ${
-                idx === currentIndex ? 'bg-amber-400' : 'bg-white/50'
-              }`}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Video Player overlay */}
-      <AnimatePresence>
-        {activeVideoUrl && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4"
-            onClick={() => setActiveVideoUrl(null)}
-          >
-            <div 
-              className="relative max-w-3xl w-full bg-white rounded-3xl p-4 md:p-6 shadow-2xl text-right space-y-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                  <Play className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  مشاهدة المقطع التوجيهي من المعلم
-                </span>
-                <button
-                  onClick={() => setActiveVideoUrl(null)}
-                  className="text-slate-400 hover:text-slate-600 font-extrabold text-lg p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-100 shadow">
-                <iframe
-                  src={getEmbedUrl(activeVideoUrl)}
-                  className="w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; encrypted-media"
-                  title="المقطع التعليمي"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+  // Group items by type
+  const lessonItems = items.filter((i) => i.type === 'lesson' || i.type === 'درس');
+  const announcementsAndInstructions = items.filter(
+    (i) => i.type === 'announcement' || i.type === 'instruction' || i.type === 'إعلان' || i.type === 'اعلان' || i.type === 'تعليمات'
   );
-}
-
-
-// ==========================================
-// 🏠 MAIN COMPONENT: HomeDashboard
-// ==========================================
-export default function HomeDashboard({ student, generalData, onSelectExercise, onNavigateTo }: HomeDashboardProps) {
-  const [widgets, setWidgets] = useState<HoomWidget[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
-
-  useEffect(() => {
-    const fetchHoomData = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const rawHoom = await callGasApi<string[][]>('getHoomDataForStudent', {
-          username: student.name,
-        });
-
-        if (rawHoom && rawHoom.length > 0) {
-          const parsedWidgets: HoomWidget[] = rawHoom.map((row) => {
-            const type = row[0] || 'بطاقة';
-            const title = row[1] || '';
-            const text = row[2] || '';
-            
-            // Parse images and videos from row[3] & row[4]
-            const images = row[3]
-              ? row[3]
-                  .split('|')
-                  .map((s) => s.trim())
-                  .filter((s) => s && s !== '-')
-              : [];
-            const videos = row[4]
-              ? row[4]
-                  .split('|')
-                  .map((s) => s.trim())
-                  .filter((s) => s && s !== '-')
-              : [];
-
-            let buttons: Array<{ text: string; url: string }> = [];
-            if (type === 'أزرار') {
-              // Row 3 text buttons, Row 4 contains URLs
-              const buttonTexts = row[3] ? row[3].split('|').map((s) => s.trim()) : [];
-              const buttonUrls = row[4] ? row[4].split('|').map((s) => s.trim()) : [];
-              const length = Math.min(buttonTexts.length, buttonUrls.length);
-              for (let i = 0; i < length; i++) {
-                buttons.push({ text: buttonTexts[i], url: buttonUrls[i] });
-              }
-            }
-
-            return { type, title, text, media: images, videos, buttons };
-          });
-
-          setWidgets(parsedWidgets);
-        }
-      } catch (err: any) {
-        console.warn('Hoom sheet error:', err);
-        setError('لا يمكن جلب الإعلانات الترحيبية من ورقة HOOM حالياً.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHoomData();
-  }, [student.name]);
-
-  const handleLaunchButton = (url: string) => {
-    if (!url || url === '#' || url === '-') return;
-    if (url.startsWith('http')) {
-      window.open(url, '_blank', 'noreferrer');
-    } else if (url.startsWith('#')) {
-      const page = url.substring(1);
-      onNavigateTo(page);
-    } else {
-      onNavigateTo(url);
-    }
-  };
+  const photoItems = items.filter((i) => i.type === 'photo' || i.type === 'صورة' || i.type === 'صور');
+  const videoItems = items.filter((i) => i.type === 'video' || i.type === 'فيديو' || i.type === 'مرئي');
+  const linkItems = items.filter((i) => i.type === 'link' || i.type === 'رابط' || i.type === 'روابط');
 
   return (
     <div className="space-y-8 text-right" dir="rtl">
@@ -490,7 +605,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             أهلاً بك، {student.name}! 👋
           </h1>
           <p className="text-slate-500 text-sm max-w-xl">
-            استعرض التوجيهات اليومية من معلّمك الموقّر، وتدرّب في منصتك الذكية لإتقان مهارات الضاد وقواعد الخط والوصل.
+            استعرض الإعلانات والتوجيهات الخاصة بك، وتدرّب في منصتك الذكية لإتقان مهارات اللغة العربية وقواعد الخط.
           </p>
         </div>
 
@@ -505,7 +620,71 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         </div>
       </div>
 
-      {/* 🚀 SIMPLIFIED GATEWAY SECTION: Exercises & Activities */}
+      {/* 🎬 FEATURED LESSON LINKS (روابط الدروس التعليمية - شكل مدمج وأنيق) */}
+      {lessonItems.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 rounded-3xl p-4 md:p-5 text-white shadow-lg relative overflow-hidden border border-emerald-400/30">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {lessonItems.map((item, idx) => {
+                const isVideo =
+                  item.content.includes('youtube.com') ||
+                  item.content.includes('youtu.be') ||
+                  item.content.includes('embed') ||
+                  isDirectVideo(item.content);
+                const isPersonalized =
+                  item.targetStudent && item.targetStudent.toUpperCase() !== 'ALL';
+
+                return (
+                  <div
+                    key={idx}
+                    className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl p-3.5 border border-white/15 transition flex flex-col justify-between gap-2.5 group hover:border-white/30 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-white/20 p-1.5 rounded-xl text-amber-300 shrink-0">
+                          <GraduationCap className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-extrabold text-white text-xs sm:text-sm font-sans group-hover:text-amber-200 transition line-clamp-2">
+                          {item.title || 'رابط الدرس التعليمي'}
+                        </h3>
+                      </div>
+                      {isPersonalized && (
+                        <span className="bg-amber-400/20 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-400/30 shrink-0">
+                          خاص
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="pt-1">
+                      {isVideo ? (
+                        <button
+                          onClick={() => setActiveVideoUrl(item.content)}
+                          className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-3 py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-slate-950" />
+                          <span>مشاهدة الدرس</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleLaunchButton(item.content)}
+                          className="w-full bg-white hover:bg-emerald-50 text-slate-950 font-extrabold px-3 py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>الانتقال لرابط الدرس</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 GATEWAY SECTION: Exercises (تمارين الدروس) */}
       <div className="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-lg border border-slate-800">
         <div className="absolute right-0 bottom-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-10 top-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -514,11 +693,11 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           <div className="space-y-2.5 flex-1 text-center md:text-right">
             <div className="inline-flex bg-amber-500/20 text-amber-400 border border-amber-500/20 px-3.5 py-1 rounded-full text-xs font-bold gap-1.5 items-center justify-center">
               <Gamepad2 className="w-3.5 h-3.5" />
-              <span>بيئة تفاعلية ممتعة</span>
+              <span>تمارين ممتعة وتفاعلية</span>
             </div>
-            <h2 className="text-2xl font-black font-sans text-white">بوابة الألعاب والتمارين التفاعلية 🎮</h2>
+            <h2 className="text-2xl font-black font-sans text-white">تمارين الدروس 🎮</h2>
             <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
-              ادخل عالم ممارسة الضاد! رسم خطوط الحروف العربية بنسب دقيقة، مطابقة وتوصيل الكلمات بالصوت والصورة، وترتيب الأحرف لتكوين جمل لغوية صحيحة.
+              تمارين تساعدك على الكتابة من رسم الحروف والكلمات، وتمارين ممتعة تساعد الذاكرة وتثبت المعلومات.
             </p>
           </div>
 
@@ -532,107 +711,259 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         </div>
       </div>
 
-      {/* 📢 Dynamic HOOM Widgets (Slideshow / Slide Show version) */}
-      {widgets.length > 0 && (
-        <div className="space-y-6">
+      {/* 🔔 REMINDER BAR: Lesson reminder alert for new and pending lessons */}
+      <div className="bg-gradient-to-r from-amber-50/90 via-amber-100/50 to-orange-50/90 border border-amber-200/90 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 text-right">
+          <div className="bg-amber-500 text-slate-950 p-2.5 rounded-xl shrink-0 shadow-sm">
+            <Bell className="w-5 h-5 fill-slate-950" />
+          </div>
+          <div>
+            <span className="font-extrabold text-amber-950 text-sm block">
+              تذكير هام بالدروس والتمارين 📌
+            </span>
+            <p className="text-amber-900/80 text-xs mt-0.5 leading-relaxed font-bold">
+              تذكير: لديك دروس جديدة ودروس قديمة لم تحل بعد! يمكنك متابعة حالة إنجازك والدروس المتبقية من قسم التقارير.
+            </p>
+          </div>
+        </div>
+
+        {onNavigateTo && (
+          <button
+            onClick={() => onNavigateTo('reports')}
+            className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2 shrink-0 active:scale-95"
+          >
+            <FileText className="w-4 h-4" />
+            <span>انتقال للتقارير</span>
+          </button>
+        )}
+      </div>
+
+      {/* 📢 SECTION 1: Announcements & Guidelines (إعلانات وتوجيهات) */}
+      {announcementsAndInstructions.length > 0 && (
+        <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900 font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
-            إعلانات وتوجيهات المعلم 📢
+            <Megaphone className="w-5 h-5 text-amber-500" />
+            الإعلانات والتعليمات التوجيهية 📢
           </h2>
 
-          <div className="space-y-6">
-            {widgets.map((widget, i) => {
-              if (widget.type === 'بطاقة' || widget.type === 'من نحن') {
-                const hasMedia = widget.media.length > 0;
-                const hasVideos = widget.videos.length > 0;
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {announcementsAndInstructions.map((item, idx) => {
+              const isPersonalized = item.targetStudent && item.targetStudent.toUpperCase() !== 'ALL';
 
-                return (
-                  <div
-                    key={i}
-                    className="bg-white border border-slate-100/80 p-6 md:p-8 rounded-3xl shadow-sm flex flex-col lg:flex-row gap-6 items-center hover:shadow-md transition"
-                  >
-                    <div className="flex-1 space-y-3 text-right">
-                      <span className="inline-flex bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                        توجيه مخصّص
+              let textContent = item.content || '';
+              let attachedImage = '';
+
+              if (textContent.includes('||IMAGE||')) {
+                const parts = textContent.split('||IMAGE||');
+                textContent = parts[0].trim();
+                attachedImage = transformGoogleDriveImageUrl(parts[1].trim());
+              } else {
+                const driveRegex = /(https?:\/\/(?:drive\.google\.com|lh3\.googleusercontent\.com)[^\s]+)/i;
+                const match = textContent.match(driveRegex);
+                if (match) {
+                  attachedImage = transformGoogleDriveImageUrl(match[0]);
+                  if (textContent.trim() === match[0].trim()) {
+                    textContent = '';
+                  } else {
+                    textContent = textContent.replace(match[0], '').trim();
+                  }
+                }
+              }
+
+              return (
+                <div
+                  key={idx}
+                  className={`p-6 rounded-3xl border shadow-sm space-y-3 transition hover:shadow-md ${
+                    isPersonalized
+                      ? 'bg-gradient-to-br from-amber-50/80 to-orange-50/50 border-amber-200/80'
+                      : 'bg-white border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                        isPersonalized
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {isPersonalized ? (
+                        <>
+                          <UserCheck className="w-3 h-3" />
+                          مخصص لك يا {student.name}
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          إعلان عام للجميع
+                        </>
+                      )}
+                    </span>
+
+                    {(item.type === 'instruction' || item.type === 'تعليمات') && (
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-bold">
+                        تعليمات وتوجيهات
                       </span>
-                      <h3 className="text-lg font-bold text-slate-900 font-sans">{widget.title}</h3>
-                      <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
-                        {widget.text}
-                      </p>
-                    </div>
-
-                    {/* Image or Video Slideshow container */}
-                    {(hasMedia || hasVideos) && (
-                      <div className="w-full lg:w-96 shrink-0 space-y-4">
-                        {hasMedia && (
-                          <ImageSlideshow images={widget.media} title={widget.title} />
-                        )}
-                        {hasVideos && (
-                          <VideoSlideshow videos={widget.videos} title={widget.title} />
-                        )}
-                      </div>
                     )}
                   </div>
-                );
-              }
 
-              if (widget.type === 'أزرار') {
-                return (
-                  <div
-                    key={i}
-                    className="bg-slate-50 border border-slate-100 p-6 md:p-8 rounded-3xl space-y-4 shadow-sm"
-                  >
-                    <div className="space-y-1 text-right">
-                      <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Compass className="w-5 h-5 text-amber-500" />
-                        {widget.title}
-                      </h3>
-                      <p className="text-slate-500 text-sm leading-relaxed">{widget.text}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2.5">
-                      {widget.buttons?.map((btn, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleLaunchButton(btn.url)}
-                          className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-3 rounded-xl transition shadow-sm flex items-center gap-1.5"
-                        >
-                          🌐 {btn.text}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              }
+                  {item.title && (
+                    <h3 className="text-base font-extrabold text-slate-900 font-sans">
+                      {item.title}
+                    </h3>
+                  )}
 
-              if (widget.type === 'معرض صور') {
-                return (
-                  <div key={i} className="bg-white border border-slate-100 p-6 md:p-8 rounded-3xl space-y-4 shadow-sm">
-                    <div className="text-right">
-                      <h3 className="text-lg font-bold text-slate-900">{widget.title}</h3>
-                      <p className="text-slate-500 text-sm">{widget.text}</p>
-                    </div>
-                    
-                    {/* Render slideshow for gallery images to avoid grid chaos */}
-                    <ImageSlideshow images={widget.media} title={widget.title} />
-                  </div>
-                );
-              }
+                  {textContent && (
+                    <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
+                      {textContent}
+                    </p>
+                  )}
 
-              return null;
+                  {attachedImage && (
+                    <div
+                      className="mt-3 rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm bg-slate-50 cursor-pointer group hover:border-amber-400 transition"
+                      onClick={() => setActiveEnlargedImage({ url: attachedImage, title: item.title || 'صورة شارحة' })}
+                    >
+                      <img
+                        src={attachedImage}
+                        alt={item.title || 'صورة شارحة'}
+                        className="w-full max-h-80 object-contain bg-slate-900/5 group-hover:scale-[1.01] transition duration-300"
+                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                      />
+                      <div className="p-2 text-center text-[11px] font-bold text-slate-600 bg-slate-100/80 flex items-center justify-center gap-1.5 border-t border-slate-200/50">
+                        <Maximize2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span>اضغط هنا لتكبير صورة الشرح 🔍</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </div>
         </div>
       )}
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-3">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
-          <span className="text-sm">جاري تحميل إعلانات المعلم...</span>
+      {/* 🖼️ SECTION 2: Photo Gallery (معرض الصور سلايدشو) */}
+      {photoItems.length > 0 && (
+        <PhotoSlideshow
+          photos={photoItems}
+          onOpenLightbox={(idx) => setActiveLightboxIndex(idx)}
+        />
+      )}
+
+      {/* 🎥 SECTION 3: Video Gallery (المقاطع المرئية وسلايدشو) */}
+      {videoItems.length > 0 && (
+        <VideoSlideshow
+          videos={videoItems}
+          onPlayVideo={(url) => setActiveVideoUrl(url)}
+          getYoutubeId={getYoutubeId}
+          isDirectVideo={isDirectVideo}
+        />
+      )}
+
+      {/* 🔗 SECTION 4: External Links (الروابط الخاصة والصفحات) */}
+      {linkItems.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-slate-900 font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
+            <LinkIcon className="w-5 h-5 text-sky-500" />
+            الروابط والصفحات الخارجية 🔗
+          </h2>
+
+          <div className="flex flex-wrap gap-3">
+            {linkItems.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleLaunchButton(item.content)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-2xl text-xs transition shadow-sm flex items-center gap-2 hover:scale-[1.02]"
+              >
+                <ExternalLink className="w-4 h-4 text-amber-400" />
+                <span>{item.title || 'فتح الرابط'}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ==========================================
-          🚪 PREMIUM EXERCISES NAVIGATION MODAL
-         ========================================== */}
+      {/* Empty State when no items exist */}
+      {!loading && items.length === 0 && (
+        <div className="bg-white border border-slate-100 rounded-3xl p-8 text-center text-slate-400 space-y-2 shadow-sm">
+          <Info className="w-8 h-8 text-slate-300 mx-auto" />
+          <p className="text-sm font-bold text-slate-600">لا توجد إعلانات أو محتويات صادرة في ورقة Home_Content حالياً.</p>
+          <p className="text-xs text-slate-400">يمكن للمعلم إضافة محتوى في جدول Google Sheet برمز النوع (announcement / photo / video / instruction / link / lesson).</p>
+        </div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-3">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
+          <span className="text-sm font-bold">جاري جلب المحتوى من ورقة Home_Content...</span>
+        </div>
+      )}
+
+      {/* Lightbox Modal for Photo Gallery Slideshow */}
+      {activeLightboxIndex !== null && photoItems.length > 0 && (
+        <LightboxModal
+          images={photoItems.map((p) => ({ url: p.content, title: p.title }))}
+          currentIndex={activeLightboxIndex}
+          onClose={() => setActiveLightboxIndex(null)}
+          onNavigate={(newIdx) => setActiveLightboxIndex(newIdx)}
+        />
+      )}
+
+      {/* Video Player Modal (Supports both MP4 Direct files & YouTube Embeds) */}
+      <AnimatePresence>
+        {activeVideoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4"
+            onClick={() => setActiveVideoUrl(null)}
+          >
+            <div 
+              className="relative max-w-4xl w-full bg-slate-900 rounded-3xl p-4 md:p-6 shadow-2xl text-right space-y-4 border border-slate-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <span className="font-bold text-white text-sm flex items-center gap-2">
+                  <Play className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  مشاهدة المقطع المرئي / الدرس
+                </span>
+                <button
+                  onClick={() => setActiveVideoUrl(null)}
+                  className="text-slate-400 hover:text-white bg-slate-800 p-1.5 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow flex items-center justify-center">
+                {isDirectVideo(activeVideoUrl) ? (
+                  <video
+                    src={activeVideoUrl}
+                    controls
+                    autoPlay
+                    className="w-full h-full object-contain"
+                  >
+                    متصفحك لا يدعم تشغيل هذا المقطع مباشرة.
+                  </video>
+                ) : (
+                  <iframe
+                    src={getEmbedUrl(activeVideoUrl)}
+                    className="w-full h-full"
+                    allowFullScreen
+                    allow="autoplay; encrypted-media"
+                    title="المقطع التعليمي"
+                  />
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🚪 EXERCISES NAVIGATION MODAL */}
       <AnimatePresence>
         {showExerciseModal && (
           <motion.div
@@ -649,15 +980,14 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
               className="bg-white rounded-3xl p-6 md:p-8 max-w-4xl w-full shadow-2xl space-y-6 relative border border-slate-100 my-8"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                 <div className="text-right space-y-1">
                   <h3 className="text-xl font-black text-slate-900 font-sans flex items-center gap-2">
                     <Gamepad2 className="w-6 h-6 text-amber-500 fill-amber-500" />
-                    بوابة التمارين اللغوية والألعاب التفاعلية 🎮
+                    تمارين الدروس 🎮
                   </h3>
                   <p className="text-xs text-slate-400">
-                    اختر نوع التمرين أو اللعبة التفاعلية المناسبة وابدأ في تحدي نفسك للحصول على العلامة الكاملة.
+                    اختر نوع التمرين المناسب وابدأ في التدرب واكتساب النقاط والشارات!
                   </p>
                 </div>
                 <button
@@ -669,10 +999,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                 </button>
               </div>
 
-              {/* Bento Grid layout for exercises inside modal */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                
-                {/* Exercise 1: Drawing Calligraphy */}
                 <motion.div
                   whileHover={{ y: -4 }}
                   className="bg-slate-50 hover:bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md flex flex-col justify-between transition cursor-pointer group"
@@ -698,7 +1025,6 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                   </div>
                 </motion.div>
 
-                {/* Exercise 2: Word ordering / Gap Filling */}
                 <motion.div
                   whileHover={{ y: -4 }}
                   className="bg-slate-50 hover:bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md flex flex-col justify-between transition cursor-pointer group"
@@ -724,7 +1050,6 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                   </div>
                 </motion.div>
 
-                {/* Exercise 3: Line matching */}
                 <motion.div
                   whileHover={{ y: -4 }}
                   className="bg-slate-50 hover:bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md flex flex-col justify-between transition cursor-pointer group"
@@ -749,9 +1074,47 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                     <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
-
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 🔍 Enlarged Attached Image Modal */}
+      <AnimatePresence>
+        {activeEnlargedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
+            onClick={() => setActiveEnlargedImage(null)}
+          >
+            <div
+              className="relative max-w-4xl w-full flex flex-col items-center justify-center space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setActiveEnlargedImage(null)}
+                className="absolute -top-12 left-0 bg-white/20 hover:bg-white/30 text-white p-2.5 rounded-full transition"
+                title="إغلاق"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="relative flex flex-col items-center justify-center w-full space-y-3">
+                <img
+                  src={activeEnlargedImage.url}
+                  alt={activeEnlargedImage.title}
+                  className="max-h-[80vh] max-w-full rounded-2xl object-contain border border-white/10 shadow-2xl bg-slate-900"
+                />
+                {activeEnlargedImage.title && (
+                  <p className="text-white font-extrabold text-sm sm:text-base text-center bg-black/60 px-4 py-1.5 rounded-xl border border-white/10">
+                    {activeEnlargedImage.title}
+                  </p>
+                )}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

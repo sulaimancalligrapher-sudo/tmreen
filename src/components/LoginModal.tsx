@@ -300,14 +300,6 @@ export default function LoginModal({
               <Smartphone className="w-4 h-4 text-slate-400" />
               <span>حماية الأجهزة مفعّلة</span>
             </div>
-            {loginMode === 'admin' && (
-              <button
-                onClick={onOpenSettings}
-                className="text-amber-600 hover:text-amber-500 font-bold transition decoration-dotted underline underline-offset-4"
-              >
-                إعدادات الربط بالشيت
-              </button>
-            )}
           </div>
 
           {forcedMode === 'admin' && onGoToStudentPage && (
@@ -317,16 +309,6 @@ export default function LoginModal({
               className="text-slate-500 hover:text-slate-900 font-bold text-center transition pt-1 border-t border-slate-50"
             >
               الذهاب إلى صفحة تمارين الطلاب ←
-            </button>
-          )}
-
-          {forcedMode === 'student' && onGoToAdminPage && (
-            <button
-              type="button"
-              onClick={onGoToAdminPage}
-              className="text-slate-400 hover:text-slate-700 font-medium text-center transition pt-1 border-t border-slate-50 text-[11px]"
-            >
-              بوابة الإدارة والمسؤولين (?page=admin)
             </button>
           )}
         </div>

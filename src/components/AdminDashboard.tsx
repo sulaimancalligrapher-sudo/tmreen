@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { callGasApi } from '../utils/api';
+import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
 import { Student } from '../types';
 import StudentScheduleCard, { StudentSchedule } from './StudentScheduleCard';
 import ReportDashboard from './ReportDashboard';
@@ -25,6 +25,7 @@ import {
   Image as ImageIcon,
   CheckCircle,
   Eye,
+  EyeOff,
   RefreshCw,
   Loader2,
   AlertCircle,
@@ -32,7 +33,19 @@ import {
   Calendar,
   FileText,
   Download,
-  FolderDown
+  FolderDown,
+  Home,
+  Globe,
+  GraduationCap,
+  Tv,
+  Megaphone,
+  Link,
+  Video as VideoIcon,
+  X,
+  Sparkles,
+  CheckSquare,
+  XCircle,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -57,6 +70,15 @@ interface LessonsData {
   drawingLessons: LessonListItem[];
 }
 
+export interface AdminHomeContentItem {
+  row?: number;
+  type: string;
+  title: string;
+  content: string;
+  targetStudent: string;
+  status: string;
+}
+
 export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings }: AdminDashboardProps) {
   const [admin, setAdmin] = useState<AdminUser | null>(null);
   const [loginUsername, setLoginUsername] = useState('');
@@ -73,10 +95,39 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [lessonsError, setLessonsError] = useState('');
 
   // Editing state
-  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'students' | 'reports'>('words');
+  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'home_content' | 'students' | 'reports'>('words');
   const [isEditing, setIsEditing] = useState(false);
   const [editingLessonType, setEditingLessonType] = useState<'words' | 'matching' | 'drawing'>('words');
   const [originalLessonName, setOriginalLessonName] = useState('');
+
+  // Home Content Management State
+  const [homeItems, setHomeItems] = useState<AdminHomeContentItem[]>([]);
+  const [loadingHomeItems, setLoadingHomeItems] = useState(false);
+  const [homeItemsError, setHomeItemsError] = useState('');
+  const [homeTypeFilter, setHomeTypeFilter] = useState('ALL');
+  const [homeSearch, setHomeSearch] = useState('');
+  const [showHomeModal, setShowHomeModal] = useState(false);
+  const [editingHomeIndex, setEditingHomeIndex] = useState<number | null>(null);
+  const [savingHomeItem, setSavingHomeItem] = useState(false);
+  const [deleteConfirmHomeIndex, setDeleteConfirmHomeIndex] = useState<number | null>(null);
+
+  const [homeForm, setHomeForm] = useState<{
+    type: string;
+    title: string;
+    content: string;
+    imageUrl: string;
+    targetStudent: string;
+    status: string;
+  }>({
+    type: 'إعلان',
+    title: '',
+    content: '',
+    imageUrl: '',
+    targetStudent: 'ALL',
+    status: 'active',
+  });
+  const [targetMode, setTargetMode] = useState<'ALL' | 'INCLUDE' | 'EXCLUDE'>('ALL');
+  const [studentSearchInModal, setStudentSearchInModal] = useState('');
 
   // Student scheduling state
   const [studentSchedules, setStudentSchedules] = useState<StudentSchedule[]>([]);
@@ -164,15 +215,286 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   useEffect(() => {
     if (admin) {
       fetchLessons();
+      fetchStudentSchedules();
     }
   }, [admin]);
 
   useEffect(() => {
     if (admin && activeTab === 'reports') {
-      fetchStudentSchedules();
       fetchEvaluations();
     }
+    if (admin && activeTab === 'home_content') {
+      fetchStudentSchedules();
+      fetchHomeContentAdmin();
+    }
   }, [admin, activeTab]);
+
+  const fetchHomeContentAdmin = async () => {
+    try {
+      setLoadingHomeItems(true);
+      setHomeItemsError('');
+      const rawData = await callGasApi<any>('getHomeContent', { isAdmin: true });
+      let itemsList: AdminHomeContentItem[] = [];
+
+      if (Array.isArray(rawData)) {
+        rawData.forEach((item: any, idx: number) => {
+          let type = 'درس';
+          let title = '';
+          let content = '';
+          let targetStudent = 'ALL';
+          let status = 'active';
+
+          if (Array.isArray(item)) {
+            type = (item[0] || 'درس').toString().trim();
+            title = (item[1] || '').toString().trim();
+            content = (item[2] || '').toString().trim();
+            targetStudent = (item[3] || 'ALL').toString().trim();
+            status = (item[4] || 'active').toString().trim();
+          } else if (typeof item === 'object' && item !== null) {
+            type = (item.type || item.Type || 'درس').toString().trim();
+            title = (item.title || item.Title || '').toString().trim();
+            content = (item.content || item.Content || '').toString().trim();
+            targetStudent = (item.targetStudent || item.Target_Student || item.TargetStudent || 'ALL').toString().trim();
+            status = (item.status || item.Status || 'active').toString().trim();
+          }
+
+          // Normalize type to standard Arabic display types
+          const lowerType = type.toLowerCase();
+          if (lowerType === 'announcement' || lowerType === 'إعلان' || lowerType === 'اعلان') type = 'إعلان';
+          else if (lowerType === 'photo' || lowerType === 'صورة' || lowerType === 'صور' || lowerType === 'image') type = 'صورة';
+          else if (lowerType === 'video' || lowerType === 'فيديو' || lowerType === 'مرئي') type = 'فيديو';
+          else if (lowerType === 'instruction' || lowerType === 'تعليمات' || lowerType === 'توجيه') type = 'تعليمات';
+          else if (lowerType === 'link' || lowerType === 'رابط' || lowerType === 'روابط') type = 'رابط';
+          else if (lowerType === 'lesson' || lowerType === 'درس' || lowerType === 'دروس' || lowerType === 'lesson_link') type = 'درس';
+
+          if (title || content) {
+            itemsList.push({
+              row: idx + 2,
+              type,
+              title,
+              content,
+              targetStudent,
+              status,
+            });
+          }
+        });
+      }
+      setHomeItems(itemsList);
+    } catch (err: any) {
+      setHomeItemsError(`فشل جلب محتويات الصفحة الرئيسية: ${err.message}`);
+    } finally {
+      setLoadingHomeItems(false);
+    }
+  };
+
+  const handleOpenAddHomeModal = () => {
+    setEditingHomeIndex(null);
+    setHomeForm({
+      type: 'إعلان',
+      title: '',
+      content: '',
+      imageUrl: '',
+      targetStudent: 'ALL',
+      status: 'active',
+    });
+    setTargetMode('ALL');
+    setStudentSearchInModal('');
+    setShowHomeModal(true);
+  };
+
+  const handleOpenEditHomeModal = (index: number) => {
+    const item = homeItems[index];
+    if (!item) return;
+    setEditingHomeIndex(index);
+
+    let rawContent = item.content || '';
+    let textContent = rawContent;
+    let imgUrl = '';
+
+    if (rawContent.includes('||IMAGE||')) {
+      const parts = rawContent.split('||IMAGE||');
+      textContent = parts[0].trim();
+      imgUrl = parts[1].trim();
+    }
+
+    const rawTarget = (item.targetStudent || 'ALL').trim();
+    let mode: 'ALL' | 'INCLUDE' | 'EXCLUDE' = 'ALL';
+    const lower = rawTarget.toLowerCase();
+    if (
+      lower.startsWith('except:') ||
+      lower.startsWith('all_except:') ||
+      lower.startsWith('استثناء:') ||
+      lower.startsWith('!')
+    ) {
+      mode = 'EXCLUDE';
+    } else if (rawTarget && lower !== 'all' && rawTarget !== '-') {
+      mode = 'INCLUDE';
+    }
+
+    setHomeForm({
+      type: item.type || 'إعلان',
+      title: item.title || '',
+      content: textContent,
+      imageUrl: imgUrl,
+      targetStudent: rawTarget,
+      status: item.status || 'active',
+    });
+    setTargetMode(mode);
+    setStudentSearchInModal('');
+    setShowHomeModal(true);
+  };
+
+  const handleSaveHomeItem = async () => {
+    if (!homeForm.title.trim() && !homeForm.content.trim() && !homeForm.imageUrl.trim()) {
+      alert('يرجى كتابة العنوان أو المحتوى أو إضافة رابط صورة على الأقل!');
+      return;
+    }
+
+    let savedContent = homeForm.content.trim();
+    if (homeForm.imageUrl.trim()) {
+      const convertedImg = transformGoogleDriveImageUrl(homeForm.imageUrl.trim());
+      savedContent = savedContent ? `${savedContent} ||IMAGE|| ${convertedImg}` : `||IMAGE|| ${convertedImg}`;
+    }
+
+    let savedTargetStudent = 'ALL';
+    if (targetMode === 'ALL') {
+      savedTargetStudent = 'ALL';
+    } else if (targetMode === 'EXCLUDE') {
+      const cleanTargets = homeForm.targetStudent
+        .replace(/^(except:|all_except:|استثناء:|!)/i, '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      savedTargetStudent = cleanTargets.length > 0 ? `EXCEPT: ${cleanTargets.join(', ')}` : 'ALL';
+    } else if (targetMode === 'INCLUDE') {
+      const cleanTargets = homeForm.targetStudent
+        .replace(/^(except:|all_except:|استثناء:|!)/i, '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      savedTargetStudent = cleanTargets.length > 0 ? cleanTargets.join(', ') : 'ALL';
+    }
+
+    try {
+      setSavingHomeItem(true);
+      let updatedList = [...homeItems];
+
+      if (editingHomeIndex !== null) {
+        updatedList[editingHomeIndex] = {
+          ...updatedList[editingHomeIndex],
+          type: homeForm.type,
+          title: homeForm.title,
+          content: savedContent,
+          targetStudent: savedTargetStudent,
+          status: homeForm.status,
+        };
+      } else {
+        // Append to bottom to maintain sheet row order
+        updatedList.push({
+          row: updatedList.length + 2,
+          type: homeForm.type,
+          title: homeForm.title,
+          content: savedContent,
+          targetStudent: savedTargetStudent,
+          status: homeForm.status,
+        });
+      }
+
+      let gasSaveSuccess = false;
+      let gasErrorMsg = '';
+
+      try {
+        const res = await callGasApi<any>('saveHomeContent', {
+          items: updatedList.map((it) => [
+            it.type,
+            it.title,
+            it.content,
+            it.targetStudent,
+            it.status,
+          ]),
+          item: {
+            index: editingHomeIndex,
+            type: homeForm.type,
+            title: homeForm.title,
+            content: savedContent,
+            targetStudent: homeForm.targetStudent,
+            status: homeForm.status,
+          },
+        });
+        if (res && (res.success || !res.error)) {
+          gasSaveSuccess = true;
+        } else if (res && res.error) {
+          gasErrorMsg = res.error;
+        }
+      } catch (gasErr: any) {
+        gasErrorMsg = gasErr.message || 'فشل الاتصال بالخادم';
+      }
+
+      setHomeItems(updatedList);
+      setShowHomeModal(false);
+
+      if (gasSaveSuccess) {
+        alert('🎉 تم حفظ وإضافة العنصر بنجاح وتحديثه في ورقة Home_Content بجدول البيانات!');
+        // Refresh directly from Google Sheets
+        await fetchHomeContentAdmin();
+      } else {
+        alert(
+          `⚠️ تم التعديل محلياً بالصفحة، ولكن تعذر التسجيل المباشر في Google Sheets.\n\nالسبب: ${gasErrorMsg}\n\n💡 ملاحظة هامة: إذا كنت تستخدم كود Google Apps Script السابق على مشروعك، يرجى نسخ كود Apps Script الموحد الجديد من زر "إعدادات الربط" أسفل لوحة التحكم وتحديثه في Google Apps Script ثم إكمال خيار (New Deployment / إصدار جديد) ليتم حفظ الإعلانات تلقائياً في الشيت.`
+        );
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء الحفظ: ${err.message}`);
+    } finally {
+      setSavingHomeItem(false);
+    }
+  };
+
+  const handleDeleteHomeItem = async (index: number) => {
+    try {
+      setLoadingHomeItems(true);
+      const updatedList = homeItems.filter((_, idx) => idx !== index);
+
+      let gasSaveSuccess = false;
+      let gasErrorMsg = '';
+
+      try {
+        const res = await callGasApi<any>('saveHomeContent', {
+          items: updatedList.map((it) => [
+            it.type,
+            it.title,
+            it.content,
+            it.targetStudent,
+            it.status,
+          ]),
+          actionType: 'delete',
+          deletedIndex: index,
+        });
+        if (res && (res.success || !res.error)) {
+          gasSaveSuccess = true;
+        } else if (res && res.error) {
+          gasErrorMsg = res.error;
+        }
+      } catch (gasErr: any) {
+        gasErrorMsg = gasErr.message || 'فشل الاتصال بالخادم';
+      }
+
+      setHomeItems(updatedList);
+      setDeleteConfirmHomeIndex(null);
+
+      if (gasSaveSuccess) {
+        alert('🎉 تم حذف العنصر بنجاح وتحديث ورقة Home_Content في Google Sheets!');
+        await fetchHomeContentAdmin();
+      } else {
+        alert(
+          `⚠️ تم الحذف محلياً بالصفحة، ولكن تعذر التحديث المباشر في Google Sheets.\n\nالسبب: ${gasErrorMsg}\n\nيرجى التأكد من تحديث كود Apps Script وإعادة النشر كإصدار جديد.`
+        );
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء الحذف: ${err.message}`);
+    } finally {
+      setLoadingHomeItems(false);
+    }
+  };
 
   const fetchEvaluations = async () => {
     try {
@@ -2155,6 +2477,13 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
           تمارين الكتابة ({lessons.drawingLessons.length})
         </button>
         <button
+          onClick={() => setActiveTab('home_content')}
+          className={`pb-4 px-4 border-b-2 transition flex items-center gap-1.5 ${activeTab === 'home_content' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          <span>محتوى الرئيسية</span>
+          <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{homeItems.length}</span>
+        </button>
+        <button
           onClick={() => setActiveTab('students')}
           className={`pb-4 px-4 border-b-2 transition ${activeTab === 'students' ? 'border-amber-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
@@ -2331,6 +2660,278 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
           )}
         </div>
       )}
+
+          {/* Active Tab: Home Content (ورقة Home_Content) */}
+          {activeTab === 'home_content' && (
+            <div className="space-y-6">
+              {/* Top Banner and Actions */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-5 md:p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="bg-amber-500 text-slate-950 p-3 rounded-2xl shrink-0 shadow-md">
+                    <Home className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-xl font-extrabold font-sans text-white flex items-center gap-2">
+                      إدارة محتوى الرئيسية (ورقة Home_Content)
+                    </h2>
+                    <p className="text-slate-300 text-xs mt-1 leading-relaxed">
+                      التحكم الكامل بالإعلانات والدروس والروابط والصور والمقاطع المعروضة للطلاب في الواجهة الرئيسية.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={fetchHomeContentAdmin}
+                    disabled={loadingHomeItems}
+                    className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition backdrop-blur border border-white/10"
+                    title="تحديث البيانات"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingHomeItems ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddHomeModal}
+                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-amber-400/20 active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة عنصر جديد</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Alert */}
+              {homeItemsError && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 rounded-2xl text-xs flex gap-2 items-center">
+                  <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                  <span>{homeItemsError}</span>
+                </div>
+              )}
+
+              {/* Info Notice for GAS script */}
+              <div className="bg-amber-50/90 border border-amber-200/80 text-amber-950 p-3.5 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>تنبيه هامة للتسجيل المباشر في Google Sheets:</strong> تأكد من تحديث كود Google Apps Script الموحد المحدث من الشاشة التعريفية أو كود المشروع، وإعادة نشر المشروع باختيار (New Deployment / إصدار جديد) لكي يتم حفظ وإضافة العناصر فوراً في ورقة Home_Content.
+                  </span>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto overflow-x-auto">
+                  <span className="text-xs font-bold text-slate-500 ml-1">التصفية حسب النوع:</span>
+                  {[
+                    { id: 'ALL', label: 'الكل' },
+                    { id: 'درس', label: 'دروس 📚' },
+                    { id: 'إعلان', label: 'إعلانات 📢' },
+                    { id: 'صورة', label: 'صور 🖼️' },
+                    { id: 'فيديو', label: 'فيديوهات 🎥' },
+                    { id: 'تعليمات', label: 'توجيهات 💡' },
+                    { id: 'رابط', label: 'روابط 🔗' },
+                  ].map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setHomeTypeFilter(filter.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                        homeTypeFilter === filter.id
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="البحث في العنوان أو المحتوى..."
+                  value={homeSearch}
+                  onChange={(e) => setHomeSearch(e.target.value)}
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none w-full md:w-64 text-right font-sans"
+                />
+              </div>
+
+              {/* Content List */}
+              {loadingHomeItems ? (
+                <div className="py-20 flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                  <p className="text-slate-400 text-xs font-bold">جاري تحميل عناصر ورقة Home_Content...</p>
+                </div>
+              ) : (() => {
+                const filteredHomeItems = homeItems.filter((item) => {
+                  const t = item.type.trim().toLowerCase();
+                  const f = homeTypeFilter.trim().toLowerCase();
+
+                  let matchesFilter = false;
+                  if (f === 'all') {
+                    matchesFilter = true;
+                  } else if (f === 'درس') {
+                    matchesFilter = t === 'درس' || t.includes('درس') || t.includes('lesson');
+                  } else if (f === 'إعلان' || f === 'اعلان') {
+                    matchesFilter = t === 'إعلان' || t.includes('إعلان') || t.includes('اعلان') || t.includes('announcement');
+                  } else if (f === 'صورة' || f === 'صور') {
+                    matchesFilter = t === 'صورة' || t.includes('صورة') || t.includes('صور') || t.includes('photo') || t.includes('image');
+                  } else if (f === 'فيديو') {
+                    matchesFilter = t === 'فيديو' || t.includes('فيديو') || t.includes('مرئي') || t.includes('video');
+                  } else if (f === 'تعليمات') {
+                    matchesFilter = t === 'تعليمات' || t.includes('تعليمات') || t.includes('توجيه') || t.includes('instruction');
+                  } else if (f === 'رابط') {
+                    matchesFilter = t === 'رابط' || t.includes('رابط') || t.includes('روابط') || t.includes('link');
+                  } else {
+                    matchesFilter = t.includes(f);
+                  }
+
+                  const query = homeSearch.toLowerCase().trim();
+                  const matchesSearch =
+                    !query ||
+                    item.title.toLowerCase().includes(query) ||
+                    item.content.toLowerCase().includes(query) ||
+                    item.targetStudent.toLowerCase().includes(query);
+
+                  return matchesFilter && matchesSearch;
+                });
+
+                if (filteredHomeItems.length === 0) {
+                  return (
+                    <div className="py-16 border border-dashed border-slate-200 rounded-3xl text-center text-slate-400 text-sm space-y-2">
+                      <p className="font-bold">لا توجد عناصر مطابقة حالياً في ورقة Home_Content.</p>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddHomeModal}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition"
+                      >
+                        <Plus className="w-4 h-4" />
+                        إضافة أول عنصر
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {filteredHomeItems.map((item, originalIdx) => {
+                      const realIndex = homeItems.findIndex((x) => x === item);
+
+                      let badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                      let icon = <Megaphone className="w-3.5 h-3.5" />;
+
+                      if (item.type.includes('درس') || item.type.includes('lesson')) {
+                        badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                        icon = <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />;
+                      } else if (item.type.includes('صورة') || item.type.includes('photo')) {
+                        badgeClass = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+                        icon = <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />;
+                      } else if (item.type.includes('فيديو') || item.type.includes('video')) {
+                        badgeClass = 'bg-rose-50 text-rose-800 border-rose-200';
+                        icon = <VideoIcon className="w-3.5 h-3.5 text-rose-600" />;
+                      } else if (item.type.includes('رابط') || item.type.includes('link')) {
+                        badgeClass = 'bg-cyan-50 text-cyan-800 border-cyan-200';
+                        icon = <Link className="w-3.5 h-3.5 text-cyan-600" />;
+                      }
+
+                      return (
+                        <div
+                          key={originalIdx}
+                          className="bg-white border border-slate-100 hover:border-slate-300 rounded-2xl p-4 shadow-sm hover:shadow-md transition flex flex-col justify-between gap-3 text-right group"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg border ${badgeClass}`}>
+                                {icon}
+                                {item.type}
+                              </span>
+
+                              <div className="flex items-center gap-1.5">
+                                {(() => {
+                                  const rawTarget = item.targetStudent || 'ALL';
+                                  const isExcept = rawTarget.toLowerCase().startsWith('except:') ||
+                                                   rawTarget.toLowerCase().startsWith('all_except:') ||
+                                                   rawTarget.toLowerCase().startsWith('استثناء:') ||
+                                                   rawTarget.toLowerCase().startsWith('!');
+
+                                  if (isExcept) {
+                                    const cleanEx = rawTarget.replace(/^(except:|all_except:|استثناء:|!)/i, '').trim();
+                                    return (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-rose-50 text-rose-800 border-rose-200" title={`يظهر لجميع الطلاب باستثناء ${cleanEx}`}>
+                                        🚫 للجميع باستثناء: ({cleanEx})
+                                      </span>
+                                    );
+                                  }
+
+                                  if (rawTarget === 'ALL' || !rawTarget) {
+                                    return (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-slate-50 text-slate-600 border-slate-200">
+                                        📢 الجميع (ALL)
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-amber-50 text-amber-800 border-amber-200">
+                                      🎯 خاص بـ: {rawTarget}
+                                    </span>
+                                  );
+                                })()}
+
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                  item.status === 'hidden'
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}>
+                                  {item.status === 'hidden' ? 'مخفي' : 'مفعل'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <h3 className="font-extrabold text-slate-900 text-sm font-sans line-clamp-2">
+                              {item.title || '(بدون عنوان)'}
+                            </h3>
+
+                            {item.content && (
+                              <p className="text-slate-600 text-xs line-clamp-3 leading-relaxed font-mono bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                {item.content}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-slate-400 font-bold">
+                              {item.row ? `صف ${item.row}` : `#${realIndex + 1}`}
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditHomeModal(realIndex)}
+                                className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition flex items-center gap-1 border border-slate-200 hover:border-amber-200"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>تعديل</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmHomeIndex(realIndex)}
+                                className="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition flex items-center gap-1 border border-transparent hover:border-rose-200"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>حذف</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Active Tab: Students */}
           {activeTab === 'students' && (() => {
@@ -3228,6 +3829,460 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
           </div>
         </div>
       )}
+
+      {/* Home Content Modal (Add / Edit) */}
+      <AnimatePresence>
+        {showHomeModal && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 text-right space-y-5 my-8"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-amber-100 text-amber-800 p-2.5 rounded-2xl">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base font-sans">
+                      {editingHomeIndex !== null ? 'تعديل عنصر في الرئيسية' : 'إضافة عنصر جديد في الرئيسية'}
+                    </h3>
+                    <p className="text-slate-400 text-xs">ورقة Home_Content</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHomeModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                    النوع (Type) - العامود A:
+                  </label>
+                  <select
+                    value={homeForm.type}
+                    onChange={(e) => setHomeForm({ ...homeForm, type: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-sans"
+                  >
+                    <option value="إعلان">إعلان مهم (إعلان)</option>
+                    <option value="تعليمات">تعليمات وتوجيهات (تعليمات)</option>
+                    <option value="درس">درس تعليمي / رابط تدريب (درس)</option>
+                    <option value="صورة">صورة / معرض صور (صورة)</option>
+                    <option value="فيديو">فيديو / مقطع مرئي (فيديو)</option>
+                    <option value="رابط">رابط خارجي (رابط)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                    العنوان (Title) - العامود B:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="أدخل عنوان الدرس أو الإعلان..."
+                    value={homeForm.title}
+                    onChange={(e) => setHomeForm({ ...homeForm, title: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-sans"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                    النص / المحتوى (Content) - العامود C:
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="أدخل نص الإعلان أو التوجيهات أو رابط الدرس/الفيديو..."
+                    value={homeForm.content}
+                    onChange={(e) => setHomeForm({ ...homeForm, content: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-sans leading-relaxed"
+                  />
+                </div>
+
+                {/* 🖼️ Attached Image URL Field (خصوصاً للإعلانات والتعليمات والدروس) */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-2">
+                  <label className="block text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                    <span>🖼️ رابط صورة مرفقة للشرح / الإعلان (اختياري):</span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-bold">
+                      يدعم قوقل درايف تلقائياً ⚡
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ضع رابط صورة من Google Drive أو أي رابط مباشر (مثل https://drive.google.com/file/d/...)"
+                    value={homeForm.imageUrl}
+                    onChange={(e) => setHomeForm({ ...homeForm, imageUrl: e.target.value })}
+                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-sans"
+                  />
+
+                  {/* Instant Image Preview */}
+                  {homeForm.imageUrl.trim() && (
+                    <div className="pt-1">
+                      <div className="text-[10px] font-bold text-slate-500 mb-1">معاينة الصورة المرفقة:</div>
+                      <div className="h-32 w-full rounded-xl overflow-hidden bg-slate-900/10 border border-slate-200 flex items-center justify-center p-1">
+                        <img
+                          src={transformGoogleDriveImageUrl(homeForm.imageUrl.trim())}
+                          alt="معاينة"
+                          className="h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 👨‍🎓 MULTI-STUDENT SELECTOR (جميع الطلاب / طلاب محددين / الجميع باستثناء) */}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  {(() => {
+                    const isAll = targetMode === 'ALL';
+                    const isExclude = targetMode === 'EXCLUDE';
+                    const isInclude = targetMode === 'INCLUDE';
+
+                    const currentTargets = (homeForm.targetStudent || '')
+                      .replace(/^(except:|all_except:|استثناء:|!)/i, '')
+                      .split(',')
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+
+                    const availableStudents = studentSchedules.filter((s) => s.studentId !== 'DEFAULT_STUDENT');
+
+                    const filteredStudentsInModal = availableStudents.filter((s) => {
+                      if (!studentSearchInModal.trim()) return true;
+                      const q = studentSearchInModal.toLowerCase().trim();
+                      return (
+                        (s.studentName && s.studentName.toLowerCase().includes(q)) ||
+                        (s.studentId && s.studentId.toLowerCase().includes(q))
+                      );
+                    });
+
+                    return (
+                      <div className="space-y-2.5">
+                        <label className="block text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                          <span>👨‍🎓 تحديد الفئة المستهدفة من الطلاب (العامود D):</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                            isAll
+                              ? 'text-emerald-800 bg-emerald-50 border border-emerald-200'
+                              : isExclude
+                              ? 'text-rose-800 bg-rose-50 border border-rose-200'
+                              : 'text-amber-800 bg-amber-50 border border-amber-200'
+                          }`}>
+                            {isAll
+                              ? '📢 ظاهراً لجميع الطلاب (ALL)'
+                              : isExclude
+                              ? `🚫 للجميع باستثناء (${currentTargets.length}) طلاب`
+                              : `🎯 مخصص لـ (${currentTargets.length}) طلاب فقط`}
+                          </span>
+                        </label>
+
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-3">
+                          {/* Target Mode Buttons */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 p-1 bg-slate-200/60 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetMode('ALL');
+                                setHomeForm({ ...homeForm, targetStudent: 'ALL' });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 border ${
+                                isAll
+                                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                                  : 'bg-transparent text-slate-700 border-transparent hover:bg-white/50'
+                              }`}
+                            >
+                              <Globe className="w-3.5 h-3.5" />
+                              <span>📢 للجميع (ALL)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetMode('INCLUDE');
+                                setHomeForm({
+                                  ...homeForm,
+                                  targetStudent: currentTargets.join(', '),
+                                });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 border ${
+                                isInclude
+                                  ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm'
+                                  : 'bg-transparent text-slate-700 border-transparent hover:bg-white/50'
+                              }`}
+                            >
+                              <CheckSquare className="w-3.5 h-3.5" />
+                              <span>🎯 طلاب محددين</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetMode('EXCLUDE');
+                                setHomeForm({
+                                  ...homeForm,
+                                  targetStudent: currentTargets.length > 0 ? `EXCEPT: ${currentTargets.join(', ')}` : 'EXCEPT:',
+                                });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 border ${
+                                isExclude
+                                  ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
+                                  : 'bg-transparent text-slate-700 border-transparent hover:bg-white/50'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>🚫 للجميع باستثناء...</span>
+                            </button>
+                          </div>
+
+                          {!isAll && (
+                            <div className="space-y-2 pt-1">
+                              {/* Mode Explanation Notice */}
+                              <div className={`p-2.5 rounded-xl text-[11px] font-bold border ${
+                                isExclude
+                                  ? 'bg-rose-50 text-rose-900 border-rose-200'
+                                  : 'bg-amber-50 text-amber-900 border-amber-200'
+                              }`}>
+                                {isExclude ? (
+                                  <span>
+                                    💡 <strong>وضع الاستثناء (تحديد من لا يشاهدهم):</strong> سيظهر هذا المنشور لجميع أبطالك المسجلين في القائمة، <u>ما عدا</u> الطلاب المحددين أدناه بصح أحمر.
+                                  </span>
+                                ) : (
+                                  <span>
+                                    💡 <strong>وضع التخصيص (تحديد المستهدفين):</strong> سيظهر هذا المنشور <u>فقط وفقط</u> للطلاب المحددين أدناه بصح أسفل.
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Search Box for 100+ Students */}
+                              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                                <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <input
+                                  type="text"
+                                  placeholder="ابحث بالاسم أو رقم القيد لتسهيل الاختيار..."
+                                  value={studentSearchInModal}
+                                  onChange={(e) => setStudentSearchInModal(e.target.value)}
+                                  className="w-full text-xs font-bold text-slate-800 outline-none bg-transparent"
+                                />
+                                {studentSearchInModal && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setStudentSearchInModal('')}
+                                    className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                  >
+                                    إلغاء
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Student Checkbox List */}
+                              <div className="max-h-48 overflow-y-auto space-y-1 pr-1 border border-slate-200/80 rounded-xl bg-white p-2">
+                                {filteredStudentsInModal.length === 0 ? (
+                                  <div className="text-center py-4 text-xs font-bold text-slate-400">
+                                    لا يوجد طالب مطابق للبحث "{studentSearchInModal}"
+                                  </div>
+                                ) : (
+                                  filteredStudentsInModal.map((s) => {
+                                    const identifier = s.studentName || s.studentId;
+                                    const isChecked = currentTargets.includes(identifier) ||
+                                                      currentTargets.includes(s.studentId) ||
+                                                      (s.studentName && currentTargets.includes(s.studentName));
+
+                                    return (
+                                      <label
+                                        key={s.studentId}
+                                        className={`flex items-center justify-between p-2 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                                          isChecked
+                                            ? isExclude
+                                              ? 'bg-rose-50 border-rose-300 text-rose-950 shadow-xs'
+                                              : 'bg-amber-50 border-amber-300 text-amber-950 shadow-xs'
+                                            : 'bg-slate-50/50 border-slate-100 text-slate-700 hover:bg-slate-100'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={(e) => {
+                                              let updated = [...currentTargets];
+                                              if (e.target.checked) {
+                                                if (!updated.includes(identifier)) {
+                                                  updated.push(identifier);
+                                                }
+                                              } else {
+                                                updated = updated.filter(
+                                                  (t) => t !== identifier && t !== s.studentId && t !== s.studentName
+                                                );
+                                              }
+
+                                              const newTargetStr = isExclude
+                                                ? (updated.length > 0 ? `EXCEPT: ${updated.join(', ')}` : 'EXCEPT:')
+                                                : updated.join(', ');
+
+                                              setHomeForm({
+                                                ...homeForm,
+                                                targetStudent: newTargetStr,
+                                              });
+                                            }}
+                                            className={`w-4 h-4 rounded ${
+                                              isExclude
+                                                ? 'text-rose-600 focus:ring-rose-500/20'
+                                                : 'text-amber-500 focus:ring-amber-500/20'
+                                            }`}
+                                          />
+                                          <span>
+                                            {isExclude && isChecked ? '🚫 مستثنى: ' : '👤 '}
+                                            {s.studentName || 'طالب بدون اسم'}
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded font-mono">
+                                          #{s.studentId}
+                                        </span>
+                                      </label>
+                                    );
+                                  })
+                                )}
+                              </div>
+
+                              {/* Badges for selected / excluded students */}
+                              {currentTargets.length > 0 && (
+                                <div className="pt-1 flex flex-wrap gap-1.5 items-center">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {isExclude ? 'الطلاب المستثنون من العرض:' : 'الطلاب المخصص لهم العرض:'}
+                                  </span>
+                                  {currentTargets.map((name, idx) => {
+                                    const cleanName = name.trim();
+                                    if (!cleanName) return null;
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border ${
+                                          isExclude
+                                            ? 'bg-rose-100 text-rose-900 border-rose-300'
+                                            : 'bg-amber-100 text-amber-900 border-amber-300'
+                                        }`}
+                                      >
+                                        <span>{isExclude ? '🚫 ' : '👤 '}{cleanName}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const remaining = currentTargets.filter((t) => t !== cleanName);
+                                            const newTargetStr = isExclude
+                                              ? (remaining.length > 0 ? `EXCEPT: ${remaining.join(', ')}` : 'EXCEPT:')
+                                              : remaining.join(', ');
+                                            setHomeForm({
+                                              ...homeForm,
+                                              targetStudent: newTargetStr,
+                                            });
+                                          }}
+                                          className="hover:text-red-700 transition"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                    الحالة (Status) - العامود E:
+                  </label>
+                  <select
+                    value={homeForm.status}
+                    onChange={(e) => setHomeForm({ ...homeForm, status: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none font-sans"
+                  >
+                    <option value="active">مفعل (active)</option>
+                    <option value="hidden">مخفي (hidden)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHomeModal(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveHomeItem}
+                  disabled={savingHomeItem}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-md shadow-amber-500/10 flex items-center gap-1.5"
+                >
+                  {savingHomeItem ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>حفظ العنصر</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Home Content Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmHomeIndex !== null && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-right space-y-4"
+            >
+              <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
+
+              <div className="text-center space-y-1">
+                <h3 className="font-extrabold text-slate-900 text-base">تأكيد حذف العنصر</h3>
+                <p className="text-slate-500 text-xs">
+                  هل أنت تأكد من حذف هذا العنصر من ورقة Home_Content؟
+                </p>
+                {homeItems[deleteConfirmHomeIndex] && (
+                  <p className="font-bold text-slate-800 text-xs mt-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    "{homeItems[deleteConfirmHomeIndex].title || homeItems[deleteConfirmHomeIndex].content}"
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmHomeIndex(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteHomeItem(deleteConfirmHomeIndex)}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-rose-600/20"
+                >
+                  حذف الآن
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

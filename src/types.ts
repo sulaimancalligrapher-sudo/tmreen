@@ -60,20 +60,19 @@ export interface DrawingLesson {
   questions: DrawingQuestion[];
 }
 
-export interface HoomWidget {
-  type: 'بطاقة' | 'معرض صور' | 'أزرار' | 'من نحن' | string;
+export interface HomeContentItem {
+  type: 'announcement' | 'photo' | 'video' | 'instruction' | 'link' | string;
   title: string;
-  text: string;
-  media: string[];
-  videos: string[];
-  buttons?: Array<{ text: string; url: string }>;
+  content: string;
+  targetStudent?: string;
+  status?: string;
 }
 
 export interface GeneralData {
   profile: string[][];
   contact: string[][];
   about: string[][];
-  hoom: string[][];
+  homeContent: string[][];
   header: HeaderData;
 }
 

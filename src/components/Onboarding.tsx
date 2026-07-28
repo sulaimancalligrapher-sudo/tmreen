@@ -334,8 +334,10 @@ function doPost(e) {
       result = generateStudentPDF(request.studentId, 'student');
     } else if (action === 'getPdfControlForStudent') {
       result = getPdfControlForStudent(request.studentId);
-    } else if (action === 'getHoomDataForStudent') {
-      result = getHoomDataForStudent(request.username);
+    } else if (action === 'getHomeContent') {
+      result = getHomeContent(request.username, request.isAdmin);
+    } else if (action === 'saveHomeContent') {
+      result = saveHomeContent(request.items, request.item, request.actionType, request.deletedIndex);
     } else if (action === 'loginAdmin') {
       result = loginAdmin(request.username, request.password);
     } else if (action === 'getLessonsForAdmin') {
@@ -368,12 +370,12 @@ function getData() {
   var profileSheet = getSheetByNameFlexible(ss, 'Profile');
   var contactSheet = getSheetByNameFlexible(ss, 'Contact');
   var aboutSheet = getSheetByNameFlexible(ss, 'About');
-  var hoomSheet = getSheetByNameFlexible(ss, 'HOOM');
+  var homeContentSheet = getSheetByNameFlexible(ss, 'Home_Content');
   
   var profileData = profileSheet ? profileSheet.getDataRange().getValues() : [];
   var contactData = contactSheet ? contactSheet.getDataRange().getValues() : [];
   var aboutData = aboutSheet ? aboutSheet.getDataRange().getValues() : [];
-  var hoomData = hoomSheet ? hoomSheet.getDataRange().getValues() : [];
+  var homeContentData = homeContentSheet ? homeContentSheet.getDataRange().getValues() : [];
   
   var buttonsData = [];
   for (var i = 11; i <= 15; i++) {
@@ -394,7 +396,7 @@ function getData() {
     profile: profileData.slice(1),
     contact: contactData.slice(1),
     about: aboutData.slice(1),
-    hoom: hoomData.slice(1),
+    homeContent: homeContentData.slice(1),
     header: headerData
   };
 }
@@ -1978,33 +1980,111 @@ function getPdfControlForStudent(studentId) {
   };
 }
 
-function getHoomDataForStudent(username) {
+function getHomeContent(username, isAdmin) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var hoomSheet = ss.getSheetByName('HOOM');
-  if (!hoomSheet) return [];
-  var hoomData = hoomSheet.getDataRange().getValues();
-  
-  var startCol = -1;
-  for (var col = 0; col < hoomData[0].length; col += 5) {
-    if (hoomData[0][col] && hoomData[0][col].toString().trim() === username) {
-      startCol = col;
-      break;
+  var sheet = getSheetByNameFlexible(ss, 'Home_Content');
+  if (!sheet) {
+    try {
+      sheet = ss.insertSheet('Home_Content');
+      sheet.appendRow(['Type', 'Title', 'Content', 'Target_Student', 'Status']);
+      sheet.appendRow(['إعلان', 'أهلاً بك في منصتنا التعليمية', 'مرحباً بجميع الطلاب المتميزين في هذا الفصل الدراسي', 'ALL', 'active']);
+    } catch(e) {
+      return [];
     }
   }
-  if (startCol === -1) return [];
-  
-  var studentData = [];
-  for (var row = 5; row < hoomData.length; row++) {
-    var rowData = [];
-    var isEmpty = true;
-    for (var c = 0; c < 5; c++) {
-      var cellValue = hoomData[row][startCol + c] ? hoomData[row][startCol + c].toString().trim() : '';
-      rowData.push(cellValue);
-      if (cellValue !== '') isEmpty = false;
+
+  var data = sheet.getDataRange().getValues();
+  if (!data || data.length <= 1) return [];
+
+  var result = [];
+  var cleanUsername = username ? username.toString().trim().toLowerCase() : '';
+
+  for (var i = 1; i < data.length; i++) {
+    var rawType = data[i][0] ? data[i][0].toString().trim() : '';
+    var title = data[i][1] ? data[i][1].toString().trim() : '';
+    var content = data[i][2] ? data[i][2].toString().trim() : '';
+    var targetStudent = data[i][3] ? data[i][3].toString().trim() : 'ALL';
+    var status = data[i][4] ? data[i][4].toString().trim().toLowerCase() : 'active';
+
+    if (!rawType && !title && !content) continue;
+
+    // Normalize type string for student API output
+    var lowerType = rawType.toLowerCase();
+    var type = lowerType;
+    if (lowerType === 'إعلان' || lowerType === 'اعلان') type = 'announcement';
+    else if (lowerType === 'صورة' || lowerType === 'صور') type = 'photo';
+    else if (lowerType === 'فيديو' || lowerType === 'مرئي') type = 'video';
+    else if (lowerType === 'تعليمات' || lowerType === 'توجيه') type = 'instruction';
+    else if (lowerType === 'رابط' || lowerType === 'روابط') type = 'link';
+    else if (lowerType === 'درس' || lowerType === 'دروس' || lowerType === 'lesson' || lowerType === 'lesson_link' || lowerType === 'lesson link' || lowerType === 'رابط درس') type = 'lesson';
+
+    if (!isAdmin) {
+      // Status check for student view
+      var isActive = (status === 'active' || status === 'نشط' || status === '' || status === '1' || status === 'true');
+      if (!isActive) continue;
+
+      // Target student check for student view
+      var cleanTarget = targetStudent.toLowerCase();
+      var isForUser = (cleanTarget === 'all' || cleanTarget === '' || cleanTarget === '-' || cleanTarget === cleanUsername || cleanTarget.indexOf(cleanUsername) !== -1 || cleanUsername.indexOf(cleanTarget) !== -1);
+      if (!isForUser) continue;
     }
-    if (!isEmpty) studentData.push(rowData);
+
+    result.push({
+      type: isAdmin ? rawType : type,
+      title: title,
+      content: content,
+      targetStudent: targetStudent,
+      status: status,
+      row: i + 1
+    });
   }
-  return studentData;
+
+  return result;
+}
+
+function saveHomeContent(items, item, actionType, deletedIndex) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getSheetByNameFlexible(ss, 'Home_Content');
+  if (!sheet) {
+    sheet = ss.insertSheet('Home_Content');
+    sheet.appendRow(['Type', 'Title', 'Content', 'Target_Student', 'Status']);
+  }
+
+  // Clear existing content rows (row 2 onwards)
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, Math.max(sheet.getLastColumn(), 5)).clearContent();
+  }
+
+  // Write new items array
+  if (items && Array.isArray(items) && items.length > 0) {
+    var rowsToAppend = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (Array.isArray(it)) {
+        rowsToAppend.push([
+          it[0] || 'درس',
+          it[1] || '',
+          it[2] || '',
+          it[3] || 'ALL',
+          it[4] || 'active'
+        ]);
+      } else if (typeof it === 'object' && it !== null) {
+        rowsToAppend.push([
+          it.type || 'درس',
+          it.title || '',
+          it.content || '',
+          it.targetStudent || 'ALL',
+          it.status || 'active'
+        ]);
+      }
+    }
+    if (rowsToAppend.length > 0) {
+      sheet.getRange(2, 1, rowsToAppend.length, 5).setValues(rowsToAppend);
+    }
+  }
+
+  return { success: true, message: "تم حفظ محتوى الرئيسية بنجاح" };
 }
 
 function getSettings() {

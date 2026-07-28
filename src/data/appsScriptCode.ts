@@ -84,8 +84,10 @@ function doPost(e) {
       result = generateStudentPDF(request.studentId, 'student');
     } else if (action === 'getPdfControlForStudent') {
       result = getPdfControlForStudent(request.studentId);
-    } else if (action === 'getHoomDataForStudent') {
-      result = getHoomDataForStudent(request.username);
+    } else if (action === 'getHomeContent') {
+      result = getHomeContent(request.username, request.isAdmin);
+    } else if (action === 'saveHomeContent') {
+      result = saveHomeContent(request.items, request.item, request.actionType, request.deletedIndex);
     } else if (action === 'loginAdmin') {
       result = loginAdmin(request.username, request.password);
     } else if (action === 'getLessonsForAdmin') {
