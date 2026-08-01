@@ -146,7 +146,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     } catch (err) {
       console.error('Error resetting lesson:', err);
       setCustomAlert({
-        message: 'حدث خطأ أثناء إعادة تهيئة الدرس، يرجى المحاولة مجدداً يا بطل.',
+        message: t('exercises.resetLessonError', 'حدث خطأ أثناء إعادة تهيئة الدرس، يرجى المحاولة مجدداً يا بطل.'),
         type: 'error'
       });
     } finally {
@@ -328,9 +328,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   const handleTimeExpired = () => {
     setIsTimerActive(false);
     setCustomAlert({
-      message: 'انتهى الوقت المسموح به لهذا التمرين يا بطل!',
+      message: t('exercises.timeExpiredMsg', 'انتهى الوقت المسموح به لهذا التمرين يا بطل!'),
       type: 'error',
-      title: 'انتهى الوقت'
+      title: t('exercises.timeExpiredTitle', 'انتهى الوقت')
     });
     
     // Fill remaining repetitions or steps with 0%
@@ -344,7 +344,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       const remainingSteps = stepsCount - percentages.length;
       for (let i = 0; i < remainingSteps; i++) {
         const idx = percentages.length + i + 1;
-        nextDetails.push(`خطوة ${idx}: فشل 0% (انتهى الوقت)`);
+        nextDetails.push(t('exercises.stepFailedTimeout', 'خطوة {step}: فشل 0% (انتهى الوقت)').replace('{step}', String(idx)));
         nextPercentages.push(0);
       }
       const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
@@ -354,7 +354,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       const remainingReps = requiredRepetitions - percentages.length;
       for (let i = 0; i < remainingReps; i++) {
         const idx = percentages.length + i + 1;
-        nextDetails.push(`التكرار ${idx}: فشل 0% (انتهى الوقت)`);
+        nextDetails.push(t('exercises.repFailedTimeout', 'التكرار {rep}: فشل 0% (انتهى الوقت)').replace('{rep}', String(idx)));
         nextPercentages.push(0);
       }
       const detailsString = `${activeQuestion!.subLabel}|${nextDetails.join(', ')}`;
@@ -362,7 +362,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       const repInfo = `${percentages.length} / ${requiredRepetitions}`;
       submitFinalProgress(avgPct, detailsString, repInfo);
     } else {
-      const detailsString = `${activeQuestion!.subLabel}|فشل 0% (انتهى الوقت)`;
+      const detailsString = `${activeQuestion!.subLabel}|${t('exercises.failedTimeoutStr', 'فشل 0% (انتهى الوقت)')}`;
       submitFinalProgress(0, detailsString, '');
     }
   };
@@ -630,9 +630,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           if (distFromStart > 35) {
             sound.playError();
             setCustomAlert({
-              message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
+              message: t('exercises.startFromGreenDot', 'ابدأ من النقطة الخضراء يا بطل! 🟢'),
               type: 'error',
-              title: 'تنبيه الاتجاه'
+              title: t('exercises.directionWarningTitle', 'تنبيه الاتجاه')
             });
             // Reset strokes of this step to empty
             setStrokesPerStep((prev) => {
@@ -670,9 +670,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             if (passedNearRed && distFromEnd > 55) {
               sound.playError();
               setCustomAlert({
-                message: 'لقد تجاوزت النقطة الحمراء يا بطل! حاول التوقف عندها تماماً 🔴',
+                message: t('exercises.overshotRedDot', 'لقد تجاوزت النقطة الحمراء يا بطل! حاول التوقف عندها تماماً 🔴'),
                 type: 'error',
-                title: 'تجاوز النقطة'
+                title: t('exercises.overshotTitle', 'تجاوز النقطة')
               });
               setStrokesPerStep((prev) => {
                 const next = [...prev];
@@ -689,9 +689,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             if (points.length > 25 && minDistanceToRed > 75) {
               sound.playError();
               setCustomAlert({
-                message: 'انتبه لمسار الرسم والاتجاه الصحيح! تتبع النموذج بدقة واصل إلى النقطة الحمراء 🔴',
+                message: t('exercises.wrongPathWarning', 'انتبه لمسار الرسم والاتجاه الصحيح! تتبع النموذج بدقة واصل إلى النقطة الحمراء 🔴'),
                 type: 'error',
-                title: 'مسار خاطئ'
+                title: t('exercises.wrongPathTitle', 'مسار خاطئ')
               });
               setStrokesPerStep((prev) => {
                 const next = [...prev];
@@ -817,7 +817,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       ctx.fillStyle = '#2ecc71';
       ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('ابدأ من هنا 🟢', startPoint.x, startPoint.y - 24);
+      ctx.fillText(t('exercises.startHereGuide', 'ابدأ من هنا 🟢'), startPoint.x, startPoint.y - 24);
       ctx.restore();
 
       // Draw red end ring
@@ -838,7 +838,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       ctx.fillStyle = '#e74c3c';
       ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('انتهِ هنا 🔴', endPoint.x, endPoint.y - 24);
+      ctx.fillText(t('exercises.endHereGuide', 'انتهِ هنا 🔴'), endPoint.x, endPoint.y - 24);
       ctx.restore();
     }
   };
@@ -861,9 +861,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     }
     if (restartCount >= currentMaxRestarts) {
       setCustomAlert({
-        message: 'لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم المسموح بها في هذا التمرين!',
+        message: t('exercises.maxRestartsExceeded', 'لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم المسموح بها في هذا التمرين!'),
         type: 'error',
-        title: 'تنبيه'
+        title: t('exercises.warningTitle', 'تنبيه')
       });
       return;
     }
@@ -893,9 +893,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     const strokes = strokesOverride || strokesPerStep[currentStep] || [];
     if (strokes.length === 0) {
       setCustomAlert({
-        message: 'يرجى رسم الحرف أولاً يا بطل!',
+        message: t('exercises.pleaseDrawFirst', 'يرجى رسم الحرف أولاً يا بطل!'),
         type: 'info',
-        title: 'تنبيه'
+        title: t('exercises.warningTitle', 'تنبيه')
       });
       return;
     }
@@ -909,9 +909,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       if (firstPoint && Math.hypot(firstPoint.x - startPoint.x, firstPoint.y - startPoint.y) > 35) {
         sound.playError();
         setCustomAlert({
-          message: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
+          message: t('exercises.startFromGreenDot', 'ابدأ من النقطة الخضراء يا بطل! 🟢'),
           type: 'error',
-          title: 'تنبيه الاتجاه'
+          title: t('exercises.directionWarningTitle', 'تنبيه الاتجاه')
         });
         return;
       }
@@ -925,9 +925,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       if (!hasStrokeEndingNearRed) {
         sound.playError();
         setCustomAlert({
-          message: 'توقف عند النقطة الحمراء تماماً يا بطل! 🔴',
+          message: t('exercises.stopAtRedDot', 'توقف عند النقطة الحمراء تماماً يا بطل! 🔴'),
           type: 'error',
-          title: 'تنبيه الاتجاه'
+          title: t('exercises.directionWarningTitle', 'تنبيه الاتجاه')
         });
         return;
       }
@@ -979,9 +979,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   const handleCancelResult = () => {
     if (cancelCount >= currentMaxCancels) {
       setCustomAlert({
-        message: 'لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم!',
+        message: t('exercises.maxCancelsExceeded', 'لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم!'),
         type: 'error',
-        title: 'تنبيه'
+        title: t('exercises.warningTitle', 'تنبيه')
       });
       // Ensure the modal closes so the user is not stuck forever
       setResultModal(null);
@@ -1008,11 +1008,11 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     setPercentages(nextPercentages);
 
     if (activeQuestion!.drawType === 'free') {
-      const detailsString = `${activeQuestion!.subLabel}|نجح ${resultModal.percentage}%`;
+      const detailsString = `${activeQuestion!.subLabel}|${t('exercises.passedPctStr', 'نجح {pct}%').replace('{pct}', String(resultModal.percentage))}`;
       submitFinalProgress(resultModal.percentage, detailsString, '');
     } else if (stepsCount > 1) {
       // Step-by-step mode
-      const nextDetails = [...stepDetails, `خطوة ${currentStep + 1}: نجح ${resultModal.percentage}%`].filter(Boolean);
+      const nextDetails = [...stepDetails, t('exercises.stepPassedStr', 'خطوة {step}: نجح {pct}%').replace('{step}', String(currentStep + 1)).replace('{pct}', String(resultModal.percentage))].filter(Boolean);
       setStepDetails(nextDetails);
 
       if (currentStep < stepsCount - 1) {
@@ -1027,7 +1027,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     } else if (requiredRepetitions > 1) {
       // Challenge Mode
       const repIdx = currentRepetition + 1;
-      const nextDetails = [...stepDetails, `التكرار ${repIdx}: نجح ${resultModal.percentage}%`].filter(Boolean);
+      const nextDetails = [...stepDetails, t('exercises.repPassedStr', 'التكرار {rep}: نجح {pct}%').replace('{rep}', String(repIdx)).replace('{pct}', String(resultModal.percentage))].filter(Boolean);
       setStepDetails(nextDetails);
 
       if (repIdx < requiredRepetitions) {
@@ -1043,7 +1043,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       }
     } else {
       // Single step, single repetition
-      const detailsString = `${activeQuestion!.subLabel}|نجح ${resultModal.percentage}%`;
+      const detailsString = `${activeQuestion!.subLabel}|${t('exercises.passedPctStr', 'نجح {pct}%').replace('{pct}', String(resultModal.percentage))}`;
       submitFinalProgress(resultModal.percentage, detailsString, '');
     }
   };
@@ -1071,13 +1071,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           mCtx.font = '16px Amiri';
           mCtx.fillStyle = '#1e293b';
           mCtx.textAlign = 'right';
-          const watermark = `الطالب: ${student.name} | محاكاة خط: ${activeQuestion!.subLabel} | دقة الأداء: ${finalPct}%`;
+          const watermark = `${t('exercises.watermarkStudentLabel', 'الطالب')}: ${student.name} | ${t('exercises.watermarkCalligraphyLabel', 'محاكاة خط')}: ${activeQuestion!.subLabel} | ${t('exercises.watermarkAccuracyLabel', 'دقة الأداء')}: ${finalPct}%`;
           mCtx.fillText(watermark, 480, 560);
           b64Image = mergedCanvas.toDataURL('image/png');
         }
       }
 
-      const detailsStr = detailsOverride || `${activeQuestion!.subLabel} | نجح ${finalPct}%`;
+      const detailsStr = detailsOverride || `${activeQuestion!.subLabel} | ${t('exercises.passedPctStr', 'نجح {pct}%').replace('{pct}', String(finalPct))}`;
       const repInfo = repInfoOverride || `${currentRepetition + 1} / ${activeQuestion!.requiredRepetitions}`;
 
       await callGasApi('saveProgress', {
@@ -1098,9 +1098,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
       // Show motivational congratulations
       setCustomAlert({
-        message: `عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة ${finalPct}%!`,
+        message: t('exercises.saveSuccessMsg', 'عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة {pct}%!').replace('{pct}', String(finalPct)),
         type: 'success',
-        title: 'تم الحفظ بنجاح',
+        title: t('exercises.saveSuccessTitle', 'تم الحفظ بنجاح'),
         onClose: () => {
           // Jump to next calligraphy model in lesson if any
           if (activeQuestionIndex < activeLesson!.questions.length - 1) {
@@ -1109,9 +1109,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             // Play magical lesson completion sound
             sound.playLessonComplete();
             setCustomAlert({
-              message: 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉',
+              message: t('exercises.allModelsCompletedMsg', 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉'),
               type: 'success',
-              title: 'إنجاز رائع',
+              title: t('exercises.greatAchievementTitle', 'إنجاز رائع'),
               onClose: () => {
                 setActiveLessonIndex(-1);
               }
@@ -1121,9 +1121,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       });
     } catch (err: any) {
       setCustomAlert({
-        message: `تعذر حفظ أدائك: ${err.message}`,
+        message: t('exercises.saveErrorMsg', 'تعذر حفظ أدائك: {err}').replace('{err}', err.message),
         type: 'error',
-        title: 'خطأ في الحفظ'
+        title: t('exercises.saveErrorTitle', 'خطأ في الحفظ')
       });
     } finally {
       setSaving(false);
@@ -1253,7 +1253,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                           )}
                         </div>
                         <p className="text-slate-500 text-xs">
-                          تم إنجاز {completedCount} من أصل {totalCount} نموذج للرسم والخط ({Math.round(totalCount === 0 ? 0 : (completedCount / totalCount) * 100)}%)
+                          {t('exercises.modelsProgress', 'تم إنجاز {completed} من أصل {total} نموذج للرسم والخط ({pct}%)')
+                            .replace('{completed}', String(completedCount))
+                            .replace('{total}', String(totalCount))
+                            .replace('{pct}', String(Math.round(totalCount === 0 ? 0 : (completedCount / totalCount) * 100)))}
                         </p>
                       </div>
                     </div>
@@ -1294,7 +1297,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                           {isResettingThis ? (
                             <>
                               <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin shrink-0" />
-                              <span>جاري التهيئة...</span>
+                              <span>{t('exercises.initializing', 'جاري التهيئة...')}</span>
                             </>
                           ) : lesson.isCompleted ? (
                             !isResetAllowed ? t('exercises.completedAndLocked', 'مكتمل ومغلق 🔒') : t('exercises.reviewAndRedraw', 'مراجعة وإعادة الرسم 🔄')
@@ -1310,7 +1313,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               })
             ) : (
               <div className="text-center py-12 text-slate-400">
-                <p className="text-sm font-bold">لا توجد دروس متوفرة مطابقة لخيار التصفية</p>
+                <p className="text-sm font-bold">{t('exercises.noLessonsMatchingFilter', 'لا توجد دروس متوفرة مطابقة لخيار التصفية')}</p>
               </div>
             )}
           </div>
@@ -1343,10 +1346,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               {activeLesson?.label}
             </button>
             <ChevronRight className="w-4 h-4 shrink-0" />
-            <span>تمرين محاكاة الرسم</span>
+            <span>{t('exercises.drawingSimulation', 'تمرين محاكاة الرسم')}</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900">
-            نموذج: <span className="text-emerald-700 font-extrabold">{activeQuestion?.subLabel}</span>
+            {t('exercises.modelLabel', 'نموذج:')} <span className="text-emerald-700 font-extrabold">{activeQuestion?.subLabel}</span>
           </h1>
         </div>
 
@@ -1356,7 +1359,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           {activeQuestion && (activeQuestion.imageUrls || []).length > 1 && (
             <div className="bg-amber-50 text-amber-800 border border-amber-100 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4" />
-              <span>الخطوة: {currentStep + 1} / {activeQuestion?.imageUrls?.length || 0}</span>
+              <span>{t('exercises.stepLabel', 'الخطوة:')} {currentStep + 1} / {activeQuestion?.imageUrls?.length || 0}</span>
             </div>
           )}
 
@@ -1366,7 +1369,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1 shadow-sm"
             >
               <Gamepad2 className="w-4 h-4 text-amber-500" />
-              تبديل التمرين 🎮
+              {t('exercises.switchExerciseBtn', 'تبديل التمرين 🎮')}
             </button>
           )}
 
@@ -1374,7 +1377,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             onClick={() => setActiveLessonIndex(-1)}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs transition"
           >
-            قائمة الدروس 📁
+            {t('exercises.lessonsListBtn', 'قائمة الدروس 📁')}
           </button>
         </div>
       </div>
@@ -1404,7 +1407,11 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                 <div className="border-b border-slate-50 pb-2.5">
                   <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm">
                     <BookOpen className="w-4.5 h-4.5 text-emerald-600" />
-                    <span>هذا الدرس فيه ({totalQuestions}) وقد تم ({completedQuestionsCount})</span>
+                    <span>
+                      {t('exercises.lessonContains', 'هذا الدرس فيه ({total}) وقد تم ({completed})')
+                        .replace('{total}', String(totalQuestions))
+                        .replace('{completed}', String(completedQuestionsCount))}
+                    </span>
                   </h3>
                 </div>
 
@@ -1464,7 +1471,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             <div className="flex items-center justify-between border-b border-slate-50 pb-2 flex-wrap gap-2">
               <h3 className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
                 <PenTool className="w-4 h-4 text-emerald-600" />
-                أدوات وتخصيص قلم الرسم
+                {t('exercises.penToolsTitle', 'أدوات وتخصيص قلم الرسم')}
               </h3>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {activeQuestion && activeQuestion.timeMinutes > 0 && (
@@ -1476,7 +1483,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                 {activeQuestion && activeQuestion.requiredRepetitions > 1 && (
                   <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-lg text-[11px] font-black flex items-center gap-1">
                     <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>التكرار: {currentRepetition + 1} / {activeQuestion.requiredRepetitions}</span>
+                    <span>{t('exercises.repetitionLabel', 'التكرار:')} {currentRepetition + 1} / {activeQuestion.requiredRepetitions}</span>
                   </div>
                 )}
               </div>
@@ -1485,7 +1492,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             <div className="grid grid-cols-2 gap-3">
               {/* Pen Type Selection */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-500 block">نوع القلم</label>
+                <label className="text-[11px] font-bold text-slate-500 block">{t('exercises.penTypeLabel', 'نوع القلم')}</label>
                 <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs">
                   <button
                     onClick={() => setPenType('normal')}
@@ -1495,7 +1502,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    دائري
+                    {t('exercises.penRound', 'دائري')}
                   </button>
                   <button
                     onClick={() => setPenType('chisel')}
@@ -1505,20 +1512,20 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    مائل
+                    {t('exercises.penChisel', 'مائل')}
                   </button>
                 </div>
               </div>
 
               {/* Quick Actions (Icons Only) */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-500 block">إجراءات سريعة</label>
+                <label className="text-[11px] font-bold text-slate-500 block">{t('exercises.quickActionsLabel', 'إجراءات سريعة')}</label>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={handleUndo}
                     disabled={!activeQuestion?.allowUndo || (strokesPerStep[currentStep] || []).length === 0}
                     className="bg-slate-50 hover:bg-slate-100 border border-slate-100 disabled:opacity-40 text-slate-800 py-1 rounded-lg transition flex items-center justify-center"
-                    title="تراجع خطوة"
+                    title={t('exercises.undoStepTitle', 'تراجع خطوة')}
                   >
                     <Undo className="w-4 h-4" />
                   </button>
@@ -1526,7 +1533,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                     onClick={handleRestart}
                     disabled={activeQuestion && (currentMaxRestarts === 0 || restartCount >= currentMaxRestarts)}
                     className="bg-slate-50 hover:bg-slate-100 border border-slate-100 disabled:opacity-40 text-slate-800 py-1 rounded-lg transition flex items-center justify-center"
-                    title="إعادة المحاولة"
+                    title={t('exercises.retryTitle', 'إعادة المحاولة')}
                   >
                     <RotateCcw className="w-4 h-4" />
                   </button>
@@ -1539,7 +1546,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               {/* Pen Size Numeric Input Box */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
-                  <span>سمك الخط</span>
+                  <span>{t('exercises.strokeThickness', 'سمك الخط')}</span>
                   <span className="font-mono text-emerald-700 text-[10px]">{penSize}px</span>
                 </div>
                 <div className="relative flex items-center">
@@ -1565,7 +1572,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               {penType === 'chisel' && (
                 <div className="space-y-1">
                   <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
-                    <span>زاوية ميل القلم</span>
+                    <span>{t('exercises.penAngle', 'زاوية ميل القلم')}</span>
                     <span className="font-mono text-emerald-700 text-[10px]">{nibAngle}°</span>
                   </div>
                   <div className="relative flex items-center">
@@ -1590,7 +1597,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
             {activeQuestion?.requiredPenSize !== null && (
               <p className="text-[9px] text-amber-600 font-bold bg-amber-50/50 p-1.5 rounded-lg border border-amber-100 text-center">
-                * تم قفل السمك ({activeQuestion?.requiredPenSize}px) لتناسب هذا النموذج.
+                {t('exercises.penSizeLockedMsg', '* تم قفل السمك ({size}px) لتناسب هذا النموذج.').replace('{size}', String(activeQuestion?.requiredPenSize))}
               </p>
             )}
           </div>
@@ -1630,11 +1637,13 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
             {/* Start overlay when lesson not started */}
             {!lessonStarted && (
               <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10 transition-all">
-                <h3 className="text-white text-lg font-black mb-2">تمرين محاكاة ورسم الخط</h3>
+                <h3 className="text-white text-lg font-black mb-2">{t('exercises.drawingExerciseTitle', 'تمرين محاكاة ورسم الخط')}</h3>
                 <p className="text-slate-300 text-xs max-w-[240px] mb-6 leading-relaxed">
                   {activeQuestion && activeQuestion.requiredRepetitions > 1 && activeQuestion.imageUrls.length === 1
-                    ? `تحدي تكرار رسم النموذج لـ ${activeQuestion.requiredRepetitions} مرات متتالية بنسبة دقة لا تقل عن ${activeQuestion.requiredPercent}%.`
-                    : 'محاكاة رسم النموذج خطوة بخطوة بطريقة صحيحة ومتقنة.'}
+                    ? t('exercises.challengeDesc', 'تحدي تكرار رسم النموذج لـ {reps} مرات متتالية بنسبة دقة لا تقل عن {pct}%.')
+                        .replace('{reps}', String(activeQuestion.requiredRepetitions))
+                        .replace('{pct}', String(activeQuestion.requiredPercent))
+                    : t('exercises.stepByStepDesc', 'محاكاة رسم النموذج خطوة بخطوة بطريقة صحيحة ومتقنة.')}
                 </p>
                 <button
                   onClick={() => {
@@ -1646,8 +1655,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm px-8 py-3 rounded-2xl shadow-lg transition active:scale-95 animate-pulse"
                 >
                   {activeQuestion && activeQuestion.requiredRepetitions > 1 && activeQuestion.imageUrls.length === 1
-                    ? 'ابدأ التحدي! 🏆'
-                    : 'ابدأ التمرين ✍️'}
+                    ? t('exercises.startChallengeBtn', 'ابدأ التحدي! 🏆')
+                    : t('exercises.startExerciseBtn', 'ابدأ التمرين ✍️')}
                 </button>
               </div>
             )}
@@ -1658,7 +1667,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               onClick={() => setActiveLessonIndex(-1)}
               className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-2xl transition"
             >
-              العودة للدروس 📂
+              {t('exercises.backToLessons', 'العودة للدروس 📂')}
             </button>
             <button
               onClick={handleCheckDrawing}
@@ -1668,12 +1677,12 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               {saving ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  جاري الحفظ...
+                  {t('exercises.savingText', 'جاري الحفظ...')}
                 </>
               ) : (
                 <>
                   <Check className="w-5 h-5" />
-                  تحقق الأداء ومطابقة الخط
+                  {t('exercises.checkPerformanceBtn', 'تحقق الأداء ومطابقة الخط')}
                 </>
               )}
             </button>
@@ -1701,22 +1710,22 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-slate-900">
-                {resultModal.isSuccess ? 'عمل رائع يا بطل! 🎉' : 'تحتاج إلى دقة أكثر! 💪'}
+                {resultModal.isSuccess ? t('exercises.greatJobHero', 'عمل رائع يا بطل! 🎉') : t('exercises.needMoreAccuracy', 'تحتاج إلى دقة أكثر! 💪')}
               </h3>
               <p className="text-sm text-slate-500">
-                حققت دقة مطابقة بنسبة:{' '}
+                {t('exercises.accuracyAchieved', 'حققت دقة مطابقة بنسبة:')}{' '}
                 <span className={`text-lg font-extrabold ${resultModal.isSuccess ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {resultModal.percentage}%
                 </span>
               </p>
               <p className="text-xs text-slate-400">
-                النسبة المطلوبة للنجاح هي {activeQuestion?.requiredPercent}%
+                {t('exercises.requiredAccuracyInfo', 'النسبة المطلوبة للنجاح هي {pct}%').replace('{pct}', String(activeQuestion?.requiredPercent))}
               </p>
               {(!resultModal.isSuccess && cancelCount >= currentMaxCancels) && (
                 <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-100 mt-2">
                   {currentMaxCancels === 0 
-                    ? '⚠️ خيار إعادة محاولة الرسم غير متاح في هذا التمرين بطلب من المعلم. يجب عليك حفظ النتيجة والاستمرار.' 
-                    : '⚠️ لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم المسموح بها! يجب عليك الاستمرار بالنتيجة الحالية ومتابعة الأداء.'}
+                    ? t('exercises.noRedrawAllowedTeacher', '⚠️ خيار إعادة محاولة الرسم غير متاح في هذا التمرين بطلب من المعلم. يجب عليك حفظ النتيجة والاستمرار.')
+                    : t('exercises.maxCancelsReachedWarning', '⚠️ لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم المسموح بها! يجب عليك الاستمرار بالنتيجة الحالية ومتابعة الأداء.')}
                 </p>
               )}
             </div>
@@ -1737,7 +1746,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                   onClick={handleCancelResult}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3.5 rounded-xl transition text-sm"
                 >
-                  إغلاق والمحاولة مجدداً
+                  {t('exercises.closeAndRetryBtn', 'إغلاق والمحاولة مجدداً')}
                 </button>
               )}
               {(resultModal.isSuccess || cancelCount >= currentMaxCancels) && (
@@ -1745,7 +1754,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                   onClick={handleConfirmResult}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition text-sm shadow-md"
                 >
-                  {resultModal.isSuccess ? 'موافق والاستمرار 🌟' : 'حفظ النتيجة والاستمرار ⚠️'}
+                  {resultModal.isSuccess ? t('exercises.confirmAndContinue', 'موافق والاستمرار 🌟') : t('exercises.saveAndContinue', 'حفظ النتيجة والاستمرار ⚠️')}
                 </button>
               )}
             </div>
@@ -1787,7 +1796,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
             <div className="space-y-2">
               <h3 className="text-xl font-bold text-slate-900 font-sans">
-                {customAlert.title || (customAlert.type === 'error' ? 'تنبيه يا بطل! ⚠️' : 'تنبيه')}
+                {customAlert.title || (customAlert.type === 'error' ? t('exercises.warningHeroTitle', 'تنبيه يا بطل! ⚠️') : t('exercises.warningTitle', 'تنبيه'))}
               </h3>
               <p className="text-sm text-slate-600 leading-relaxed font-medium">
                 {customAlert.message}
@@ -1802,7 +1811,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               }}
               className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-3.5 rounded-2xl transition text-sm shadow-md active:scale-98"
             >
-              موافق 👍
+              {t('exercises.okBtn', 'موافق 👍')}
             </button>
           </motion.div>
         </div>
@@ -1822,20 +1831,20 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
 
             <div className="space-y-3">
               <h3 className="text-xl font-bold text-slate-900 font-sans">
-                جاري حفظ خطك الجميل... ✍️✨
+                {t('exercises.savingFullTitle', 'جاري حفظ خطك الجميل... ✍️✨')}
               </h3>
               <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                يرجى الانتظار بضع ثوانٍ يا بطل، نقوم الآن بتسجيل أدائك المميز وحفظه في لوحة الإنجازات الخاصة بك.
+                {t('exercises.savingFullDesc', 'يرجى الانتظار بضع ثوانٍ يا بطل، نقوم الآن بتسجيل أدائك المميز وحفظه في لوحة الإنجازات الخاصة بك.')}
               </p>
               <p className="text-xs text-rose-500 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-100">
-                ⚠️ يرجى عدم لمس الشاشة أو الخروج من الصفحة حتى يكتمل الحفظ!
+                {t('exercises.doNotTouchScreen', '⚠️ يرجى عدم لمس الشاشة أو الخروج من الصفحة حتى يكتمل الحفظ!')}
               </p>
             </div>
 
             {/* Spinner Progress bar */}
             <div className="flex flex-col items-center justify-center gap-3 pt-2">
               <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
-              <span className="text-xs font-bold text-amber-600 tracking-wider animate-pulse font-mono">جاري الاتصال بالسيرفر وحفظ الصورة...</span>
+              <span className="text-xs font-bold text-amber-600 tracking-wider animate-pulse font-mono">{t('exercises.connectingServerSavingImage', 'جاري الاتصال بالسيرفر وحفظ الصورة...')}</span>
             </div>
           </motion.div>
         </div>

@@ -234,19 +234,22 @@ export default function LoginModal({
       setLoading(true);
       const deviceId = generateDeviceId();
 
-      // Get user geolocation if available
+      // Get user geolocation if available quickly (800ms max timeout)
       let lat: number | null = null;
       let lng: number | null = null;
 
       if (navigator.geolocation) {
         try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
-          });
+          const position = await Promise.race([
+            new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 800, maximumAge: 60000 });
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Geo timeout')), 800))
+          ]);
           lat = position.coords.latitude;
           lng = position.coords.longitude;
         } catch (geoErr) {
-          console.warn('Geolocation access denied or timed out.', geoErr);
+          console.warn('Geolocation fast-check skipped or denied.', geoErr);
         }
       }
 

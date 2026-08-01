@@ -28,6 +28,7 @@ function ImageWithLoader({
   className: string; 
   onClick?: () => void;
 }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -41,7 +42,7 @@ function ImageWithLoader({
       {loading && (
         <div className="flex flex-col items-center justify-center py-2 px-3 animate-pulse">
           <span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-1"></span>
-          <span className="text-[10px] text-slate-500 font-bold">جاري تحميل الصورة...</span>
+          <span className="text-[10px] text-slate-500 font-bold">{t('exercises.loadingImage', 'جاري تحميل الصورة...')}</span>
         </div>
       )}
       <img
@@ -57,7 +58,7 @@ function ImageWithLoader({
       />
       {error && (
         <div className="text-[10px] text-rose-500 font-bold p-1.5 bg-rose-50 border border-rose-100 rounded-lg">
-          ⚠️ تعذر تحميل الصورة
+          {t('exercises.failedToLoadImage', '⚠️ تعذر تحميل الصورة')}
         </div>
       )}
     </div>
@@ -357,7 +358,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
       const data = await callGasApi<OrderingLessonTopic[]>('getLessons', { studentId: student.id });
       setTopics(data);
     } catch (err: any) {
-      setError(err.message || 'تعذر تحميل دروس تركيب الكلمات.');
+      setError(err.message || t('exercises.failedToLoadWordLessons', 'تعذر تحميل دروس تركيب الكلمات.'));
     } finally {
       setLoading(false);
     }
@@ -387,7 +388,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
 
       if (data) {
         if ('completed' in data && (data as any).completed) {
-          showNotification('تم الإجابة على جميع الأسئلة بامتياز! 🎉', 'success');
+          showNotification(t('exercises.answeredAllQuestionsSuccess', 'تم الإجابة على جميع الأسئلة بامتياز! 🎉'), 'success');
           setIsLessonCompletedScreen(true);
           if ('totalQuestions' in data && (data as any).totalQuestions !== undefined) {
             setCompletedStats({
@@ -419,10 +420,10 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
           setActiveCompletionBlankIds(Array(blanksCount).fill(''));
         }
       } else {
-        setError('لا توجد أسئلة نشطة في هذا الدرس حالياً.');
+        setError(t('exercises.noActiveQuestionsInLesson', 'لا توجد أسئلة نشطة في هذا الدرس حالياً.'));
       }
     } catch (err: any) {
-      setError(err.message || 'فشل جلب سؤال جديد.');
+      setError(err.message || t('exercises.failedToFetchNewQuestion', 'فشل جلب سؤال جديد.'));
     } finally {
       setQuestionLoading(false);
     }
@@ -499,7 +500,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
   const handleCheckAnswer = async () => {
     const answer = getUserAnswerText();
     if (!answer.trim() || answer.includes('...')) {
-      showNotification('يرجى ترتيب الحروف وملء الفراغات أولاً يا بطل!', 'error');
+      showNotification(t('exercises.arrangeAndFillFirst', 'يرجى ترتيب الحروف وملء الفراغات أولاً يا بطل!'), 'error');
       return;
     }
 
@@ -537,7 +538,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
       });
 
     } catch (err: any) {
-      showNotification(`خطأ أثناء تسجيل الإجابة: ${err.message}`, 'error');
+      showNotification(`${t('exercises.errorRecordingAnswer', 'خطأ أثناء تسجيل الإجابة:')} ${err.message}`, 'error');
     } finally {
       setRecording(false);
     }
@@ -567,11 +568,11 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
     try {
       setResetLoading(true);
       await callGasApi('resetLesson', { studentId: student.id, topic: resettingTopic.topic });
-      showNotification('تم تصفير تقدم الدرس بنجاح! 🔄', 'success');
+      showNotification(t('exercises.lessonProgressResetSuccess', 'تم تصفير تقدم الدرس بنجاح! 🔄'), 'success');
       setResettingTopic(null);
       fetchLessonTopics();
     } catch (err: any) {
-      showNotification(`خطأ أثناء تصفير التقدم: ${err.message}`, 'error');
+      showNotification(`${t('exercises.errorResettingProgress', 'خطأ أثناء تصفير التقدم:')} ${err.message}`, 'error');
     } finally {
       setResetLoading(false);
     }
@@ -736,7 +737,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                                 <button
                                   onClick={() => handleResetTopic(topic.row, topic.topic)}
                                   className="bg-slate-900 text-white font-bold p-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-                                  title="إعادة الدرس والتصفير"
+                                  title={t('exercises.resetLessonAndZero', 'إعادة الدرس والتصفير')}
                                 >
                                   <RotateCcw className="w-4 h-4" />
                                 </button>
@@ -757,9 +758,9 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-slate-500 gap-2">
                     <Compass className="w-10 h-10 text-slate-300 animate-bounce" />
-                    <span className="font-bold text-sm">لا توجد دروس لعرضها هنا حالياً.</span>
+                    <span className="font-bold text-sm">{t('exercises.noLessonsToShow', 'لا توجد دروس لعرضها هنا حالياً.')}</span>
                     <p className="text-xs text-slate-400 max-w-xs">
-                      جميع الدروس في هذه القائمة مكتملة! يمكنك تفعيل خيار "إظهار الدروس المكتملة" لمراجعتها.
+                      {t('exercises.allLessonsCompletedNotice', 'جميع الدروس في هذه القائمة مكتملة! يمكنك تفعيل خيار "إظهار الدروس المكتملة" لمراجعتها.')}
                     </p>
                   </div>
                 )}
@@ -787,9 +788,9 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               </div>
               
               <div className="space-y-1">
-                <h3 className="font-extrabold text-slate-900 text-lg">هل أنت متأكد؟</h3>
+                <h3 className="font-extrabold text-slate-900 text-lg">{t('exercises.areYouSure', 'هل أنت متأكد؟')}</h3>
                 <p className="text-slate-500 text-xs leading-relaxed">
-                  هل ترغب في إعادة المحاولة وتصفير تقدمك في موضوع <span className="font-bold text-slate-800">"{resettingTopic.topic}"</span>؟ سيتم مسح جميع الإجابات السابقة لهذا الدرس.
+                  {t('exercises.resetConfirmDesc', 'هل ترغب في إعادة المحاولة وتصفير تقدمك في موضوع "{topic}"؟ سيتم مسح جميع الإجابات السابقة لهذا الدرس.').replace('{topic}', resettingTopic.topic)}
                 </p>
               </div>
 
@@ -802,10 +803,10 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                   {resetLoading ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      <span>جاري التصفير...</span>
+                      <span>{t('exercises.resettingProgress', 'جاري التصفير...')}</span>
                     </>
                   ) : (
-                    'نعم، أعد التصفير 🔄'
+                    t('exercises.yesResetBtn', 'نعم، أعد التصفير 🔄')
                   )}
                 </button>
                 
@@ -814,7 +815,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                   onClick={() => setResettingTopic(null)}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs transition cursor-pointer"
                 >
-                  إلغاء ❌
+                  {t('exercises.cancelEmojiBtn', 'إلغاء ❌')}
                 </button>
               </div>
             </div>
@@ -829,7 +830,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
       {/* Gameplay Header */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
-          <span className="text-xs text-amber-600 font-bold block mb-1">القسم الثاني: تركيب الكلمات</span>
+          <span className="text-xs text-amber-600 font-bold block mb-1">{t('exercises.sectionTwoWordComposition', 'القسم الثاني: تركيب الكلمات')}</span>
           <h1 className="text-2xl font-extrabold text-slate-900 font-sans">{activeQuestion?.topic}</h1>
         </div>
         
@@ -840,20 +841,20 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
             >
               <Gamepad2 className="w-4 h-4 text-amber-500" />
-              تبديل التمرين 🎮
+              {t('exercises.switchExerciseBtn', 'تبديل التمرين 🎮')}
             </button>
           )}
           <button
             onClick={() => setActiveTopicRow(null)}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
           >
-            رجوع للدروس 📂
+            {t('exercises.backToLessonsBtn', 'رجوع للدروس 📂')}
           </button>
           <button
             onClick={onBack}
             className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition"
           >
-            الرئيسية 🏠
+            {t('exercises.backToHomeBtn', 'الرئيسية 🏠')}
           </button>
         </div>
       </div>
@@ -861,7 +862,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
       {questionLoading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-3xl border border-slate-100 shadow-md">
           <div className="w-10 h-10 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
-          <p className="text-slate-500 text-sm font-sans">جاري تحميل السؤال التالي...</p>
+          <p className="text-slate-500 text-sm font-sans">{t('exercises.loadingNextQuestion', 'جاري تحميل السؤال التالي...')}</p>
         </div>
       ) : isLessonCompletedScreen ? (
         <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-xl text-center space-y-6 max-w-2xl mx-auto animate-fadeIn">
@@ -871,23 +872,27 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
 
           <div className="space-y-2">
             <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 font-sans leading-tight">
-              تم الإجابة على جميع الأسئلة! 🎉
+              {t('exercises.allQuestionsAnswered', 'تم الإجابة على جميع الأسئلة! 🎉')}
             </h2>
             <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-md mx-auto">
-              تم الإجابة على كل الأسئلة بنجاح، ويرجى انتظار تسجيل الإجابات والدرجات بدقة في قاعدة البيانات.
+              {t('exercises.allQuestionsAnsweredDesc', 'تم الإجابة على كل الأسئلة بنجاح، ويرجى انتظار تسجيل الإجابات والدرجات بدقة في قاعدة البيانات.')}
             </p>
           </div>
 
           {completedStats && (
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 max-w-sm mx-auto space-y-3">
-              <span className="text-xs font-bold text-slate-400 block">إحصائيات إنجاز الدرس</span>
+              <span className="text-xs font-bold text-slate-400 block">{t('exercises.lessonCompletionStats', 'إحصائيات إنجاز الدرس')}</span>
               <div className="flex justify-between items-center text-sm font-bold text-slate-700 font-sans">
-                <span>إجمالي الأسئلة:</span>
+                <span>{t('exercises.totalQuestionsLabel', 'إجمالي الأسئلة:')}</span>
                 <span className="text-slate-900">{completedStats.total}</span>
               </div>
               <div className="flex justify-between items-center text-sm font-bold text-slate-700 font-sans">
-                <span>الأسئلة المكتملة:</span>
-                <span className="text-emerald-600 font-extrabold">{completedStats.answered} من {completedStats.total}</span>
+                <span>{t('exercises.completedQuestionsLabel', 'الأسئلة المكتملة:')}</span>
+                <span className="text-emerald-600 font-extrabold">
+                  {t('exercises.xOfY', '{answered} من {total}')
+                    .replace('{answered}', String(completedStats.answered))
+                    .replace('{total}', String(completedStats.total))}
+                </span>
               </div>
               <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mt-1">
                 <div 
@@ -906,13 +911,13 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               }}
               className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold px-8 py-3.5 rounded-2xl text-sm transition shadow-lg shadow-amber-500/20 cursor-pointer"
             >
-              العودة لقائمة الدروس 📂
+              {t('exercises.backToLessonsList', 'العودة لقائمة الدروس 📂')}
             </button>
             <button
               onClick={onBack}
               className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-8 py-3.5 rounded-2xl text-sm transition cursor-pointer"
             >
-              الرئيسية 🏠
+              {t('exercises.backToHomeBtn', 'الرئيسية 🏠')}
             </button>
           </div>
         </div>
@@ -924,7 +929,10 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
                 <span className="text-slate-700 font-bold text-xs md:text-sm">
-                  الأسئلة المجاب عليها: <span className="text-amber-600 font-extrabold">{activeQuestion.answeredQuestions || 0}</span> من <span className="text-slate-800 font-extrabold">{activeQuestion.totalQuestions}</span>
+                  {t('exercises.answeredQuestionsLabel', 'الأسئلة المجاب عليها:')}{' '}
+                  <span className="text-amber-600 font-extrabold">{activeQuestion.answeredQuestions || 0}</span>{' '}
+                  {t('exercises.ofWord', 'من')}{' '}
+                  <span className="text-slate-800 font-extrabold">{activeQuestion.totalQuestions}</span>
                 </span>
               </div>
               
@@ -945,7 +953,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
             <div className="bg-amber-50/40 border border-amber-100/60 p-3.5 rounded-2xl text-amber-800 text-xs text-right leading-relaxed flex items-start gap-2.5">
               <span className="text-sm shrink-0">💡</span>
               <p>
-                <strong>ملاحظة هامة:</strong> لمشاهدة شريط تقدم الدرس وعدد الأسئلة والأسئلة المجاب عليها هنا، يرجى نسخ كود <strong className="underline">Google Apps Script الموحد</strong> من صفحة التهيئة (الربط) في لوحة التحكم وتحديثه في مشروع الـ Script الخاص بك وإعادة نشره كإصدار جديد.
+                <strong>{t('exercises.importantNote', 'ملاحظة هامة:')}</strong> {t('exercises.gasScriptNote', 'لمشاهدة شريط تقدم الدرس وعدد الأسئلة والأسئلة المجاب عليها هنا، يرجى نسخ كود Google Apps Script الموحد من صفحة التهيئة (الربط) في لوحة التحكم وتحديثه في مشروع الـ Script الخاص بك وإعادة نشره كإصدار جديد.')}
               </p>
             </div>
           )}
@@ -975,14 +983,14 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                       {loadingAudioSrc === url ? (
                         <>
                           <span className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
-                          <span>جاري تحميل الصوت...</span>
+                          <span>{t('exercises.loadingAudio', 'جاري تحميل الصوت...')}</span>
                         </>
                       ) : playingAudioSrc === url ? (
-                        <span>⏸️ إيقاف الصوت</span>
+                        <span>{t('exercises.stopAudio', '⏸️ إيقاف الصوت')}</span>
                       ) : (
                         <>
                           <Volume2 className="w-5 h-5 text-amber-400" />
-                          <span>استمع للمقطع الصوتي 🔊</span>
+                          <span>{t('exercises.listenAudio', 'استمع للمقطع الصوتي 🔊')}</span>
                         </>
                       )}
                     </button>
@@ -993,7 +1001,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                   <div className="inline-flex bg-white p-2 rounded-2xl shadow-md border border-slate-100">
                     <ImageWithLoader
                       src={normalizeImageUrl(url)}
-                      alt="مرفق السؤال"
+                      alt={t('exercises.questionAttachmentAlt', 'مرفق السؤال')}
                       className="max-h-48 object-contain rounded-xl max-w-xs cursor-zoom-in"
                       onClick={() => setLightboxImage(normalizeImageUrl(url))}
                     />
@@ -1021,7 +1029,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                 </div>
                 <div className="text-xs text-emerald-400 font-bold flex items-center justify-center gap-1">
                   <CheckCircle className="w-4 h-4" />
-                  تم تجميع الكلمة بخط متصل ممتاز! 🏅
+                  {t('exercises.wordAssembledCursive', 'تم تجميع الكلمة بخط متصل ممتاز! 🏅')}
                 </div>
               </motion.div>
             ) : (
@@ -1080,7 +1088,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                             : 'bg-amber-500 text-slate-950 border border-transparent'
                         }`}
                       >
-                        {l.val === '-' ? 'مسافة ␣' : l.val}
+                        {l.val === '-' ? t('exercises.spaceLabel', 'مسافة ␣') : l.val}
                       </motion.div>
                     );
                   })
@@ -1092,7 +1100,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
           {/* Letter Choice Pool */}
           {!checked && (
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4">
-              <p className="text-xs font-bold text-slate-500">اختر الحروف بترتيبها الصحيح لتجميع الكلمة:</p>
+              <p className="text-xs font-bold text-slate-500">{t('exercises.chooseLettersInstruction', 'اختر الحروف بترتيبها الصحيح لتجميع الكلمة:')}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {shuffledLetters.map((l) => (
                   <button
@@ -1107,7 +1115,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                         : 'bg-amber-500 hover:bg-amber-400 text-slate-950 hover:scale-105 active:scale-110'
                     }`}
                   >
-                    {l.val === '-' ? 'مسافة ␣' : l.val}
+                    {l.val === '-' ? t('exercises.spaceLabel', 'مسافة ␣') : l.val}
                   </button>
                 ))}
               </div>
@@ -1120,18 +1128,18 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               {isCorrectAnswer === true && (
                 <div className="text-emerald-700 font-bold flex items-center gap-1.5 text-sm">
                   <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  أحسنت الإجابة يا عبقري! يمكنك الانتقال للموديل التالي.
+                  {t('exercises.greatAnswerGenius', 'أحسنت الإجابة يا عبقري! يمكنك الانتقال للموديل التالي.')}
                 </div>
               )}
               {isCorrectAnswer === false && (
                 <div className="space-y-1">
                   <div className="text-rose-800 font-bold flex items-center gap-1.5 text-sm">
                     <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-                    محاولة غير موفقة! حاول مرة أخرى بالضغط على زر تصفير.
+                    {t('exercises.unsuccessfulTry', 'محاولة غير موفقة! حاول مرة أخرى بالضغط على زر تصفير.')}
                   </div>
                   {showAnswerHint && (
                     <div className="text-xs text-amber-800 font-sans">
-                      * الإجابة الصحيحة هي: <strong>{activeQuestion.correct.join(' أو ')}</strong>
+                      * {t('exercises.correctAnswerIs', 'الإجابة الصحيحة هي:')} <strong>{activeQuestion.correct.join(` ${t('exercises.orWord', 'أو')} `)}</strong>
                     </div>
                   )}
                 </div>
@@ -1139,7 +1147,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               {isCorrectAnswer === null && (
                 <div className="text-slate-500 text-xs flex items-center gap-1.5">
                   <HelpCircle className="w-5 h-5 text-slate-400" />
-                  رتب الحروف بالكامل ثم اضغط على زر تحقق لتسجيل الإجابة.
+                  {t('exercises.arrangeLettersAndCheck', 'رتب الحروف بالكامل ثم اضغط على زر تحقق لتسجيل الإجابة.')}
                 </div>
               )}
             </div>
@@ -1153,7 +1161,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                       className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-xl text-sm transition flex items-center gap-1.5"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      إعادة المحاولة
+                      {t('exercises.retryBtn', 'إعادة المحاولة')}
                     </button>
                   )}
                   {activeQuestion.showCorrectAnswer === 'نعم' && !isCorrectAnswer && !showAnswerHint && (
@@ -1161,7 +1169,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                       onClick={() => setShowAnswerHint(true)}
                       className="bg-amber-100 text-amber-900 font-bold px-4 py-3 rounded-xl text-sm transition"
                     >
-                      عرض الإجابة الصحيحة
+                      {t('exercises.showCorrectAnswerBtn', 'عرض الإجابة الصحيحة')}
                     </button>
                   )}
                   {/* Next Question Loader */}
@@ -1170,7 +1178,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                       onClick={() => loadQuestionForTopic(activeTopicRow, activeQuestion.index)}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition shadow-lg shadow-amber-500/10 flex items-center gap-1"
                     >
-                      سؤال جديد
+                      {t('exercises.newQuestionBtn', 'سؤال جديد')}
                       <ArrowRight className="w-4 h-4 shrink-0 rotate-180" />
                     </button>
                   )}
@@ -1182,7 +1190,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-3 rounded-xl text-sm transition flex items-center gap-1.5 shadow"
                 >
                   <Check className="w-4 h-4" />
-                  تحقق من إجابتي
+                  {t('exercises.checkMyAnswerBtn', 'تحقق من إجابتي')}
                 </button>
               )}
             </div>
@@ -1214,7 +1222,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                 setZoomScale(1);
               }}
               className="bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-full transition shadow-md flex items-center justify-center"
-              title="إغلاق"
+              title={t('exercises.close', 'إغلاق')}
             >
               <X className="w-6 h-6" />
             </button>
@@ -1223,27 +1231,27 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
               <button
                 onClick={() => setZoomScale(prev => Math.min(prev + 0.25, 4))}
                 className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition flex items-center gap-1 text-xs font-bold"
-                title="تكبير"
+                title={t('exercises.zoomIn', 'تكبير')}
               >
                 <ZoomIn className="w-4 h-4" />
-                <span>تكبير</span>
+                <span>{t('exercises.zoomIn', 'تكبير')}</span>
               </button>
               
               <button
                 onClick={() => setZoomScale(prev => Math.max(prev - 0.25, 0.5))}
                 className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition flex items-center gap-1 text-xs font-bold"
-                title="تصغير"
+                title={t('exercises.zoomOut', 'تصغير')}
               >
                 <ZoomOut className="w-4 h-4" />
-                <span>تصغير</span>
+                <span>{t('exercises.zoomOut', 'تصغير')}</span>
               </button>
 
               <button
                 onClick={() => setZoomScale(1)}
                 className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-xl transition text-xs font-bold"
-                title="إعادة تعيين"
+                title={t('exercises.resetZoom', 'إعادة تعيين 🔄')}
               >
-                إعادة تعيين 🔄
+                {t('exercises.resetZoom', 'إعادة تعيين 🔄')}
               </button>
 
               <span className="text-white/80 text-xs px-2 font-mono" dir="ltr">
@@ -1257,7 +1265,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
             <div className="max-w-full max-h-full flex items-center justify-center p-8">
               <img
                 src={lightboxImage}
-                alt="معاينة الصورة مكبرة"
+                alt={t('exercises.lightboxPreviewAlt', 'معاينة الصورة مكبرة')}
                 className="max-w-[90vw] max-h-[75vh] object-contain rounded-xl shadow-2xl transition-transform duration-200 ease-out"
                 style={{ 
                   transform: `scale(${zoomScale})`,
@@ -1268,7 +1276,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
           </div>
           
           <div className="absolute bottom-4 text-center text-white/60 text-xs font-medium pointer-events-none">
-            يمكنك استخدام أدوات التحكم في الأعلى لتكبير وتصغير الصورة
+            {t('exercises.zoomControlsNotice', 'يمكنك استخدام أدوات التحكم في الأعلى لتكبير وتصغير الصورة')}
           </div>
         </div>
       )}

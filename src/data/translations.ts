@@ -766,6 +766,361 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Loading Arabic calligraphy canvas...',
       th: 'กำลังโหลดผืนผ้าใบจำลองการเขียนพู่กันอาหรับ...',
     },
+    resetLessonError: {
+      ar: 'حدث خطأ أثناء إعادة تهيئة الدرس، يرجى المحاولة مجدداً يا بطل.',
+      en: 'An error occurred while resetting the lesson, please try again hero.',
+      th: 'เกิดข้อผิดพลาดขณะรีเซ็ตบทเรียน โปรดลองอีกครั้ง',
+    },
+    timeExpiredMsg: {
+      ar: 'انتهى الوقت المسموح به لهذا التمرين يا بطل!',
+      en: 'Allowed time for this exercise has expired, hero!',
+      th: 'หมดเวลาสำหรับแบบฝึกหัดนี้แล้ว!',
+    },
+    timeExpiredTitle: {
+      ar: 'انتهى الوقت',
+      en: 'Time Expired',
+      th: 'หมดเวลา',
+    },
+    stepFailedTimeout: {
+      ar: 'خطوة {step}: فشل 0% (انتهى الوقت)',
+      en: 'Step {step}: Failed 0% (Time Expired)',
+      th: 'ขั้นตอนที่ {step}: ล้มเหลว 0% (หมดเวลา)',
+    },
+    repFailedTimeout: {
+      ar: 'التكرار {rep}: فشل 0% (انتهى الوقت)',
+      en: 'Repetition {rep}: Failed 0% (Time Expired)',
+      th: 'การซ้ำที่ {rep}: ล้มเหลว 0% (หมดเวลา)',
+    },
+    failedTimeoutStr: {
+      ar: 'فشل 0% (انتهى الوقت)',
+      en: 'Failed 0% (Time Expired)',
+      th: 'ล้มเหลว 0% (หมดเวลา)',
+    },
+    stepPassedStr: {
+      ar: 'خطوة {step}: نجح {pct}%',
+      en: 'Step {step}: Passed {pct}%',
+      th: 'ขั้นตอนที่ {step}: ผ่าน {pct}%',
+    },
+    repPassedStr: {
+      ar: 'التكرار {rep}: نجح {pct}%',
+      en: 'Repetition {rep}: Passed {pct}%',
+      th: 'การซ้ำที่ {rep}: ผ่าน {pct}%',
+    },
+    passedPctStr: {
+      ar: 'نجح {pct}%',
+      en: 'Passed {pct}%',
+      th: 'ผ่าน {pct}%',
+    },
+    startFromGreenDot: {
+      ar: 'ابدأ من النقطة الخضراء يا بطل! 🟢',
+      en: 'Start from the green dot, hero! 🟢',
+      th: 'เริ่มจากจุดสีเขียว! 🟢',
+    },
+    directionWarningTitle: {
+      ar: 'تنبيه الاتجاه',
+      en: 'Direction Warning',
+      th: 'แจ้งเตือนทิศทาง',
+    },
+    overshotRedDot: {
+      ar: 'لقد تجاوزت النقطة الحمراء يا بطل! حاول التوقف عندها تماماً 🔴',
+      en: 'You overshot the red dot, hero! Try stopping right at it 🔴',
+      th: 'คุณเลยจุดสีแดงไปแล้ว! พยายามหยุดที่จุดนั้นพอดี 🔴',
+    },
+    overshotTitle: {
+      ar: 'تجاوز النقطة',
+      en: 'Overshot Point',
+      th: 'เลยจุดกำหนด',
+    },
+    wrongPathWarning: {
+      ar: 'انتبه لمسار الرسم والاتجاه الصحيح! تتبع النموذج بدقة واصل إلى النقطة الحمراء 🔴',
+      en: 'Pay attention to the drawing path! Follow the template carefully to the red dot 🔴',
+      th: 'สังเกตเส้นทางลากเส้น! ทำตามแม่แบบอย่างระมัดระวังไปยังจุดสีแดง 🔴',
+    },
+    wrongPathTitle: {
+      ar: 'مسار خاطئ',
+      en: 'Wrong Path',
+      th: 'เส้นทางไม่ถูกต้อง',
+    },
+    startHereGuide: {
+      ar: 'ابدأ من هنا 🟢',
+      en: 'Start here 🟢',
+      th: 'เริ่มตรงนี้ 🟢',
+    },
+    endHereGuide: {
+      ar: 'انتهِ هنا 🔴',
+      en: 'End here 🔴',
+      th: 'สิ้นสุดตรงนี้ 🔴',
+    },
+    maxRestartsExceeded: {
+      ar: 'لقد استنفدت الحد الأقصى لمحاولات إعادة الرسم المسموح بها في هذا التمرين!',
+      en: 'You have reached the maximum redraw attempts allowed for this exercise!',
+      th: 'คุณใช้โควตารีเซ็ตวาดใหม่ครบกำหนดแล้ว!',
+    },
+    warningTitle: {
+      ar: 'تنبيه',
+      en: 'Warning',
+      th: 'คำเตือน',
+    },
+    warningHeroTitle: {
+      ar: 'تنبيه يا بطل! ⚠️',
+      en: 'Warning, Hero! ⚠️',
+      th: 'คำเตือน! ⚠️',
+    },
+    pleaseDrawFirst: {
+      ar: 'يرجى رسم الحرف أولاً يا بطل!',
+      en: 'Please draw the character first, hero!',
+      th: 'โปรดวาดตัวอักษรก่อน!',
+    },
+    stopAtRedDot: {
+      ar: 'توقف عند النقطة الحمراء تماماً يا بطل! 🔴',
+      en: 'Stop right at the red dot, hero! 🔴',
+      th: 'หยุดที่จุดสีแดงพอดี! 🔴',
+    },
+    maxCancelsExceeded: {
+      ar: 'لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم!',
+      en: 'You have reached the maximum cancel attempts allowed!',
+      th: 'คุณใช้โควตายกเลิกการวาดครบกำหนดแล้ว!',
+    },
+    watermarkStudentLabel: {
+      ar: 'الطالب',
+      en: 'Student',
+      th: 'นักเรียน',
+    },
+    watermarkCalligraphyLabel: {
+      ar: 'محاكاة خط',
+      en: 'Calligraphy',
+      th: 'การเขียนพู่กัน',
+    },
+    watermarkAccuracyLabel: {
+      ar: 'دقة الأداء',
+      en: 'Accuracy',
+      th: 'ความแม่นยำ',
+    },
+    saveSuccessMsg: {
+      ar: 'عظيم جداً يا بطل! تم حفظ أداء التمرين بنجاح بنسبة دقة {pct}%!',
+      en: 'Great job, hero! Exercise performance saved successfully with {pct}% accuracy!',
+      th: 'ยอดเยี่ยมมาก! บันทึกผลงานสำเร็จด้วยความแม่นยำ {pct}%',
+    },
+    saveSuccessTitle: {
+      ar: 'تم الحفظ بنجاح',
+      en: 'Saved Successfully',
+      th: 'บันทึกสำเร็จ',
+    },
+    allModelsCompletedMsg: {
+      ar: 'تهانينا الكبيرة! لقد أتممت جميع نماذج الخط في هذا الدرس 🎉',
+      en: 'Huge congratulations! You completed all calligraphy models in this lesson 🎉',
+      th: 'ยินดีด้วย! คุณทำแบบฝึกหัดเขียนพู่กันครบทุกแบบในบทเรียนนี้แล้ว 🎉',
+    },
+    greatAchievementTitle: {
+      ar: 'إنجاز رائع',
+      en: 'Great Achievement',
+      th: 'ความสำเร็จที่ยิ่งใหญ่',
+    },
+    saveErrorMsg: {
+      ar: 'تعذر حفظ أدائك: {err}',
+      en: 'Could not save performance: {err}',
+      th: 'ไม่สามารถบันทึกผลงาน: {err}',
+    },
+    saveErrorTitle: {
+      ar: 'خطأ في الحفظ',
+      en: 'Save Error',
+      th: 'ข้อผิดพลาดในการบันทึก',
+    },
+    modelsProgress: {
+      ar: 'تم إنجاز {completed} من أصل {total} نموذج للرسم والخط ({pct}%)',
+      en: 'Completed {completed} of {total} drawing models ({pct}%)',
+      th: 'ทำสำเร็จแล้ว {completed} จาก {total} รูปแบบ ({pct}%)',
+    },
+    initializing: {
+      ar: 'جاري التهيئة...',
+      en: 'Initializing...',
+      th: 'กำลังเริ่มต้น...',
+    },
+    noLessonsMatchingFilter: {
+      ar: 'لا توجد دروس متوفرة مطابقة لخيار التصفية',
+      en: 'No lessons available matching the current filter',
+      th: 'ไม่มีบทเรียนที่ตรงกับตัวกรอง',
+    },
+    drawingSimulation: {
+      ar: 'تمرين محاكاة الرسم',
+      en: 'Drawing Simulation Exercise',
+      th: 'แบบฝึกหัดจำลองการวาด',
+    },
+    modelLabel: {
+      ar: 'نموذج:',
+      en: 'Model:',
+      th: 'รูปแบบ:',
+    },
+    stepLabel: {
+      ar: 'الخطوة:',
+      en: 'Step:',
+      th: 'ขั้นตอน:',
+    },
+    lessonsListBtn: {
+      ar: 'قائمة الدروس 📁',
+      en: 'Lessons List 📁',
+      th: 'รายการบทเรียน 📁',
+    },
+    lessonContains: {
+      ar: 'هذا الدرس فيه ({total}) وقد تم ({completed})',
+      en: 'This lesson has ({total}) models, completed ({completed})',
+      th: 'บทเรียนนี้มี ({total}) รูปแบบ ทำเสร็จแล้ว ({completed})',
+    },
+    penToolsTitle: {
+      ar: 'أدوات وتخصيص قلم الرسم',
+      en: 'Drawing Pen Tools & Customization',
+      th: 'เครื่องมือและปรับแต่งพู่กันวาด',
+    },
+    repetitionLabel: {
+      ar: 'التكرار:',
+      en: 'Repetition:',
+      th: 'การซ้ำ:',
+    },
+    penTypeLabel: {
+      ar: 'نوع القلم',
+      en: 'Pen Type',
+      th: 'ประเภทพู่กัน',
+    },
+    penRound: {
+      ar: 'دائري',
+      en: 'Round',
+      th: 'หัวกลม',
+    },
+    penChisel: {
+      ar: 'مائل',
+      en: 'Chisel',
+      th: 'หัวตัด/ตัดเฉียง',
+    },
+    quickActionsLabel: {
+      ar: 'إجراءات سريعة',
+      en: 'Quick Actions',
+      th: 'การดำเนินการด่วน',
+    },
+    undoStepTitle: {
+      ar: 'تراجع خطوة',
+      en: 'Undo step',
+      th: 'เลิกทำขั้นตอน',
+    },
+    strokeThickness: {
+      ar: 'سمك الخط',
+      en: 'Line Thickness',
+      th: 'ความหนาของเส้น',
+    },
+    penAngle: {
+      ar: 'زاوية ميل القلم',
+      en: 'Pen Angle',
+      th: 'มุมพู่กัน',
+    },
+    penSizeLockedMsg: {
+      ar: '* تم قفل السمك ({size}px) لتناسب هذا النموذج.',
+      en: '* Thickness locked ({size}px) to fit this model.',
+      th: '* ล็อกความหนาไว้ที่ ({size}px) เพื่อความเหมาะสม',
+    },
+    challengeDesc: {
+      ar: 'تحدي تكرار رسم النموذج لـ {reps} مرات متتالية بنسبة دقة لا تقل عن {pct}%.',
+      en: 'Repeat drawing model challenge for {reps} consecutive times with at least {pct}% accuracy.',
+      th: 'ท้าทายวาดซ้ำ {reps} ครั้งติดต่อกัน ด้วยความแม่นยำไม่ต่ำกว่า {pct}%',
+    },
+    stepByStepDesc: {
+      ar: 'محاكاة رسم النموذج خطوة بخطوة بطريقة صحيحة ومتقنة.',
+      en: 'Simulate drawing the model step by step accurately and properly.',
+      th: 'จำลองการวาดทีละขั้นตอนอย่างถูกต้องและประณีต',
+    },
+    startChallengeBtn: {
+      ar: 'ابدأ التحدي! 🏆',
+      en: 'Start Challenge! 🏆',
+      th: 'เริ่มคำท้าทาย! 🏆',
+    },
+    startExerciseBtn: {
+      ar: 'ابدأ التمرين ✍️',
+      en: 'Start Exercise ✍️',
+      th: 'เริ่มแบบฝึกหัด ✍️',
+    },
+    backToLessons: {
+      ar: 'العودة للدروس 📂',
+      en: 'Back to Lessons 📂',
+      th: 'กลับสู่รายการบทเรียน 📂',
+    },
+    checkPerformanceBtn: {
+      ar: 'تحقق الأداء ومطابقة الخط',
+      en: 'Check Calligraphy & Matching Performance',
+      th: 'ตรวจสอบประสิทธิภาพและการเทียบเคียง',
+    },
+    savingText: {
+      ar: 'جاري الحفظ...',
+      en: 'Saving...',
+      th: 'กำลังบันทึก...',
+    },
+    greatJobHero: {
+      ar: 'عمل رائع يا بطل! 🎉',
+      en: 'Great job, hero! 🎉',
+      th: 'เก่งมาก! 🎉',
+    },
+    needMoreAccuracy: {
+      ar: 'تحتاج إلى دقة أكثر! 💪',
+      en: 'Needs more accuracy! 💪',
+      th: 'ต้องการความแม่นยำเพิ่มขึ้น! 💪',
+    },
+    accuracyAchieved: {
+      ar: 'حققت دقة مطابقة بنسبة:',
+      en: 'Achieved matching accuracy of:',
+      th: 'ทำความแม่นยำได้:',
+    },
+    requiredAccuracyInfo: {
+      ar: 'النسبة المطلوبة للنجاح هي {pct}%',
+      en: 'Required percentage for success is {pct}%',
+      th: 'เกณฑ์คะแนนที่ต้องการคือ {pct}%',
+    },
+    noRedrawAllowedTeacher: {
+      ar: '⚠️ خيار إعادة محاولة الرسم غير متاح في هذا التمرين بطلب من المعلم. يجب عليك حفظ النتيجة والاستمرار.',
+      en: '⚠️ Redraw option is not available in this exercise by teacher\'s request. You must save score and continue.',
+      th: '⚠️ ไม่อนุญาตให้ลองใหม่ตามคำสั่งของผู้สอน คุณต้องบันทึกคะแนนและดำเนินการต่อ',
+    },
+    maxCancelsReachedWarning: {
+      ar: '⚠️ لقد استنفدت الحد الأقصى لمحاولات إلغاء الرسم المسموح بها! يجب عليك الاستمرار بالنتيجة الحالية ومتابعة الأداء.',
+      en: '⚠️ You have reached the maximum allowed drawing cancel attempts! You must proceed with current result.',
+      th: '⚠️ คุณใช้โควตายกเลิกเต็มจำนวนแล้ว คุณต้องดำเนินการต่อด้วยผลลัพธ์ปัจจุบัน',
+    },
+    closeAndRetryBtn: {
+      ar: 'إغلاق والمحاولة مجدداً',
+      en: 'Close & Retry',
+      th: 'ปิดและลองใหม่',
+    },
+    confirmAndContinue: {
+      ar: 'موافق والاستمرار 🌟',
+      en: 'Confirm & Continue 🌟',
+      th: 'ตกลงและดำเนินการต่อ 🌟',
+    },
+    saveAndContinue: {
+      ar: 'حفظ النتيجة والاستمرار ⚠️',
+      en: 'Save Result & Continue ⚠️',
+      th: 'บันทึกและดำเนินการต่อ ⚠️',
+    },
+    okBtn: {
+      ar: 'موافق 👍',
+      en: 'OK 👍',
+      th: 'ตกลง 👍',
+    },
+    savingFullTitle: {
+      ar: 'جاري حفظ خطك الجميل... ✍️✨',
+      en: 'Saving your beautiful handwriting... ✍️✨',
+      th: 'กำลังบันทึกตัวลายมือที่สวยงามของคุณ... ✍️✨',
+    },
+    savingFullDesc: {
+      ar: 'يرجى الانتظار بضع ثوانٍ يا بطل، نقوم الآن بتسجيل أدائك المميز وحفظه في لوحة الإنجازات الخاصة بك.',
+      en: 'Please wait a few seconds hero, we are recording your performance into your achievements dashboard.',
+      th: 'โปรดรอสักครู่ เรากำลังบันทึกผลงานของคุณลงในกระดานความสำเร็จ',
+    },
+    doNotTouchScreen: {
+      ar: '⚠️ يرجى عدم لمس الشاشة أو الخروج من الصفحة حتى يكتمل الحفظ!',
+      en: '⚠️ Please do not touch the screen or leave the page until saving completes!',
+      th: '⚠️ โปรดอย่าแตะหน้าจอหรือออกจากหน้านี้จนกว่าจะบันทึกเสร็จสิ้น!',
+    },
+    connectingServerSavingImage: {
+      ar: 'جاري الاتصال بالسيرفر وحفظ الصورة...',
+      en: 'Connecting to server and saving image...',
+      th: 'กำลังเชื่อมต่อเซิร์ฟเวอร์และบันทึกรูปภาพ...',
+    },
     noCalligraphyExercises: {
       ar: 'لا توجد تمارين محاكاة خط مخصصة حالياً',
       en: 'No custom calligraphy exercises available currently',
@@ -805,6 +1160,421 @@ export const defaultTranslations: TranslationDictionary = {
       ar: 'مكتمل ✅',
       en: 'Completed ✅',
       th: 'เสร็จสมบูรณ์ ✅',
+    },
+    ofWord: {
+      ar: 'من',
+      en: 'of',
+      th: 'จาก',
+    },
+    xOfY: {
+      ar: '{answered} من {total}',
+      en: '{answered} of {total}',
+      th: '{answered} จาก {total}',
+    },
+    backToLessonsList: {
+      ar: 'العودة لقائمة الدروس 📂',
+      en: 'Back to Lessons List 📂',
+      th: 'กลับสู่รายการบทเรียน 📂',
+    },
+    loadingImage: {
+      ar: 'جاري تحميل الصورة...',
+      en: 'Loading image...',
+      th: 'กำลังโหลดรูปภาพ...',
+    },
+    failedToLoadImage: {
+      ar: '⚠️ تعذر تحميل الصورة',
+      en: '⚠️ Failed to load image',
+      th: '⚠️ ไม่สามารถโหลดรูปภาพได้',
+    },
+    failedToLoadWordLessons: {
+      ar: 'تعذر تحميل دروس تركيب الكلمات.',
+      en: 'Failed to load word ordering lessons.',
+      th: 'ไม่สามารถโหลดบทเรียนเรียงคำได้',
+    },
+    answeredAllQuestionsSuccess: {
+      ar: 'تم الإجابة على جميع الأسئلة بامتياز! 🎉',
+      en: 'All questions answered with excellence! 🎉',
+      th: 'ตอบคำถามครบทุกข้ออย่างยอดเยี่ยม! 🎉',
+    },
+    noActiveQuestionsInLesson: {
+      ar: 'لا توجد أسئلة نشطة في هذا الدرس حالياً.',
+      en: 'No active questions in this lesson currently.',
+      th: 'ไม่มีคำถามที่เปิดใช้งานในบทเรียนนี้ขณะนี้',
+    },
+    failedToFetchNewQuestion: {
+      ar: 'فشل جلب سؤال جديد.',
+      en: 'Failed to fetch new question.',
+      th: 'ดึงคำถามใหม่ไม่สำเร็จ',
+    },
+    arrangeAndFillFirst: {
+      ar: 'يرجى ترتيب الحروف وملء الفراغات أولاً يا بطل!',
+      en: 'Please arrange letters and fill gaps first, hero!',
+      th: 'โปรดเรียงตัวอักษรและเติมคำในช่องว่างก่อนนะฮีโร่!',
+    },
+    errorRecordingAnswer: {
+      ar: 'خطأ أثناء تسجيل الإجابة:',
+      en: 'Error recording answer:',
+      th: 'เกิดข้อผิดพลาดขณะบันทึกคำตอบ:',
+    },
+    lessonProgressResetSuccess: {
+      ar: 'تم تصفير تقدم الدرس بنجاح! 🔄',
+      en: 'Lesson progress reset successfully! 🔄',
+      th: 'รีเซ็ตความคืบหน้าของบทเรียนเรียบร้อยแล้ว! 🔄',
+    },
+    errorResettingProgress: {
+      ar: 'خطأ أثناء تصفير التقدم:',
+      en: 'Error resetting progress:',
+      th: 'เกิดข้อผิดพลาดขณะรีเซ็ตความคืบหน้า:',
+    },
+    loadingAudio: {
+      ar: 'جاري تحميل الصوت...',
+      en: 'Loading audio...',
+      th: 'กำลังโหลดเสียง...',
+    },
+    stopAudio: {
+      ar: '⏸️ إيقاف الصوت',
+      en: '⏸️ Stop Audio',
+      th: '⏸️ หยุดเสียง',
+    },
+    listenAudio: {
+      ar: 'استمع للمقطع الصوتي 🔊',
+      en: 'Listen to audio 🔊',
+      th: 'ฟังคลิปเสียง 🔊',
+    },
+    questionAttachmentAlt: {
+      ar: 'مرفق السؤال',
+      en: 'Question attachment',
+      th: 'ไฟล์แนบคำถาม',
+    },
+    wordAssembledCursive: {
+      ar: 'تم تجميع الكلمة بخط متصل ممتاز! 🏅',
+      en: 'Word assembled in excellent connected script! 🏅',
+      th: 'ประสมคำด้วยลายมืออาหรับได้อย่างยอดเยี่ยม! 🏅',
+    },
+    spaceLabel: {
+      ar: 'مسافة ␣',
+      en: 'Space ␣',
+      th: 'เว้นวรรค ␣',
+    },
+    chooseLettersInstruction: {
+      ar: 'اختر الحروف بترتيبها الصحيح لتجميع الكلمة:',
+      en: 'Select letters in correct order to form the word:',
+      th: 'เลือกตัวอักษรตามลำดับที่ถูกต้องเพื่อประสมคำ:',
+    },
+    greatAnswerGenius: {
+      ar: 'أحسنت الإجابة يا عبقري! يمكنك الانتقال للموديل التالي.',
+      en: 'Great answer genius! You can move to the next model.',
+      th: 'เก่งมากอัจฉริยะ! คุณสามารถไปยังโมเดลถัดไปได้',
+    },
+    unsuccessfulTry: {
+      ar: 'محاولة غير موفقة! حاول مرة أخرى بالضغط على زر تصفير.',
+      en: 'Unsuccessful attempt! Try again by clicking retry.',
+      th: 'พยายามใหม่นะ! ลองอีกครั้งโดยคลิกรีเซ็ต',
+    },
+    correctAnswerIs: {
+      ar: '* الإجابة الصحيحة هي:',
+      en: '* The correct answer is:',
+      th: '* คำตอบที่ถูกต้องคือ:',
+    },
+    orWord: {
+      ar: 'أو',
+      en: 'or',
+      th: 'หรือ',
+    },
+    arrangeLettersAndCheck: {
+      ar: 'رتب الحروف بالكامل ثم اضغط على زر تحقق لتسجيل الإجابة.',
+      en: 'Arrange all letters then press check to submit answer.',
+      th: 'เรียงตัวอักษรให้ครบแล้วกดปุ่มตรวจเพื่อบันทึกคำตอบ',
+    },
+    showCorrectAnswerBtn: {
+      ar: 'عرض الإجابة الصحيحة',
+      en: 'Show Correct Answer',
+      th: 'แสดงคำตอบที่ถูกต้อง',
+    },
+    newQuestionBtn: {
+      ar: 'سؤال جديد',
+      en: 'New Question',
+      th: 'คำถามใหม่',
+    },
+    checkMyAnswerBtn: {
+      ar: 'تحقق من إجابتي',
+      en: 'Check My Answer',
+      th: 'ตรวจคำตอบของฉัน',
+    },
+    resetLessonAndZero: {
+      ar: 'إعادة الدرس والتصفير',
+      en: 'Reset Lesson Progress',
+      th: 'รีเซ็ตและเริ่มบทเรียนใหม่',
+    },
+    noLessonsToShow: {
+      ar: 'لا توجد دروس لعرضها هنا حالياً.',
+      en: 'No lessons available to display here currently.',
+      th: 'ไม่มีบทเรียนที่จะแสดงที่นี่ในขณะนี้',
+    },
+    allLessonsCompletedNotice: {
+      ar: 'جميع الدروس في هذه القائمة مكتملة! يمكنك تفعيل خيار "إظهار الدروس المكتملة" لمراجعتها.',
+      en: 'All lessons in this list are completed! You can enable "Show completed lessons" to review them.',
+      th: 'บทเรียนทั้งหมดในรายการนี้เสร็จสมบูรณ์แล้ว! คุณสามารถเปิดใช้งานตัวเลือก "แสดงบทเรียนที่เสร็จสมบูรณ์" เพื่อทบทวนได้',
+    },
+    areYouSure: {
+      ar: 'هل أنت متأكد؟',
+      en: 'Are you sure?',
+      th: 'คุณแน่ใจหรือไม่?',
+    },
+    resetConfirmDesc: {
+      ar: 'هل ترغب في إعادة المحاولة وتصفير تقدمك في موضوع "{topic}"؟ سيتم مسح جميع الإجابات السابقة لهذا الدرس.',
+      en: 'Would you like to retry and reset your progress in topic "{topic}"? All previous answers for this lesson will be cleared.',
+      th: 'คุณต้องการรีเซ็ตความคืบหน้าในหัวข้อ "{topic}" หรือไม่? คำตอบก่อนหน้าทั้งหมดสำหรับบทเรียนนี้จะถูกลบออก',
+    },
+    resettingProgress: {
+      ar: 'جاري التصفير...',
+      en: 'Resetting...',
+      th: 'กำลังรีเซ็ต...',
+    },
+    yesResetBtn: {
+      ar: 'نعم، أعد التصفير 🔄',
+      en: 'Yes, Reset 🔄',
+      th: 'ใช่ รีเซ็ตเลย 🔄',
+    },
+    cancelEmojiBtn: {
+      ar: 'إلغاء ❌',
+      en: 'Cancel ❌',
+      th: 'ยกเลิก ❌',
+    },
+    sectionTwoWordComposition: {
+      ar: 'القسم الثاني: تركيب الكلمات',
+      en: 'Section Two: Word Composition',
+      th: 'ส่วนที่สอง: การประสมคำ',
+    },
+    backToLessonsBtn: {
+      ar: 'رجوع للدروس 📂',
+      en: 'Back to Lessons 📂',
+      th: 'กลับสู่บทเรียน 📂',
+    },
+    loadingNextQuestion: {
+      ar: 'جاري تحميل السؤال التالي...',
+      en: 'Loading next question...',
+      th: 'กำลังโหลดคำถามถัดไป...',
+    },
+    allQuestionsAnswered: {
+      ar: 'تم الإجابة على جميع الأسئلة! 🎉',
+      en: 'All questions answered! 🎉',
+      th: 'ตอบคำถามเรียบร้อยแล้วทุกข้อ! 🎉',
+    },
+    allQuestionsAnsweredDesc: {
+      ar: 'تم الإجابة على كل الأسئلة بنجاح، ويرجى انتظار تسجيل الإجابات والدرجات بدقة في قاعدة البيانات.',
+      en: 'All questions answered successfully. Please wait while grades are recorded into database.',
+      th: 'ตอบคำถามทุกข้อสำเร็จแล้ว โปรดรอการบันทึกคะแนนลงในฐานข้อมูล',
+    },
+    lessonCompletionStats: {
+      ar: 'إحصائيات إنجاز الدرس',
+      en: 'Lesson Completion Statistics',
+      th: 'สถิติความสำเร็จของบทเรียน',
+    },
+    totalQuestionsLabel: {
+      ar: 'إجمالي الأسئلة:',
+      en: 'Total Questions:',
+      th: 'คำถามทั้งหมด:',
+    },
+    completedQuestionsLabel: {
+      ar: 'الأسئلة المكتملة:',
+      en: 'Completed Questions:',
+      th: 'คำถามที่เสร็จแล้ว:',
+    },
+    answeredQuestionsLabel: {
+      ar: 'الأسئلة المجاب عليها:',
+      en: 'Answered Questions:',
+      th: 'คำถามที่ตอบแล้ว:',
+    },
+    importantNote: {
+      ar: 'ملاحظة هامة:',
+      en: 'Important Note:',
+      th: 'หมายเหตุสำคัญ:',
+    },
+    gasScriptNote: {
+      ar: 'لمشاهدة شريط تقدم الدرس وعدد الأسئلة والأسئلة المجاب عليها هنا، يرجى نسخ كود Google Apps Script الموحد من صفحة التهيئة (الربط) في لوحة التحكم وتحديثه في مشروع الـ Script الخاص بك وإعادة نشره كإصدار جديد.',
+      en: 'To see lesson progress bar and stats here, please copy the unified Google Apps Script code from integration setup page in dashboard and update your script project.',
+      th: 'หากต้องการดูแถบความก้าวหน้าและสถิติบทเรียน โปรดคัดลอกโค้ด Google Apps Script รวมจากหน้าตั้งค่าการเชื่อมต่อในแผงควบคุมและอัปเดตในโครงการสคริปต์ของคุณ',
+    },
+    zoomIn: {
+      ar: 'تكبير',
+      en: 'Zoom In',
+      th: 'ขยาย',
+    },
+    zoomOut: {
+      ar: 'تصغير',
+      en: 'Zoom Out',
+      th: 'ย่อ',
+    },
+    resetZoom: {
+      ar: 'إعادة تعيين 🔄',
+      en: 'Reset 🔄',
+      th: 'รีเซ็ต 🔄',
+    },
+    close: {
+      ar: 'إغلاق',
+      en: 'Close',
+      th: 'ปิด',
+    },
+    lightboxPreviewAlt: {
+      ar: 'معاينة الصورة مكبرة',
+      en: 'Enlarged image preview',
+      th: 'ตัวอย่างรูปภาพขยาย',
+    },
+    zoomControlsNotice: {
+      ar: 'يمكنك استخدام أدوات التحكم في الأعلى لتكبير وتصغير الصورة',
+      en: 'You can use controls above to zoom in and out of the image',
+      th: 'คุณสามารถใช้การควบคุมด้านบนเพื่อขยายและย่อรูปภาพได้',
+    },
+    failedToLoadMatchingLessons: {
+      ar: 'تعذر تحميل تمارين وصل الكلمات.',
+      en: 'Failed to load word matching exercises.',
+      th: 'ไม่สามารถโหลดแบบฝึกหัดจับคู่คำได้',
+    },
+    googleDriveAudioWarning1: {
+      ar: "تنبيه: تعذر تشغيل الملف الصوتي من Google Drive.\nيرجى التأكد من أن الملف الصوتي مشترك بصيغة 'أي شخص لديه الرابط' (Anyone with the link can view) في حساب Google Drive الخاص بك.",
+      en: "Warning: Unable to play audio from Google Drive.\nPlease make sure the audio file is shared as 'Anyone with the link can view' in your Google Drive.",
+      th: "คำเตือน: ไม่สามารถเล่นไฟล์เสียงจาก Google Drive ได้\nโปรดตรวจสอบว่าไฟล์เสียงแชร์แบบ 'ทุกคนที่มีลิงก์สามารถดูได้' ใน Google Drive ของคุณ",
+    },
+    googleDriveAudioWarning2: {
+      ar: "تنبيه: تعذر تحميل أو تشغيل الملف الصوتي من Google Drive.\nيرجى التأكد من أن الملف الصوتي مشترك بصيغة 'أي شخص لديه الرابط' (Anyone with the link can view) في حساب Google Drive الخاص بك وأن الرابط صحيح.",
+      en: "Warning: Unable to load or play audio from Google Drive.\nPlease make sure the audio file is shared as 'Anyone with the link can view' in your Google Drive and the link is correct.",
+      th: "คำเตือน: ไม่สามารถโหลดหรือเล่นไฟล์เสียงจาก Google Drive ได้\nโปรดตรวจสอบว่าไฟล์เสียงแชร์แบบ 'ทุกคนที่มีลิงก์สามารถดูได้' ใน Google Drive ของคุณและลิงก์ถูกต้อง",
+    },
+    matchingResultSummary: {
+      ar: 'الصحيح: {correct} و الخطأ: {errors}',
+      en: 'Correct: {correct} and Wrong: {errors}',
+      th: 'ถูกต้อง: {correct} และ ผิด: {errors}',
+    },
+    errorSavingResults: {
+      ar: 'خطأ في حفظ النتائج:',
+      en: 'Error saving results:',
+      th: 'เกิดข้อผิดพลาดในการบันทึกผลลัพธ์:',
+    },
+    errorResettingLesson: {
+      ar: 'خطأ في إعادة تهيئة الدرس:',
+      en: 'Error re-initializing lesson:',
+      th: 'เกิดข้อผิดพลาดในการเริ่มต้นบทเรียนใหม่:',
+    },
+    congratsFinishedMatchingExercise: {
+      ar: 'تهانينا! لقد أنهيت جميع تمارين التوصيل في هذا الدرس بنجاح 🎉',
+      en: 'Congratulations! You have completed all matching exercises in this lesson successfully 🎉',
+      th: 'ยินดีด้วย! คุณทำแบบฝึกหัดจับคู่ทั้งหมดในบทเรียนนี้สำเร็จแล้ว 🎉',
+    },
+    noMatchingTopicsActive: {
+      ar: 'لا توجد مواضيع توصيل مفعلة حالياً',
+      en: 'No matching topics currently active',
+      th: 'ไม่มีหัวข้อการจับคู่ที่เปิดใช้งานในขณะนี้',
+    },
+    fillMatchesSheetNotice: {
+      ar: 'تأكد من ملء ورقة (Matches) ببيانات التوصيل في ملف الإكسل الخاص بالمعلم.',
+      en: 'Make sure to fill the (Matches) sheet with matching data in the teacher\'s Excel file.',
+      th: 'โปรดตรวจสอบว่าได้กรอกแผ่นงาน (Matches) ด้วยข้อมูลการจับคู่ในไฟล์ Excel ของครูแล้ว',
+    },
+    completedExerciseNotice: {
+      ar: 'تم إكمال هذا التمرين بنجاح!',
+      en: 'This exercise has been completed successfully!',
+      th: 'แบบฝึกหัดนี้เสร็จสมบูรณ์แล้ว!',
+    },
+    attemptsUsed: {
+      ar: 'المحاولات المستخدمة: {used} من {max}',
+      en: 'Attempts used: {used} of {max}',
+      th: 'ความพยายามที่ใช้: {used} จาก {max}',
+    },
+    allMatchingCompletedNotice: {
+      ar: 'جميع التمارين المتاحة مكتملة حالياً! انقر على زر "إظهار الدروس المكتملة" لعرضها ومراجعتها.',
+      en: 'All available exercises are currently completed! Click "Show completed lessons" to view and review them.',
+      th: 'แบบฝึกหัดทั้งหมดที่ใช้ได้เสร็จสมบูรณ์แล้ว! คลิก "แสดงบทเรียนที่เสร็จสมบูรณ์" เพื่อดูและทบทวน',
+    },
+    matchWordExercise: {
+      ar: 'تمرين وصل الكلمة',
+      en: 'Word Matching Exercise',
+      th: 'แบบฝึกหัดจับคู่คำ',
+    },
+    matchingAndConnecting: {
+      ar: 'المطابقة والتوصيل',
+      en: 'Matching & Connecting',
+      th: 'การจับคู่และการเชื่อมโยง',
+    },
+    groupOneConnectInstruction: {
+      ar: 'المجموعة الأولى (انقر واسحب للتوصيل)',
+      en: 'Group 1 (Click & drag to connect)',
+      th: 'กลุ่มที่ 1 (คลิกและลากเพื่อเชื่อมต่อ)',
+    },
+    groupTwoTargetInstruction: {
+      ar: 'المجموعة الثانية (مستقبل الوصلة)',
+      en: 'Group 2 (Target node)',
+      th: 'กลุ่มที่ 2 (ปลายทางเชื่อมต่อ)',
+    },
+    loadingEllipsis: {
+      ar: 'تحميل...',
+      en: 'Loading...',
+      th: 'กำลังโหลด...',
+    },
+    stopAudioShort: {
+      ar: '⏸️ إيقاف',
+      en: '⏸️ Stop',
+      th: '⏸️ หยุด',
+    },
+    listenAudioShort: {
+      ar: '▶️ استمع',
+      en: '▶️ Listen',
+      th: '▶️ ฟัง',
+    },
+    audioVolumeLabel: {
+      ar: 'درجة الصوت:',
+      en: 'Volume:',
+      th: 'ระดับเสียง:',
+    },
+    attachmentAlt: {
+      ar: 'مرفق',
+      en: 'Attachment',
+      th: 'ไฟล์แนบ',
+    },
+    matchingResultLabel: {
+      ar: 'نتيجة التوصيل:',
+      en: 'Matching result:',
+      th: 'ผลลัพธ์การจับคู่:',
+    },
+    nextLockedNotice: {
+      ar: '🔒 الانتقال للسؤال التالي مغلق. يجب تكرار المحاولة والحصول على درجة كاملة (بدون أخطاء) للمتابعة.',
+      en: '🔒 Moving to next question is locked. You must retry and achieve a perfect score (zero errors) to proceed.',
+      th: '🔒 การไปยังคำถามถัดไปถูกล็อกไว้ คุณต้องลองใหม่และได้คะแนนเต็ม (ไม่มีข้อผิดพลาด) เพื่อดำเนินการต่อ',
+    },
+    connectInstructionPrompt: {
+      ar: '* اضغط على أي بطاقة في العمود الأيمن واسحب الخط نحو المطابقة الصحيحة في العمود الأيسر.',
+      en: '* Click any card in the right column and drag the line towards the correct match in the left column.',
+      th: '* คลิกการ์ดใดก็ได้ในคอลัมน์ขวาแล้วลากเส้นไปยังคำตอบที่ถูกต้องในคอลัมน์ซ้าย',
+    },
+    undoBtn: {
+      ar: 'تراجع',
+      en: 'Undo',
+      th: 'เลิกทำ',
+    },
+    checkMatchingBtn: {
+      ar: 'التحقق من التوصيل',
+      en: 'Verify Matching',
+      th: 'ตรวจการจับคู่',
+    },
+    exerciseXOfY: {
+      ar: 'تمرين {index} من {total}',
+      en: 'Exercise {index} of {total}',
+      th: 'แบบฝึกหัดที่ {index} จาก {total}',
+    },
+    nextBtn: {
+      ar: 'التالي',
+      en: 'Next',
+      th: 'ถัดไป',
+    },
+    exerciseHeaderPrefix: {
+      ar: 'تمرين:',
+      en: 'Exercise:',
+      th: 'แบบฝึกหัด:',
+    },
+    retryBtnText: {
+      ar: 'إعادة المحاولة',
+      en: 'Retry',
+      th: 'ลองใหม่อีกครั้ง',
     },
   },
 

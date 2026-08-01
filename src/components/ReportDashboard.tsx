@@ -88,34 +88,44 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
   const fetchAllReports = async () => {
     setLoading(true);
     try {
-      // Execute parallel calls to retrieve reports
-      const [aReport, vReport, cReport, wReport, waslReport, writReport] = await Promise.all([
-        callGasApi<ReminderData>('getStudentData', { studentId: student.id }),
-        callGasApi<TableData>('getStudentVideoData', { studentId: student.id }),
+      // Step 1: Fetch core student reminder and video data first
+      const [aReport, vReport] = await Promise.all([
+        callGasApi<ReminderData>('getStudentData', { studentId: student.id }).catch(() => null),
+        callGasApi<TableData>('getStudentVideoData', { studentId: student.id }).catch(() => null),
+      ]);
+
+      if (aReport) {
+        setAllAData(aReport);
+        if (aReport.success) {
+          if (aReport.todayLessons && aReport.todayLessons.length > 0) {
+            setSelectedLessonTopic(aReport.todayLessons[0].topic);
+          } else if (aReport.pendingLessons && aReport.pendingLessons.length > 0) {
+            setSelectedLessonTopic(aReport.pendingLessons[0].topic);
+          } else if (aReport.completedLessons && aReport.completedLessons.length > 0) {
+            setSelectedLessonTopic(aReport.completedLessons[0].topic);
+          }
+        }
+      }
+      if (vReport) {
+        setAllVData(vReport);
+      }
+
+      setLoading(false);
+
+      // Step 2: Fetch secondary exercise tables
+      const [cReport, wReport, waslReport, writReport] = await Promise.all([
         callGasApi<TableData>('getCorrectionData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
         callGasApi<TableData>('getWordsExerciseData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
         callGasApi<TableData>('getWaslExerciseData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
         callGasApi<TableData>('getWritingExerciseData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
       ]);
 
-      setAllAData(aReport);
-      if (aReport && aReport.success) {
-        if (aReport.todayLessons && aReport.todayLessons.length > 0) {
-          setSelectedLessonTopic(aReport.todayLessons[0].topic);
-        } else if (aReport.pendingLessons && aReport.pendingLessons.length > 0) {
-          setSelectedLessonTopic(aReport.pendingLessons[0].topic);
-        } else if (aReport.completedLessons && aReport.completedLessons.length > 0) {
-          setSelectedLessonTopic(aReport.completedLessons[0].topic);
-        }
-      }
-      setAllVData(vReport);
       setCorrectionData(cReport);
       setWordsData(wReport);
       setWaslData(waslReport);
       setWritingData(writReport);
     } catch (err) {
       console.error('Error fetching report tables:', err);
-    } finally {
       setLoading(false);
     }
   };
