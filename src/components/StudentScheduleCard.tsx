@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Save, Loader2, CheckCircle2, Sliders } from 'lucide-react';
+import { Calendar, Save, Loader2, CheckCircle2, Sliders, RotateCcw, Trash2 } from 'lucide-react';
 
 export interface StudentSchedule {
   studentId: string;
@@ -72,6 +72,15 @@ export default function StudentScheduleCard({ schedule, defaultSchedule, onSave,
   const handleLessonsChange = (val: number) => {
     if (val < 1) return;
     setLessonsPerWeek(val.toString());
+    setIsChanged(true);
+  };
+
+  const handleResetCurrentCard = () => {
+    setStartDate('');
+    setActiveDays('');
+    setLessonsPerWeek('3');
+    setDaysToKeep('');
+    setExpiryDate('');
     setIsChanged(true);
   };
 
@@ -281,30 +290,41 @@ export default function StudentScheduleCard({ schedule, defaultSchedule, onSave,
             <span>{isDefaultConfig ? 'الجدولة الخاصة لتمارين الكل (الكلمات/التوصيل/الرسم)' : 'تخصيص الامتحانات والدروس للطالب'}</span>
           </button>
         )}
-        <button
-          type="button"
-          disabled={isSaving || (!isChanged && startDate === schedule.startDate && activeDays === schedule.activeDays && lessonsPerWeek === schedule.lessonsPerWeek && daysToKeep === (schedule.daysToKeep || '') && expiryDate === (schedule.expiryDate || ''))}
-          onClick={handleSave}
-          className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-            isSaving
-              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : isChanged
-              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/10'
-              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-          }`}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>جاري الحفظ...</span>
-            </>
-          ) : (
-            <>
-              <Save className="w-3.5 h-3.5" />
-              <span>حفظ الإعدادات</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleResetCurrentCard}
+            className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 transition border border-rose-100"
+            title="تفريغ وإزالة كافة التواريخ والتخصيصات لهذه البطاقة"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>تفريغ التواريخ</span>
+          </button>
+          <button
+            type="button"
+            disabled={isSaving || (!isChanged && startDate === schedule.startDate && activeDays === schedule.activeDays && lessonsPerWeek === schedule.lessonsPerWeek && daysToKeep === (schedule.daysToKeep || '') && expiryDate === (schedule.expiryDate || ''))}
+            onClick={handleSave}
+            className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition ${
+              isSaving
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                : isChanged
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/10'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>جاري الحفظ...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>حفظ الإعدادات</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

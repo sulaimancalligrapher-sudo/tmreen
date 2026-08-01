@@ -10,6 +10,7 @@ import { ChevronRight, Undo, RotateCcw, Check, Sparkles, Clock, Layers, PenTool,
 import { motion } from 'motion/react';
 import ExerciseSwitcherModal from './ExerciseSwitcherModal';
 import { sound } from '../utils/soundHelper';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ExerciseDrawingProps {
   student: Student;
@@ -31,6 +32,7 @@ interface Stroke {
 }
 
 export default function ExerciseDrawing({ student, onBack, onSelectExercise }: ExerciseDrawingProps) {
+  const { t } = useLanguage();
   const [lessons, setLessons] = useState<DrawingLesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number>(-1);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
@@ -1138,7 +1140,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4" dir="rtl">
         <div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
-        <p className="text-slate-500 font-sans">جاري تحميل لوحة محاكاة الخط العربي...</p>
+        <p className="text-slate-500 font-sans">{t('exercises.loadingCalligraphyCanvas', 'جاري تحميل لوحة محاكاة الخط العربي...')}</p>
       </div>
     );
   }
@@ -1147,15 +1149,15 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
     return (
       <div className="bg-white p-12 text-center rounded-3xl border border-slate-100 max-w-xl mx-auto space-y-4" dir="rtl">
         <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto" />
-        <h2 className="text-xl font-bold text-slate-900">لا توجد تمارين محاكاة خط مخصصة حالياً</h2>
+        <h2 className="text-xl font-bold text-slate-900">{t('exercises.noCalligraphyExercises', 'لا توجد تمارين محاكاة خط مخصصة حالياً')}</h2>
         <p className="text-slate-500 text-sm">
-          تأكد من إدراج نماذج خط وتفعيل التمارين في جدول البيانات (Questions-R) الخاص بالمعلم.
+          {t('exercises.noCalligraphyExercisesDesc', 'تأكد من إدراج نماذج خط وتفعيل التمارين في جدول البيانات (Questions-R) الخاص بالمعلم.')}
         </p>
         <button
           onClick={onBack}
           className="bg-slate-950 text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800 transition mt-2"
         >
-          العودة للرئيسية
+          {t('exercises.backToHomeBtn', 'العودة للرئيسية 🏠')}
         </button>
       </div>
     );
@@ -1168,10 +1170,10 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
         {/* Dashboard Header */}
         <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6">
           <div className="space-y-1.5">
-            <span className="text-xs text-emerald-600 font-bold block">القسم الأول: محاكاة ورسم الخط</span>
-            <h1 className="text-2xl font-black text-slate-900 font-sans">تمرين الرسم ومحاكاة الخط العربي ✍️</h1>
+            <span className="text-xs text-emerald-600 font-bold block">{t('exercises.drawingSectionTitle', 'القسم الأول: محاكاة ورسم الخط')}</span>
+            <h1 className="text-2xl font-black text-slate-900 font-sans">{t('exercises.drawingHeaderTitle', 'تمرين الرسم ومحاكاة الخط العربي ✍️')}</h1>
             <p className="text-slate-500 text-sm">
-              لوحة رسم تفاعلية لقياس دقة كتابة الحروف والكلمات العربية مع تصحيح وتحليل ذكي مباشر للخط.
+              {t('exercises.drawingHeaderDesc', 'لوحة رسم تفاعلية لقياس دقة كتابة الحروف والكلمات العربية مع تصحيح وتحليل ذكي مباشر للخط.')}
             </p>
           </div>
 
@@ -1182,14 +1184,14 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-3 rounded-2xl text-sm transition flex items-center gap-2 shadow-sm"
               >
                 <Gamepad2 className="w-4.5 h-4.5 text-amber-500" />
-                تبديل التمرين 🎮
+                {t('exercises.switchExerciseBtn', 'تبديل التمرين 🎮')}
               </button>
             )}
             <button
               onClick={onBack}
               className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-2xl text-sm transition flex items-center gap-2 shadow-sm"
             >
-              العودة للرئيسية 🏠
+              {t('exercises.backToHomeBtn', 'العودة للرئيسية 🏠')}
             </button>
           </div>
         </div>
@@ -1199,9 +1201,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
           {/* Toggle Switch for Completed Lessons */}
           <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
             <div>
-              <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس الخط</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('exercises.filterDrawingLessonsTitle', 'تصفية قائمة دروس الخط')}</h4>
               <p className="text-[11px] text-slate-500">
-                يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+                {t('exercises.filterLessonsDesc', 'يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.')}
               </p>
             </div>
             <button
@@ -1216,7 +1218,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                   : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
               }`}
             >
-              {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍عون' : 'إظهار الدروس المكتملة 👁️'}
+              {showCompleted ? t('exercises.hideCompletedLessons', 'إخفاء الدروس المكتملة 👁️‍🗨️') : t('exercises.showCompletedLessons', 'إظهار الدروس المكتملة 👁️')}
             </button>
           </div>
 
@@ -1246,7 +1248,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                           </h3>
                           {lesson.isCompleted && (
                             <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1 shrink-0">
-                              مكتمل ✅
+                              {t('exercises.completedBadge', 'مكتمل ✅')}
                             </span>
                           )}
                         </div>
@@ -1295,9 +1297,9 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
                               <span>جاري التهيئة...</span>
                             </>
                           ) : lesson.isCompleted ? (
-                            !isResetAllowed ? 'مكتمل ومغلق 🔒' : 'مراجعة وإعادة الرسم 🔄'
+                            !isResetAllowed ? t('exercises.completedAndLocked', 'مكتمل ومغلق 🔒') : t('exercises.reviewAndRedraw', 'مراجعة وإعادة الرسم 🔄')
                           ) : (
-                            'بدء الدرس والتدريب ✍️'
+                            t('exercises.startLessonBtn', 'بدء الدرس والتدريب ✍️')
                           )}
                           {!isResettingThis && <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />}
                         </button>

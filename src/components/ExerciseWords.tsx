@@ -9,6 +9,7 @@ import { Student, OrderingLessonTopic, OrderingQuestion, ExerciseType } from '..
 import { ArrowRight, RotateCcw, Check, Sparkles, AlertCircle, Volume2, Image as ImageIcon, CheckCircle, HelpCircle, Gamepad2, BookOpen, Compass, X, ZoomIn, ZoomOut, XCircle, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import ExerciseSwitcherModal from './ExerciseSwitcherModal';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ExerciseWordsProps {
   student: Student;
@@ -173,6 +174,7 @@ class SoundEffects {
 }
 
 export default function ExerciseWords({ student, onBack, onSelectExercise }: ExerciseWordsProps) {
+  const { t } = useLanguage();
   const [topics, setTopics] = useState<OrderingLessonTopic[]>([]);
   const [activeTopicRow, setActiveTopicRow] = useState<number | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<OrderingQuestion | null>(null);
@@ -643,10 +645,10 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
         <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-xl space-y-6">
           <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div className="space-y-1">
-              <span className="text-xs text-amber-600 font-bold block">القسم الثاني: تركيب الكلمات والجمل</span>
-              <h1 className="text-2xl font-black text-slate-900 font-sans">تمرين ترتيب الحروف والكلمات 🔤</h1>
+              <span className="text-xs text-amber-600 font-bold block">{t('exercises.wordsSectionTitle', 'القسم الثاني: تركيب الكلمات والجمل')}</span>
+              <h1 className="text-2xl font-black text-slate-900 font-sans">{t('exercises.wordsHeaderTitle', 'تمرين ترتيب الحروف والكلمات 🔤')}</h1>
               <p className="text-slate-500 text-xs">
-                اختر درساً مناسباً من القائمة أدناه للبدء بحل تمارين تجميع الحروف، ترتيب الجمل والتركيب اللغوي الممتع.
+                {t('exercises.wordsHeaderDesc', 'اختر درساً مناسباً من القائمة أدناه للبدء بحل تمارين تجميع الحروف، ترتيب الجمل والتركيب اللغوي الممتع.')}
               </p>
             </div>
 
@@ -657,14 +659,14 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                   className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
                 >
                   <Gamepad2 className="w-4 h-4 text-amber-500" />
-                  تبديل التمرين 🎮
+                  {t('exercises.switchExerciseBtn', 'تبديل التمرين 🎮')}
                 </button>
               )}
               <button
                 onClick={onBack}
                 className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm"
               >
-                الرئيسية 🏠
+                {t('exercises.backToHomeBtn', 'الرئيسية 🏠')}
               </button>
             </div>
           </div>
@@ -672,16 +674,16 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
-              <span className="text-sm text-slate-500">جاري تحميل المواضيع والدروس...</span>
+              <span className="text-sm text-slate-500">{t('exercises.loadingTopicsAndLessons', 'جاري تحميل المواضيع والدروس...')}</span>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Toggle Switch for Completed Lessons */}
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
                 <div>
-                  <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس ترتيب الكلمات</h4>
+                  <h4 className="font-bold text-slate-800 text-sm">{t('exercises.filterWordsLessonsTitle', 'تصفية قائمة دروس ترتيب الكلمات')}</h4>
                   <p className="text-[11px] text-slate-500">
-                    يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+                    {t('exercises.filterLessonsDesc', 'يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.')}
                   </p>
                 </div>
                 <button
@@ -696,7 +698,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                       : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
                   }`}
                 >
-                  {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍🗨️' : 'إظهار الدروس المكتملة 👁️'}
+                  {showCompleted ? t('exercises.hideCompletedLessons', 'إخفاء الدروس المكتملة 👁️‍🗨️') : t('exercises.showCompletedLessons', 'إظهار الدروس المكتملة 👁️')}
                 </button>
               </div>
 
@@ -728,7 +730,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                             <div className="flex items-center gap-2">
                               <span className="text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1">
                                 <CheckCircle className="w-3.5 h-3.5" />
-                                مكتمل
+                                {t('exercises.completedBadge', 'مكتمل ✅')}
                               </span>
                               {topic.allowReset && (
                                 <button
@@ -745,7 +747,7 @@ export default function ExerciseWords({ student, onBack, onSelectExercise }: Exe
                               onClick={() => handleSelectTopic(topic.row)}
                               className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm"
                             >
-                              فتح الدرس
+                              {t('exercises.openLessonBtn', 'فتح الدرس')}
                               <ArrowRight className="w-4 h-4 shrink-0 rotate-180" />
                             </button>
                           )}

@@ -8,6 +8,7 @@ import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
 import { Student } from '../types';
 import StudentScheduleCard, { StudentSchedule } from './StudentScheduleCard';
 import ReportDashboard from './ReportDashboard';
+import AdminTranslationManager from './AdminTranslationManager';
 import {
   Database,
   Plus,
@@ -45,7 +46,8 @@ import {
   Sparkles,
   CheckSquare,
   XCircle,
-  Search
+  Search,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -95,7 +97,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [lessonsError, setLessonsError] = useState('');
 
   // Editing state
-  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'home_content' | 'students' | 'reports'>('words');
+  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'home_content' | 'students' | 'reports' | 'translations'>('words');
   const [isEditing, setIsEditing] = useState(false);
   const [editingLessonType, setEditingLessonType] = useState<'words' | 'matching' | 'drawing'>('words');
   const [originalLessonName, setOriginalLessonName] = useState('');
@@ -161,6 +163,8 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [showDefaultInstructions, setShowDefaultInstructions] = useState(false);
   const [showDefaultSettingsModal, setShowDefaultSettingsModal] = useState(false);
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<StudentSchedule | null>(null);
+  const [resettingAllSchedules, setResettingAllSchedules] = useState(false);
+  const [showResetAllConfirmModal, setShowResetAllConfirmModal] = useState(false);
 
   // Words Form State (Questions)
   const [wordsName, setWordsName] = useState('');
@@ -729,6 +733,36 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       alert(`خطأ في حفظ البيانات: ${err.message}`);
     } finally {
       setSavingStudentId(null);
+    }
+  };
+
+  const handleResetAllSchedules = async () => {
+    try {
+      setResettingAllSchedules(true);
+      setShowResetAllConfirmModal(false);
+
+      let successCount = 0;
+      for (const student of studentSchedules) {
+        const response = await callGasApi<any>('updateStudentSchedule', {
+          studentId: student.studentId,
+          startDate: '',
+          activeDays: '',
+          lessonsPerWeek: '3',
+          daysToKeep: '',
+          expiryDate: '',
+          examOverrides: ''
+        });
+        if (response && response.success) {
+          successCount++;
+        }
+      }
+
+      await fetchStudentSchedules();
+      alert(`تمت إعادة ضبط وإزالة كافة التواريخ والتخصيصات لـ (${successCount}) سجل بنجاح! 🗑️✨`);
+    } catch (err: any) {
+      alert(`حدث خطأ أثناء مسح وإعادة ضبط التواريخ: ${err.message}`);
+    } finally {
+      setResettingAllSchedules(false);
     }
   };
 
@@ -2495,6 +2529,20 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
         >
           تقارير وتقييم
         </button>
+        <button
+          onClick={() => setActiveTab('translations')}
+          className={`pb-4 px-4 border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === 'translations'
+              ? 'border-indigo-600 text-indigo-950 font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Globe className="w-4 h-4 text-indigo-600" />
+          <span>إدارة اللغات والنصوص (i18n)</span>
+          <span className="bg-indigo-100 text-indigo-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+            🇸🇦 🇬🇧 🇹🇭
+          </span>
+        </button>
       </div>
 
       {/* Tabs content rendering */}
@@ -2976,6 +3024,22 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                         <Sliders className="w-4 h-4" />
                         تعديل الإعدادات العامة للكل
                       </button>
+
+                      {/* Button 3: Master Reset All Schedules Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => setShowResetAllConfirmModal(true)}
+                        disabled={resettingAllSchedules}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl transition border border-rose-200 font-bold text-xs shadow-xs"
+                        title="إعادة ضبط ومسح كافة تواريخ وتخصيصات الجدولة لجميع الطلاب والافتراضي"
+                      >
+                        {resettingAllSchedules ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4 text-rose-600" />
+                        )}
+                        <span>إعادة ضبط وإزالة كافة التواريخ والتخصيصات 🗑️</span>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -3226,6 +3290,13 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Active Tab: Translations Manager (i18n) */}
+      {activeTab === 'translations' && (
+        <div className="animate-fade-in pt-2">
+          <AdminTranslationManager />
         </div>
       )}
 
@@ -4277,6 +4348,74 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-rose-600/20"
                 >
                   حذف الآن
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Master Reset All Schedules Confirmation Modal */}
+      <AnimatePresence>
+        {showResetAllConfirmModal && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" dir="rtl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 text-right space-y-5"
+            >
+              <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                <RotateCcw className="w-7 h-7 text-rose-600" />
+              </div>
+
+              <div className="text-center space-y-2">
+                <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                  إعادة ضبط وإزالة كافة التواريخ والتخصيصات 🗑️
+                </h3>
+                <p className="text-slate-500 text-xs leading-relaxed">
+                  هل أنت أصلًا متأكد من مسح وإعادة ضبط جميع تواريخ الجدولة المخصصة والعامة لكافة الطلاب والبطاقة الافتراضية؟
+                </p>
+              </div>
+
+              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-right space-y-2 text-xs text-rose-900">
+                <div className="font-bold flex items-center gap-1.5">
+                  <span>⚠️ توضيح هام ودقيق جداً:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1.5 text-[11px] text-rose-800 font-semibold">
+                  <li>سيتم إزالة كافة مواعيد بدء وإخفاء الدراسة لجميع الطلاب والبطاقة العامة.</li>
+                  <li>سيتم تفريغ كافة استثناءات وتخصيصات الامتحانات الفردية (examOverrides).</li>
+                  <li>يعود النظام لفتح كافة الدروس والتمارين كأنه لم تتم إضافة أي تواريخ.</li>
+                  <li><strong>ضمان الدقة:</strong> هذا الإجراء لن يؤثر بتاتاً على أسئلة الدروس، أو تقييمات ودرجات الطلاب، أو باقي البيانات.</li>
+                </ul>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleResetAllSchedules}
+                  disabled={resettingAllSchedules}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-rose-600/20 transition flex items-center justify-center gap-2"
+                >
+                  {resettingAllSchedules ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>جاري المسح...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>تأكيد ومسح كافة التواريخ الآن</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowResetAllConfirmModal(false)}
+                  disabled={resettingAllSchedules}
+                  className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-2xl transition"
+                >
+                  إلغاء
                 </button>
               </div>
             </motion.div>

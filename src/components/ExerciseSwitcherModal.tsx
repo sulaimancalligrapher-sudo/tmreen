@@ -7,6 +7,7 @@ import React from 'react';
 import { X, Gamepad2, MoveLeft, Sparkles, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExerciseType } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ExerciseSwitcherModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export default function ExerciseSwitcherModal({
   onSelectExercise,
   currentExercise,
 }: ExerciseSwitcherModalProps) {
+  const { t } = useLanguage();
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -43,10 +46,10 @@ export default function ExerciseSwitcherModal({
               <div className="text-right space-y-1">
                 <h3 className="text-xl font-black text-slate-900 font-sans flex items-center gap-2">
                   <Gamepad2 className="w-6 h-6 text-amber-500 fill-amber-500" />
-                  بوابة التمارين اللغوية والألعاب التفاعلية 🎮
+                  {t('exercises.interactiveExercisesPortal', 'بوابة التمارين اللغوية والألعاب التفاعلية 🎮')}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  اختر نوع التمرين أو اللعبة التفاعلية المناسبة وابدأ في تحدي نفسك للحصول على العلامة الكاملة.
+                  {t('exercises.interactiveExercisesPortalDesc', 'اختر نوع التمرين أو اللعبة التفاعلية المناسبة وابدأ في تحدي نفسك للحصول على العلامة الكاملة.')}
                 </p>
               </div>
               <button
@@ -82,18 +85,18 @@ export default function ExerciseSwitcherModal({
                   </div>
                   <div className="space-y-1">
                     <h4 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-                      تمرين محاكاة ورسم الخط
+                      {t('exercises.drawingExerciseTitle', 'تمرين محاكاة ورسم الخط')}
                       {currentExercise === ExerciseType.DRAWING && (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold">الحالي</span>
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold">{t('exercises.currentExerciseBadge', 'الحالي')}</span>
                       )}
                     </h4>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      لوحة رسم ذكية لمطابقة دقة يدك في كتابة الخطوط العربية المحددة واستخراج الدرجات والمكافآت الفورية.
+                      {t('exercises.drawingExerciseCardDesc', 'لوحة رسم ذكية لمطابقة دقة يدك في كتابة الخطوط العربية المحددة واستخراج الدرجات والمكافآت الفورية.')}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-emerald-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                  <span>{currentExercise === ExerciseType.DRAWING ? 'أنت في هذا التمرين حالياً' : 'افتح تمرين رسم الخط'}</span>
+                  <span>{currentExercise === ExerciseType.DRAWING ? t('exercises.youAreInThisExercise', 'أنت في هذا التمرين حالياً') : t('exercises.openDrawingExercise', 'افتح تمرين رسم الخط')}</span>
                   <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 </div>
               </motion.div>
@@ -119,18 +122,18 @@ export default function ExerciseSwitcherModal({
                   </div>
                   <div className="space-y-1">
                     <h4 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-                      ترتيب الحروف وملء الفراغات
+                      {t('exercises.wordsExerciseTitle', 'ترتيب الحروف وملء الفراغات')}
                       {currentExercise === ExerciseType.WORDS && (
-                        <span className="bg-sky-100 text-sky-800 text-[10px] px-2 py-0.5 rounded-md font-bold">الحالي</span>
+                        <span className="bg-sky-100 text-sky-800 text-[10px] px-2 py-0.5 rounded-md font-bold">{t('exercises.currentExerciseBadge', 'الحالي')}</span>
                       )}
                     </h4>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      اجمع الحروف لتكوين الكلمات، رتب الجمل اللغوية المبعثرة، واحلل المسابقات التفاعلية الممتعة.
+                      {t('exercises.wordsExerciseCardDesc', 'اجمع الحروف لتكوين الكلمات، رتب الجمل اللغوية المبعثرة، واحلل المسابقات التفاعلية الممتعة.')}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sky-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                  <span>{currentExercise === ExerciseType.WORDS ? 'أنت في هذا التمرين حالياً' : 'افتح تمارين الكلمات'}</span>
+                  <span>{currentExercise === ExerciseType.WORDS ? t('exercises.youAreInThisExercise', 'أنت في هذا التمرين حالياً') : t('exercises.openWordsExercise', 'افتح تمارين الكلمات')}</span>
                   <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 </div>
               </motion.div>
@@ -156,18 +159,18 @@ export default function ExerciseSwitcherModal({
                   </div>
                   <div className="space-y-1">
                     <h4 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-                      تمرين التوصيل والمطابقة
+                      {t('exercises.matchingExerciseTitle', 'تمرين التوصيل والمطابقة')}
                       {currentExercise === ExerciseType.MATCHING && (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-md font-bold">الحالي</span>
+                        <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-md font-bold">{t('exercises.currentExerciseBadge', 'الحالي')}</span>
                       )}
                     </h4>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      ارسم خطوط تواصل تفاعلية جميلة ومطابقة الكلمات اللغوية بنظيرتها الصوتية المسجلة أو الصورة المناسبة.
+                      {t('exercises.matchingExerciseCardDesc', 'ارسم خطوط تواصل تفاعلية جميلة ومطابقة الكلمات اللغوية بنظيرتها الصوتية المسجلة أو الصورة المناسبة.')}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-amber-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                  <span>{currentExercise === ExerciseType.MATCHING ? 'أنت في هذا التمرين حالياً' : 'افتح تمرين التوصيل'}</span>
+                  <span>{currentExercise === ExerciseType.MATCHING ? t('exercises.youAreInThisExercise', 'أنت في هذا التمرين حالياً') : t('exercises.openMatchingExercise', 'افتح تمرين التوصيل')}</span>
                   <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 </div>
               </motion.div>

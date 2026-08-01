@@ -9,6 +9,7 @@ import { Student, MatchLesson, MatchQuestion, ExerciseType, LeftItem, ShuffledRi
 import { ChevronRight, CheckCircle, Volume2, RotateCcw, Check, Sparkles, AlertTriangle, ArrowRight, Compass, BookOpen, Gamepad2, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import ExerciseSwitcherModal from './ExerciseSwitcherModal';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ExerciseMatchingProps {
   student: Student;
@@ -213,6 +214,7 @@ function getParsedCorrectMatches(q: MatchQuestion | null): Record<string, string
 }
 
 export default function ExerciseMatching({ student, onBack, onSelectExercise }: ExerciseMatchingProps) {
+  const { t } = useLanguage();
   const [lessons, setLessons] = useState<MatchLesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number>(-1);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
@@ -963,7 +965,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4" dir="rtl">
         <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-600 rounded-full animate-spin" />
-        <p className="text-slate-500 font-sans">جاري تحميل تمرين التوصيل والمطابقة...</p>
+        <p className="text-slate-500 font-sans">{t('exercises.loadingMatchingExercise', 'جاري تحميل تمرين التوصيل والمطابقة...')}</p>
       </div>
     );
   }
@@ -980,7 +982,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           onClick={onBack}
           className="bg-slate-950 text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800 transition mt-2"
         >
-          العودة للرئيسية
+          {t('exercises.backToHomeBtn', 'العودة للرئيسية 🏠')}
         </button>
       </div>
     );
@@ -993,10 +995,10 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
         {/* Dashboard Header */}
         <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6">
           <div className="space-y-1.5">
-            <span className="text-xs text-amber-600 font-bold block">القسم الثالث: المطابقة والتوصيل</span>
-            <h1 className="text-2xl font-black text-slate-900 font-sans">تمارين التوصيل والمطابقة الذكية 🔗</h1>
+            <span className="text-xs text-amber-600 font-bold block">{t('exercises.matchingSectionTitle', 'القسم الثالث: المطابقة والتوصيل')}</span>
+            <h1 className="text-2xl font-black text-slate-900 font-sans">{t('exercises.matchingHeaderTitle', 'تمارين التوصيل والمطابقة الذكية 🔗')}</h1>
             <p className="text-slate-500 text-sm">
-              اختر أحد الدروس المخصصة أدناه للبدء بتمرين التوصيل اللغوي الذكي ومطابقة العناصر بالصوت والصورة.
+              {t('exercises.matchingHeaderDesc', 'اختر أحد الدروس المخصصة أدناه للبدء بتمرين التوصيل اللغوي الذكي ومطابقة العناصر بالصوت والصورة.')}
             </p>
           </div>
 
@@ -1007,14 +1009,14 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-3 rounded-2xl text-sm transition flex items-center gap-2 shadow-sm"
               >
                 <Gamepad2 className="w-4.5 h-4.5 text-amber-500" />
-                تبديل التمرين 🎮
+                {t('exercises.switchExerciseBtn', 'تبديل التمرين 🎮')}
               </button>
             )}
             <button
               onClick={onBack}
               className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-2xl text-sm transition flex items-center gap-2 shadow-sm"
             >
-              العودة للرئيسية 🏠
+              {t('exercises.backToHomeBtn', 'العودة للرئيسية 🏠')}
             </button>
           </div>
         </div>
@@ -1022,9 +1024,9 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
         {/* Toggle Switch for Completed Lessons */}
         <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-3 text-right">
           <div>
-            <h4 className="font-bold text-slate-800 text-sm">تصفية قائمة دروس التوصيل</h4>
+            <h4 className="font-bold text-slate-800 text-sm">{t('exercises.filterMatchingLessonsTitle', 'تصفية قائمة دروس التوصيل')}</h4>
             <p className="text-[11px] text-slate-500">
-              يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.
+              {t('exercises.filterLessonsDesc', 'يمكنك إخفاء الدروس التي أتممتها بالكامل للتركيز على الدروس الجديدة، أو إظهارها لمراجعتها وإعادة التدرب.')}
             </p>
           </div>
           <button
@@ -1039,7 +1041,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                 : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
             }`}
           >
-            {showCompleted ? 'إخفاء الدروس المكتملة 👁️‍🗨️' : 'إظهار الدروس المكتملة 👁️'}
+            {showCompleted ? t('exercises.hideCompletedLessons', 'إخفاء الدروس المكتملة 👁️‍🗨️') : t('exercises.showCompletedLessons', 'إظهار الدروس المكتملة 👁️')}
           </button>
         </div>
 
@@ -1098,9 +1100,9 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           {retryingLesson === lesson.lessonName ? (
                             <div className="w-4 h-4 border-2 border-amber-900/50 border-t-amber-900 rounded-full animate-spin" />
                           ) : (
-                            '🔄 إعادة المحاولة'
+                            t('exercises.retryBtn', '🔄 إعادة المحاولة')
                           )}
-                          <span className="text-[10px] opacity-75">({remainingRetries} متبقي)</span>
+                          <span className="text-[10px] opacity-75">({remainingRetries} {t('exercises.remaining', 'متبقي')})</span>
                         </button>
                       )}
 
@@ -1116,12 +1118,12 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           }}
                           className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm shrink-0"
                         >
-                          فتح الدرس
+                          {t('exercises.openLessonBtn', 'فتح الدرس')}
                           <ArrowRight className="w-4 h-4 rotate-180 shrink-0" />
                         </button>
                       ) : (
                         <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-100 flex items-center gap-1 shadow-2xs">
-                          مكتمل ✅
+                          {t('exercises.completedBadge', 'مكتمل ✅')}
                         </span>
                       )}
                     </div>

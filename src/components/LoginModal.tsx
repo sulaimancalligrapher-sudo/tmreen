@@ -3,11 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { callGasApi } from '../utils/api';
 import { Student } from '../types';
-import { User, Lock, Loader2, AlertCircle, Smartphone, ShieldAlert } from 'lucide-react';
+import { User, Lock, Loader2, AlertCircle, Smartphone, ShieldAlert, QrCode, Camera, Upload, X, CheckCircle2, Sparkles, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface LoginModalProps {
   onLoginSuccess: (student: Student) => void;
@@ -24,6 +27,7 @@ export default function LoginModal({
   onGoToStudentPage,
   onGoToAdminPage,
 }: LoginModalProps) {
+  const { t } = useLanguage();
   const [loginMode, setLoginMode] = useState<'student' | 'admin'>(forcedMode || 'student');
   
   // Student fields
@@ -36,6 +40,177 @@ export default function LoginModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // QR Modal States
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [isScanningCamera, setIsScanningCamera] = useState(false);
+  const [qrScanSuccessMsg, setQrScanSuccessMsg] = useState('');
+  const [qrScanErrorMsg, setQrScanErrorMsg] = useState('');
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Parse QR Code content
+  const handleDecodedQr = (decodedText: string) => {
+    console.log('Decoded QR code:', decodedText);
+    setError('');
+    setQrScanErrorMsg('');
+
+    let name = '';
+    let id = '';
+
+    const text = decodedText.trim();
+
+    // Case 1: Pipe separated like "سليمان|1002"
+    if (text.includes('|')) {
+      const parts = text.split('|');
+      name = parts[0]?.trim() || '';
+      id = parts[1]?.trim() || '';
+    } 
+    // Case 2: URL query params like "http://...?studentName=سليمان&studentId=1002"
+    else if (text.startsWith('http://') || text.startsWith('https://')) {
+      try {
+        const url = new URL(text);
+        name =
+          url.searchParams.get('studentName') ||
+          url.searchParams.get('name') ||
+          url.searchParams.get('student') ||
+          url.searchParams.get('sName') ||
+          '';
+        id =
+          url.searchParams.get('studentId') ||
+          url.searchParams.get('id') ||
+          url.searchParams.get('code') ||
+          url.searchParams.get('sId') ||
+          '';
+      } catch (e) {
+        console.warn('URL parse error:', e);
+      }
+    } 
+    // Case 3: JSON string
+    else if (text.startsWith('{') && text.endsWith('}')) {
+      try {
+        const obj = JSON.parse(text);
+        name = obj.name || obj.studentName || '';
+        id = obj.id || obj.studentId || obj.code || '';
+      } catch (e) {
+        console.warn('JSON parse error:', e);
+      }
+    } 
+    // Case 4: Comma or Colon separated
+    else if (text.includes(',')) {
+      const parts = text.split(',');
+      name = parts[0]?.trim() || '';
+      id = parts[1]?.trim() || '';
+    } else if (text.includes(':')) {
+      const parts = text.split(':');
+      name = parts[0]?.trim() || '';
+      id = parts[1]?.trim() || '';
+    }
+
+    if (name && id) {
+      setStudentName(name);
+      setStudentId(id);
+      setQrScanSuccessMsg(`تمت قراءة البيانات بنجاح: ${name} (${id})`);
+      
+      stopCamera();
+
+      setTimeout(() => {
+        setShowQrModal(false);
+        setQrScanSuccessMsg('');
+      }, 1200);
+    } else {
+      setQrScanErrorMsg(`رمز QR يحتوي على: "${text}" لكنه لم يطابق صيغة الطالب (اسم|رقم).`);
+    }
+  };
+
+  const startCamera = async () => {
+    setQrScanErrorMsg('');
+    setQrScanSuccessMsg('');
+    try {
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
+      }
+      setIsScanningCamera(true);
+
+      await html5QrCodeRef.current.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          handleDecodedQr(decodedText);
+        },
+        () => {
+          // parse errors are normal while scanning
+        }
+      );
+    } catch (err: any) {
+      console.error('Failed to start camera:', err);
+      setIsScanningCamera(false);
+      setQrScanErrorMsg('تعذر الوصول للكاميرا. يرجى التأكد من إعطاء الإذن أو تجربة رفع صورة QR.');
+    }
+  };
+
+  const stopCamera = async () => {
+    if (html5QrCodeRef.current) {
+      try {
+        if (html5QrCodeRef.current.isScanning) {
+          await html5QrCodeRef.current.stop();
+        }
+      } catch (e) {
+        console.warn('Error stopping camera:', e);
+      }
+      setIsScanningCamera(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setQrScanErrorMsg('');
+    setQrScanSuccessMsg('');
+
+    try {
+      const html5Qr = new Html5Qrcode('qr-reader-file-temp');
+      const decodedText = await html5Qr.scanFile(file, true);
+      handleDecodedQr(decodedText);
+    } catch (err) {
+      console.error('Error scanning file:', err);
+      setQrScanErrorMsg('لم يتم العثور على كود QR واضح في الصورة المرفوقة. يرجى اختيار صورة أوضح.');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  // Auto-login if parameters are present in the URL or stored in session
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pName =
+      params.get('studentName') ||
+      params.get('name') ||
+      params.get('student') ||
+      params.get('sName') ||
+      params.get('user');
+    const pId =
+      params.get('studentId') ||
+      params.get('id') ||
+      params.get('code') ||
+      params.get('sId') ||
+      params.get('pass');
+
+    if (pName && pId && loginMode === 'student') {
+      const decodedName = decodeURIComponent(pName).trim();
+      const decodedId = decodeURIComponent(pId).trim();
+      localStorage.setItem('studentName', decodedName);
+      localStorage.setItem('studentId', decodedId);
+      sessionStorage.setItem('studentName', decodedName);
+      sessionStorage.setItem('studentId', decodedId);
+      onLoginSuccess({ name: decodedName, id: decodedId, isAdmin: false });
+    }
+  }, [loginMode, onLoginSuccess]);
 
   const generateDeviceId = (): string => {
     let deviceId = localStorage.getItem('deviceId');
@@ -144,18 +319,26 @@ export default function LoginModal({
         transition={{ duration: 0.3 }}
         className="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-w-md w-full p-8 space-y-6 relative"
       >
-        <div className="text-center space-y-2">
-          <div className="inline-flex bg-amber-50 p-4 rounded-full text-amber-500 mb-2">
-            {loginMode === 'student' ? <User className="w-8 h-8" /> : <ShieldAlert className="w-8 h-8 text-slate-800" />}
+        <div className="flex justify-between items-start">
+          <div className="w-10 h-10" /> {/* spacer for alignment */}
+          <div className="text-center space-y-2 flex-1">
+            <div className="inline-flex bg-amber-50 p-4 rounded-full text-amber-500 mb-1">
+              {loginMode === 'student' ? <User className="w-8 h-8" /> : <ShieldAlert className="w-8 h-8 text-slate-800" />}
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 font-sans">
+              {loginMode === 'student'
+                ? t('login.studentPortalTitle', 'بوابة الطالب الذكية')
+                : t('login.adminPortalTitle', 'بوابة المسؤولين والإدارة')}
+            </h1>
+            <p className="text-slate-500 text-sm">
+              {loginMode === 'student' 
+                ? t('login.studentSubtitle', 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.')
+                : t('login.adminSubtitle', 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.')}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 font-sans">
-            {loginMode === 'student' ? 'بوابة الطالب الذكية' : 'بوابة المسؤولين والإدارة'}
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {loginMode === 'student' 
-              ? 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.'
-              : 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.'}
-          </p>
+          <div>
+            <LanguageSwitcher variant="minimal" />
+          </div>
         </div>
 
         {/* Segmented control for login type (only if not forced to a single mode) */}
@@ -166,14 +349,14 @@ export default function LoginModal({
               onClick={() => { setLoginMode('student'); setError(''); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'student' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              تسجيل دخول الطلاب
+              {t('login.studentLoginTitle', 'تسجيل دخول الطلاب')}
             </button>
             <button
               type="button"
               onClick={() => { setLoginMode('admin'); setError(''); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginMode === 'admin' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              بوابة الإدارة والتحكم
+              {t('login.adminLoginTitle', 'بوابة الإدارة والتحكم')}
             </button>
           </div>
         )}
@@ -189,7 +372,7 @@ export default function LoginModal({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">اسم الطالب كاملاً</label>
+                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentNameLabel', 'اسم الطالب كاملاً')}</label>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <User className="w-5 h-5" />
@@ -198,14 +381,14 @@ export default function LoginModal({
                       type="text"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
-                      placeholder="اسم المستخدم مثل: أحمد محمد"
+                      placeholder={t('login.studentNamePlaceholder', 'اسم المستخدم مثل: أحمد محمد')}
                       className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">رقم الطالب (كود المرور)</label>
+                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentIdLabel', 'رقم الطالب (كود المرور)')}</label>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <Lock className="w-5 h-5" />
@@ -214,10 +397,26 @@ export default function LoginModal({
                       type="password"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
-                      placeholder="الرقم التعريفي الخاص بك"
+                      placeholder={t('login.studentIdPlaceholder', 'الرقم التعريفي الخاص بك')}
                       className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-right"
                     />
                   </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQrModal(true);
+                      setQrScanErrorMsg('');
+                      setQrScanSuccessMsg('');
+                    }}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold py-2.5 px-4 rounded-xl text-xs transition flex items-center justify-center gap-2 border border-slate-700 shadow-md active:scale-95"
+                  >
+                    <QrCode className="w-4 h-4 text-amber-400" />
+                    <span>{t('login.scanQrCameraBtn', 'مسح بطاقة الطالب (QR Code) بالكاميرا')}</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  </button>
                 </div>
               </motion.div>
             ) : (
@@ -229,7 +428,7 @@ export default function LoginModal({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">اسم مستخدم الإدارة</label>
+                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminUsernameLabel', 'اسم مستخدم الإدارة')}</label>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <User className="w-5 h-5" />
@@ -238,14 +437,14 @@ export default function LoginModal({
                       type="text"
                       value={adminUsername}
                       onChange={(e) => setAdminUsername(e.target.value)}
-                      placeholder="اسم مستخدم المدير (مثال: admin)"
+                      placeholder={t('login.adminUsernamePlaceholder', 'اسم مستخدم المدير (مثال: admin)')}
                       className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">كلمة مرور المسؤول</label>
+                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminPasswordLabel', 'كلمة مرور المسؤول')}</label>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <Lock className="w-5 h-5" />
@@ -254,7 +453,7 @@ export default function LoginModal({
                       type="password"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
-                      placeholder="كلمة المرور الخاصة بك"
+                      placeholder={t('login.adminPasswordPlaceholder', 'كلمة المرور الخاصة بك')}
                       className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left"
                     />
                   </div>
@@ -286,10 +485,10 @@ export default function LoginModal({
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                جاري تسجيل الدخول...
+                {t('login.loggingIn', 'جاري تسجيل الدخول...')}
               </>
             ) : (
-              'تسجيل الدخول'
+              t('login.loginSubmit', 'تسجيل الدخول')
             )}
           </button>
         </form>
@@ -298,7 +497,7 @@ export default function LoginModal({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Smartphone className="w-4 h-4 text-slate-400" />
-              <span>حماية الأجهزة مفعّلة</span>
+              <span>{t('login.deviceProtectionActive', 'حماية الأجهزة مفعّلة')}</span>
             </div>
           </div>
 
@@ -308,11 +507,145 @@ export default function LoginModal({
               onClick={onGoToStudentPage}
               className="text-slate-500 hover:text-slate-900 font-bold text-center transition pt-1 border-t border-slate-50"
             >
-              الذهاب إلى صفحة تمارين الطلاب ←
+              {t('login.goToStudentExercises', 'الذهاب إلى صفحة تمارين الطلاب ←')}
             </button>
           )}
         </div>
       </motion.div>
+
+      {/* Hidden container for file-based QR scanning */}
+      <div id="qr-reader-file-temp" className="hidden" />
+
+      {/* QR Code Reader Modal */}
+      <AnimatePresence>
+        {showQrModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => {
+              stopCamera();
+              setShowQrModal(false);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-amber-500/20 text-amber-400 p-2 rounded-xl">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-white">{t('login.qrReaderTitle', 'قارئ بطاقة الطالب الذكية')}</h3>
+                    <p className="text-xs text-slate-400">{t('login.qrReaderDesc', 'امسح كود QR الخاص بك للتسجيل التلقائي')}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    stopCamera();
+                    setShowQrModal(false);
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white p-2 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Camera Scanner View Area */}
+              <div className="space-y-3">
+                <div className="relative w-full h-64 bg-slate-950 rounded-2xl overflow-hidden border-2 border-dashed border-slate-700 flex flex-col items-center justify-center">
+                  <div id="qr-reader-container" className="w-full h-full" />
+
+                  {!isScanningCamera && !qrScanSuccessMsg && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center space-y-3 bg-slate-950/90">
+                      <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+                        <Camera className="w-7 h-7" />
+                      </div>
+                      <p className="text-xs text-slate-300 max-w-xs leading-relaxed">
+                        {t('login.qrInstruction', 'وجه كاميرا جهازك نحو كود QR المكتوب بالصيغة:')} <br />
+                        <span className="font-mono text-amber-300 bg-slate-900 px-2 py-0.5 rounded dir-ltr inline-block mt-1">{t('login.nameNumberFormat', 'الاسم|الرقم')}</span>
+                      </p>
+                      <button
+                        onClick={startCamera}
+                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs transition flex items-center gap-2 shadow-lg shadow-amber-500/20 active:scale-95"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>{t('login.startCameraNow', 'تشغيل الكاميرا الآن')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status & Messages */}
+                {qrScanSuccessMsg && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl text-xs flex items-center gap-2 font-bold"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{qrScanSuccessMsg}</span>
+                  </motion.div>
+                )}
+
+                {qrScanErrorMsg && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3 rounded-xl text-xs flex items-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{qrScanErrorMsg}</span>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                {isScanningCamera ? (
+                  <button
+                    onClick={stopCamera}
+                    className="bg-rose-900/40 hover:bg-rose-900/70 border border-rose-700/50 text-rose-200 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>{t('login.stopCamera', 'إيقاف الكاميرا')}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={startCamera}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>{t('login.liveCamera', 'الكاميرا المباشرة')}</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <Upload className="w-4 h-4 text-cyan-400" />
+                  <span>{t('login.uploadQrImage', 'رفع صورة الـ QR')}</span>
+                </button>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

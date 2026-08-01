@@ -30,6 +30,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface HomeDashboardProps {
   student: Student;
@@ -47,6 +48,7 @@ interface PhotoSlideshowProps {
 }
 
 function PhotoSlideshow({ photos, onOpenLightbox }: PhotoSlideshowProps) {
+  const { t } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (photos.length === 0) return null;
@@ -68,7 +70,7 @@ function PhotoSlideshow({ photos, onOpenLightbox }: PhotoSlideshowProps) {
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
           <ImageIcon className="w-5 h-5 text-indigo-500" />
-          معرض الصور (سلايدشو) 🖼️
+          {t('home.photoGalleryTitle', 'معرض الصور (سلايدشو) 🖼️')}
         </h2>
         {photos.length > 1 && (
           <span className="text-xs font-extrabold bg-indigo-50 text-indigo-700 px-3.5 py-1 rounded-full border border-indigo-100">
@@ -165,6 +167,7 @@ interface VideoSlideshowProps {
 }
 
 function VideoSlideshow({ videos, onPlayVideo, getYoutubeId, isDirectVideo }: VideoSlideshowProps) {
+  const { t } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (videos.length === 0) return null;
@@ -191,7 +194,7 @@ function VideoSlideshow({ videos, onPlayVideo, getYoutubeId, isDirectVideo }: Vi
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
         <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
           <VideoIcon className="w-5 h-5 text-rose-500" />
-          المقاطع المرئية والتعليمية 🎥
+          {t('home.videoGalleryTitle', 'المقاطع المرئية والتعليمية 🎥')}
         </h2>
         {videos.length > 1 && (
           <span className="text-xs font-extrabold bg-rose-50 text-rose-700 px-3.5 py-1 rounded-full border border-rose-100">
@@ -375,6 +378,7 @@ function LightboxModal({ images, currentIndex, onClose, onNavigate }: LightboxMo
 // 🏠 MAIN COMPONENT: HomeDashboard
 // ==========================================
 export default function HomeDashboard({ student, generalData, onSelectExercise, onNavigateTo }: HomeDashboardProps) {
+  const { t } = useLanguage();
   const [items, setItems] = useState<HomeContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -382,6 +386,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [activeEnlargedImage, setActiveEnlargedImage] = useState<{ url: string; title: string } | null>(null);
+  const [activeWebLessonFrame, setActiveWebLessonFrame] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     const fetchHomeContent = async () => {
@@ -535,10 +540,30 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     fetchHomeContent();
   }, [student.name, student.id]);
 
+  const getAuthenticatedUrl = (rawUrl: string): string => {
+    if (!rawUrl || !rawUrl.startsWith('http')) return rawUrl;
+    try {
+      const urlObj = new URL(rawUrl, window.location.href);
+      if (student?.name && student?.id) {
+        urlObj.searchParams.set('studentName', student.name);
+        urlObj.searchParams.set('studentId', student.id);
+        urlObj.searchParams.set('name', student.name);
+        urlObj.searchParams.set('id', student.id);
+        urlObj.searchParams.set('code', student.id);
+        urlObj.searchParams.set('sName', student.name);
+        urlObj.searchParams.set('sId', student.id);
+      }
+      return urlObj.toString();
+    } catch (e) {
+      return rawUrl;
+    }
+  };
+
   const handleLaunchButton = (url: string) => {
     if (!url || url === '#' || url === '-') return;
     if (url.startsWith('http')) {
-      window.open(url, '_blank', 'noreferrer');
+      const authUrl = getAuthenticatedUrl(url);
+      window.open(authUrl, '_blank', 'noreferrer');
     } else if (url.startsWith('#')) {
       const page = url.substring(1);
       onNavigateTo(page);
@@ -599,13 +624,13 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         <div className="space-y-1">
           <div className="inline-flex bg-amber-50 text-amber-700 px-3 py-0.5 rounded-full text-xs font-bold gap-1 items-center">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>مرحباً بك يا بطل المتميز! 🌟</span>
+            <span>{t('home.welcomeBadge', 'مرحباً بك يا بطل المتميز! 🌟')}</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 font-sans">
-            أهلاً بك، {student.name}! 👋
+            {t('home.welcomeStudent', 'أهلاً بك،')} {student.name}! 👋
           </h1>
           <p className="text-slate-500 text-sm max-w-xl">
-            استعرض الإعلانات والتوجيهات الخاصة بك، وتدرّب في منصتك الذكية لإتقان مهارات اللغة العربية وقواعد الخط.
+            {t('home.welcomeDesc', 'استعرض الإعلانات والتوجيهات الخاصة بك، وتدرّب في منصتك الذكية لإتقان مهارات اللغة العربية وقواعد الخط.')}
           </p>
         </div>
 
@@ -615,7 +640,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             onClick={() => onNavigateTo('reports')}
             className="flex-1 md:flex-initial bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-2xl text-sm transition flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/10"
           >
-            تقرير أدائي اليومي 📊
+            {t('home.myPerformanceReport', 'تقرير أدائي اليومي 📊')}
           </button>
         </div>
       </div>
@@ -625,7 +650,18 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 rounded-3xl p-4 md:p-5 text-white shadow-lg relative overflow-hidden border border-emerald-400/30">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="relative">
+          <div className="relative space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/20 pb-2.5">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-amber-300" />
+                <h2 className="font-extrabold text-sm md:text-base text-white">{t('home.lessonLinksTitle', 'روابط الدروس التعليمية 📚')}</h2>
+              </div>
+              <span className="bg-white/20 backdrop-blur text-amber-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border border-white/20">
+                <UserCheck className="w-3.5 h-3.5 text-amber-300" />
+                <span>{t('home.ssoActiveStudent', 'الدخول الموحد مفعّل تلقائياً بالطالب:')} <strong>{student.name}</strong></span>
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {lessonItems.map((item, idx) => {
                 const isVideo =
@@ -657,23 +693,39 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                       )}
                     </div>
 
-                    <div className="pt-1">
+                    <div className="pt-1 flex flex-col sm:flex-row gap-1.5">
                       {isVideo ? (
                         <button
                           onClick={() => setActiveVideoUrl(item.content)}
                           className="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold px-3 py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
                         >
                           <Play className="w-3.5 h-3.5 fill-slate-950" />
-                          <span>مشاهدة الدرس</span>
+                          <span>{t('home.watchVideoLessonBtn', 'مشاهدة دروس الفيديو')}</span>
                         </button>
                       ) : (
-                        <button
-                          onClick={() => handleLaunchButton(item.content)}
-                          className="w-full bg-white hover:bg-emerald-50 text-slate-950 font-extrabold px-3 py-1.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>الانتقال لرابط الدرس</span>
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleLaunchButton(item.content)}
+                            className="flex-1 bg-white hover:bg-emerald-50 text-slate-950 font-extrabold px-3 py-1.5 rounded-xl text-[11px] transition flex items-center justify-center gap-1 shadow-md active:scale-95"
+                            title="فتح بصفحة جديدة وتمرير كود الطالب تلقائياً"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>{t('home.openDirectLinkBtn', 'فتح الرابط (دخول مباشر)')}</span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setActiveWebLessonFrame({
+                                url: getAuthenticatedUrl(item.content),
+                                title: item.title || 'رابط الدرس التعليمي',
+                              })
+                            }
+                            className="bg-emerald-950/60 hover:bg-emerald-950 text-white font-extrabold px-2.5 py-1.5 rounded-xl text-[11px] transition flex items-center justify-center gap-1 border border-white/20 active:scale-95"
+                            title="معاينة الدرس مباشرة داخل منصتك"
+                          >
+                            <Maximize2 className="w-3 h-3 text-amber-300" />
+                            <span>{t('home.viewInPlatformBtn', 'عرض بالمنصة')}</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -693,11 +745,11 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           <div className="space-y-2.5 flex-1 text-center md:text-right">
             <div className="inline-flex bg-amber-500/20 text-amber-400 border border-amber-500/20 px-3.5 py-1 rounded-full text-xs font-bold gap-1.5 items-center justify-center">
               <Gamepad2 className="w-3.5 h-3.5" />
-              <span>تمارين ممتعة وتفاعلية</span>
+              <span>{t('home.funExercisesBadge', 'تمارين ممتعة وتفاعلية')}</span>
             </div>
-            <h2 className="text-2xl font-black font-sans text-white">تمارين الدروس 🎮</h2>
+            <h2 className="text-2xl font-black font-sans text-white">{t('home.lessonExercisesTitle', 'تمارين الدروس 🎮')}</h2>
             <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
-              تمارين تساعدك على الكتابة من رسم الحروف والكلمات، وتمارين ممتعة تساعد الذاكرة وتثبت المعلومات.
+              {t('home.lessonExercisesDesc', 'تمارين تساعدك على الكتابة من رسم الحروف والكلمات، وتمارين ممتعة تساعد الذاكرة وتثبت المعلومات.')}
             </p>
           </div>
 
@@ -705,7 +757,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             onClick={() => setShowExerciseModal(true)}
             className="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-8 py-4 rounded-2xl text-sm transition transform hover:scale-102 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 shrink-0"
           >
-            استعراض وبدء الأنشطة والتمارين
+            {t('home.startActivitiesBtn', 'استعراض وبدء الأنشطة والتمارين')}
             <MoveLeft className="w-4 h-4" />
           </button>
         </div>
@@ -719,10 +771,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           </div>
           <div>
             <span className="font-extrabold text-amber-950 text-sm block">
-              تذكير هام بالدروس والتمارين 📌
+              {t('home.importantReminderTitle', 'تذكير هام بالدروس والتمارين 📌')}
             </span>
             <p className="text-amber-900/80 text-xs mt-0.5 leading-relaxed font-bold">
-              تذكير: لديك دروس جديدة ودروس قديمة لم تحل بعد! يمكنك متابعة حالة إنجازك والدروس المتبقية من قسم التقارير.
+              {t('home.importantReminderDesc', 'تذكير: لديك دروس جديدة ودروس قديمة لم تحل بعد! يمكنك متابعة حالة إنجازك والدروس المتبقية من قسم التقارير.')}
             </p>
           </div>
         </div>
@@ -733,7 +785,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2 shrink-0 active:scale-95"
           >
             <FileText className="w-4 h-4" />
-            <span>انتقال للتقارير</span>
+            <span>{t('home.goToReportsBtn', 'انتقال للتقارير')}</span>
           </button>
         )}
       </div>
@@ -743,7 +795,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900 font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
             <Megaphone className="w-5 h-5 text-amber-500" />
-            الإعلانات والتعليمات التوجيهية 📢
+            {t('home.announcementsAndGuidelinesTitle', 'الإعلانات والتعليمات التوجيهية 📢')}
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -790,19 +842,19 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                       {isPersonalized ? (
                         <>
                           <UserCheck className="w-3 h-3" />
-                          مخصص لك يا {student.name}
+                          {t('home.personalizedForYou', 'مخصص لك يا')} {student.name}
                         </>
                       ) : (
                         <>
                           <Globe className="w-3 h-3" />
-                          إعلان عام للجميع
+                          {t('home.publicAnnouncement', 'إعلان عام للجميع')}
                         </>
                       )}
                     </span>
 
                     {(item.type === 'instruction' || item.type === 'تعليمات') && (
                       <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-bold">
-                        تعليمات وتوجيهات
+                        {t('home.instructionsAndGuidance', 'تعليمات وتوجيهات')}
                       </span>
                     )}
                   </div>
@@ -866,7 +918,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-slate-900 font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
             <LinkIcon className="w-5 h-5 text-sky-500" />
-            الروابط والصفحات الخارجية 🔗
+            {t('home.externalLinksTitle', 'الروابط والصفحات الخارجية 🔗')}
           </h2>
 
           <div className="flex flex-wrap gap-3">
@@ -897,7 +949,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       {loading && (
         <div className="flex flex-col items-center justify-center p-12 text-slate-400 gap-3">
           <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
-          <span className="text-sm font-bold">جاري جلب المحتوى من ورقة Home_Content...</span>
+          <span className="text-sm font-bold">{t('home.fetchingHomeContent', 'جاري جلب المحتوى من ورقة Home_Content...')}</span>
         </div>
       )}
 
@@ -963,6 +1015,67 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         )}
       </AnimatePresence>
 
+      {/* Web Lesson Embedded Frame Modal */}
+      <AnimatePresence>
+        {activeWebLessonFrame && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4"
+            onClick={() => setActiveWebLessonFrame(null)}
+          >
+            <div 
+              className="relative max-w-6xl w-full h-[90vh] bg-slate-900 rounded-3xl p-4 md:p-6 shadow-2xl text-right flex flex-col space-y-4 border border-slate-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-sm md:text-base">
+                      {activeWebLessonFrame.title}
+                    </h3>
+                    <p className="text-xs text-amber-300 font-bold flex items-center gap-1.5 mt-0.5">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>تم ربط حساب الطالب ({student.name}) تلقائياً مع الرابط</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.open(activeWebLessonFrame.url, '_blank', 'noreferrer')}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    title="فتح في نافذة تبويب جديدة"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span className="hidden sm:inline">فتح بنوافذ خارجية</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveWebLessonFrame(null)}
+                    className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 w-full rounded-2xl overflow-hidden bg-white border border-slate-800 shadow relative">
+                <iframe
+                  src={activeWebLessonFrame.url}
+                  className="w-full h-full border-0"
+                  title={activeWebLessonFrame.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; microphone; camera"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 🚪 EXERCISES NAVIGATION MODAL */}
       <AnimatePresence>
         {showExerciseModal && (
@@ -984,10 +1097,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                 <div className="text-right space-y-1">
                   <h3 className="text-xl font-black text-slate-900 font-sans flex items-center gap-2">
                     <Gamepad2 className="w-6 h-6 text-amber-500 fill-amber-500" />
-                    تمارين الدروس 🎮
+                    {t('home.lessonExercisesTitle', 'تمارين الدروس 🎮')}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    اختر نوع التمرين المناسب وابدأ في التدرب واكتساب النقاط والشارات!
+                    {t('exercises.chooseExerciseTypeDesc', 'اختر نوع التمرين المناسب وابدأ في التدرب واكتساب النقاط والشارات!')}
                   </p>
                 </div>
                 <button
@@ -1013,14 +1126,14 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                       <i className="fas fa-pen-nib text-xl" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-base font-bold text-slate-900">تمرين محاكاة ورسم الخط</h4>
+                      <h4 className="text-base font-bold text-slate-900">{t('exercises.drawingExerciseTitle', 'تمرين محاكاة ورسم الخط')}</h4>
                       <p className="text-slate-500 text-xs leading-relaxed">
-                        لوحة رسم ذكية لمطابقة دقة يدك في كتابة الخطوط العربية المحددة واستخراج الدرجات والمكافآت الفورية.
+                        {t('exercises.drawingExerciseCardDesc', 'لوحة رسم ذكية لمطابقة دقة يدك في كتابة الخطوط العربية المحددة واستخراج الدرجات والمكافآت الفورية.')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-emerald-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                    <span>افتح تمرين رسم الخط</span>
+                    <span>{t('exercises.openDrawingExercise', 'افتح تمرين رسم الخط')}</span>
                     <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
@@ -1038,14 +1151,14 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                       <i className="fas fa-sort-alpha-down text-xl" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-base font-bold text-slate-900">ترتيب الحروف وملء الفراغات</h4>
+                      <h4 className="text-base font-bold text-slate-900">{t('exercises.wordsExerciseTitle', 'ترتيب الحروف وملء الفراغات')}</h4>
                       <p className="text-slate-500 text-xs leading-relaxed">
-                        اجمع الحروف لتكوين الكلمات، رتب الجمل اللغوية المبعثرة، واحلل المسابقات التفاعلية الممتعة.
+                        {t('exercises.wordsExerciseCardDesc', 'اجمع الحروف لتكوين الكلمات، رتب الجمل اللغوية المبعثرة، واحلل المسابقات التفاعلية الممتعة.')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-sky-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                    <span>افتح تمارين الكلمات</span>
+                    <span>{t('exercises.openWordsExercise', 'افتح تمارين الكلمات')}</span>
                     <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </motion.div>
@@ -1063,14 +1176,14 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                       <i className="fas fa-project-diagram text-xl" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="text-base font-bold text-slate-900">تمرين التوصيل والمطابقة</h4>
+                      <h4 className="text-base font-bold text-slate-900">{t('exercises.matchingExerciseTitle', 'تمرين التوصيل والمطابقة')}</h4>
                       <p className="text-slate-500 text-xs leading-relaxed">
-                        ارسم خطوط تواصل تفاعلية جميلة ومطابقة الكلمات اللغوية بنظيرتها الصوتية المسجلة أو الصورة المناسبة.
+                        {t('exercises.matchingExerciseCardDesc', 'ارسم خطوط تواصل تفاعلية جميلة ومطابقة الكلمات اللغوية بنظيرتها الصوتية المسجلة أو الصورة المناسبة.')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-amber-600 font-bold text-xs mt-6 border-t border-slate-100/60 pt-3">
-                    <span>افتح تمرين التوصيل</span>
+                    <span>{t('exercises.openMatchingExercise', 'افتح تمرين التوصيل')}</span>
                     <MoveLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                   </div>
                 </motion.div>

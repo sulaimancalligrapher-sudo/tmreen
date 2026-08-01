@@ -8,6 +8,7 @@ import { callGasApi } from '../utils/api';
 import { Student } from '../types';
 import { FileText, Download, CheckCircle, AlertTriangle, Table, Award, Loader2, RefreshCw, Star, ListChecks } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ReportDashboardProps {
   student: Student;
@@ -39,7 +40,31 @@ interface ReminderData {
   message?: string;
 }
 
+const HEADER_MAP: Record<string, string> = {
+  'موضوع الدرس': 'tableHeaders.lessonTopic',
+  'صورة الواجب': 'tableHeaders.homeworkImage',
+  'تسجيل صوت': 'tableHeaders.audioRecord',
+  'تصحيح': 'tableHeaders.correction',
+  'درجات الصورة': 'tableHeaders.imageGrades',
+  'درجات الصوت': 'tableHeaders.audioGrades',
+  'اضافة صورة': 'tableHeaders.addImage',
+  'اضافة فيديو': 'tableHeaders.addVideo',
+  'اضافة صوت': 'tableHeaders.addAudio',
+  'تاريخ التصحيح': 'tableHeaders.correctionDate',
+  'التقييم والنجوم ⭐': 'tableHeaders.ratingAndStars',
+  'نتائج اجابة الفيديو': 'tableHeaders.videoAnswersResult',
+  'نتائج اجابة الصوت': 'tableHeaders.audioAnswersResult',
+  'النتيجة الكلية': 'tableHeaders.totalResult',
+  'الدرجة النهائية': 'tableHeaders.finalGrade',
+  'النتيجة والتفاصيل': 'tableHeaders.resultAndDetails',
+  'النسبة المئوية': 'tableHeaders.percentage',
+  'آخر تحديث': 'tableHeaders.lastUpdate',
+  'عدد المحاولات': 'tableHeaders.attemptsCount',
+  'عدد الجمل المكتملة': 'tableHeaders.completedSentencesCount',
+};
+
 export default function ReportDashboard({ student }: ReportDashboardProps) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabType>('all_a');
   const [loading, setLoading] = useState(true);
   const [pdfGenerating, setPdfGenerating] = useState(false);
@@ -170,13 +195,13 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
         <div className="space-y-1">
           <div className="inline-flex bg-emerald-50 text-emerald-700 px-3 py-0.5 rounded-full text-xs font-bold gap-1 items-center">
             <Award className="w-3.5 h-3.5" />
-            <span>دفتر الدرجات الفوري</span>
+            <span>{t('reports.instantGradebook', 'دفتر الدرجات الفوري')}</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 font-sans">
-            تقرير الأداء اللغوي الشامل للطالب
+            {t('reports.comprehensiveReportTitle', 'تقرير الأداء اللغوي الشامل للطالب')}
           </h1>
           <p className="text-slate-500 text-sm">
-            أهلاً {student.name}! استعرض درجاتك، تقييمات المدرس، ونقاط تركيزك، وقم باستخراج الشهادة بصيغة PDF.
+            {t('reports.reportWelcomeDesc', 'أهلاً {name}! استعرض درجاتك، تقييمات المدرس، ونقاط تركيزك، وقم باستخراج الشهادة بصيغة PDF.').replace('{name}', student.name)}
           </p>
         </div>
 
@@ -233,7 +258,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          تذكير
+          {t('reports.tabReminder', 'تذكير')}
         </button>
         <button
           onClick={() => setActiveTab('all_v')}
@@ -243,7 +268,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          الدروس المرسلة
+          {t('reports.tabSentLessons', 'الدروس المرسلة')}
         </button>
         <button
           onClick={() => setActiveTab('correction')}
@@ -253,7 +278,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          درجات التركيز
+          {t('reports.tabFocusGrades', 'درجات التركيز')}
         </button>
         <button
           onClick={() => setActiveTab('words')}
@@ -263,7 +288,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          تمارين الكلمات
+          {t('reports.tabWordExercises', 'تمارين الكلمات')}
         </button>
         <button
           onClick={() => setActiveTab('wasl')}
@@ -273,7 +298,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          تمارين الوصل
+          {t('reports.tabMatchingExercises', 'تمارين الوصل')}
         </button>
         <button
           onClick={() => setActiveTab('writing')}
@@ -283,7 +308,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          تمارين الكتابة
+          {t('reports.tabWritingExercises', 'تمارين الكتابة')}
         </button>
       </div>
 
@@ -292,7 +317,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
         {loading ? (
           <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-500">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-            <span className="text-sm">جاري جلب تقارير الدرجات المباشرة...</span>
+            <span className="text-sm">{t('reports.fetchingLiveGrades', 'جاري جلب تقارير الدرجات المباشرة...')}</span>
           </div>
         ) : activeTab === 'all_a' ? (
           (() => {
@@ -310,14 +335,14 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                       </span>
-                      قائمة التذكير والمتابعة الذكية
+                      {t('reports.smartReminderList', 'قائمة التذكير والمتابعة الذكية')}
                     </h3>
                     <p className="text-slate-500 text-xs leading-relaxed">
-                      استعرض دروسك اليومية، الدروس السابقة غير المكتملة، وتابع إنجازاتك من خلال النقر على أي درس لعرض بطاقة تفاصيله الفورية والنجوم المكتسبة مباشرة تحته!
+                      {t('reports.smartReminderDesc', 'استعرض دروسك اليومية، الدروس السابقة غير المكتملة، وتابع إنجازاتك من خلال النقر على أي درس لعرض بطاقة تفاصيله الفورية والنجوم المكتسبة مباشرة تحته!')}
                     </p>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5 bg-indigo-50 text-indigo-800 text-xs font-extrabold px-3.5 py-1.5 rounded-2xl border border-indigo-100">
-                    <span>إجمالي الدروس المجدولة: {todayLessons.length + pendingLessons.length + completedLessons.length}</span>
+                    <span>{t('reports.totalScheduledLessons', 'إجمالي الدروس المجدولة:')} {todayLessons.length + pendingLessons.length + completedLessons.length}</span>
                   </div>
                 </div>
 
@@ -326,7 +351,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                   <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
                     <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
                       <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                      <h4 className="font-extrabold text-slate-900 text-sm">درس اليوم مقرر</h4>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{t('reports.todayScheduledLesson', 'درس اليوم مقرر')}</h4>
                     </div>
                     <div className="space-y-3.5">
                       {todayLessons.length === 0 ? (
@@ -348,7 +373,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                               >
                                 <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
                                 <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 shrink-0">
-                                  درس اليوم 🌟
+                                  {t('reports.todayScheduledBadge', 'درس اليوم 🌟')}
                                 </span>
                               </button>
 
@@ -400,7 +425,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                   <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
                     <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
                       <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                      <h4 className="font-extrabold text-slate-900 text-sm">دروس غير مكتملة</h4>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{t('reports.pendingUnfinishedLessons', 'دروس غير مكتملة')}</h4>
                     </div>
                     <div className="space-y-3.5">
                       {pendingLessons.length === 0 ? (
@@ -422,7 +447,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                               >
                                 <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
                                 <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 shrink-0">
-                                  بحاجة لإكمال ⚠️
+                                  {t('reports.needsCompletionBadge', 'بحاجة لإكمال ⚠️')}
                                 </span>
                               </button>
 
@@ -474,12 +499,12 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                   <div className="bg-white border border-slate-100/80 rounded-3xl p-5 space-y-4 shadow-sm">
                     <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100/50">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                      <h4 className="font-extrabold text-slate-900 text-sm">الدروس المكتملة</h4>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{t('reports.completedLessonsTitle', 'الدروس المكتملة')}</h4>
                     </div>
                     <div className="space-y-3.5">
                       {completedLessons.length === 0 ? (
                         <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center text-slate-500 text-sm">
-                          لم يتم إكمال أي دروس بالكامل حتى الآن. استمر بالدراسة والحل لتراها هنا يا بطل!
+                          {t('reports.noLessonsCompletedYet', 'لم يتم إكمال أي دروس بالكامل حتى الآن. استمر بالدراسة والحل لتراها هنا يا بطل!')}
                         </div>
                       ) : (
                         completedLessons.map((lesson) => {
@@ -496,7 +521,7 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
                               >
                                 <span className="font-bold text-slate-900 text-xs md:text-sm truncate leading-none">{lesson.topic}</span>
                                 <span className="text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 shrink-0">
-                                  مكتمل ✓
+                                  {t('exercises.completedBadge', 'مكتمل ✅')}
                                 </span>
                               </button>
 
@@ -553,13 +578,17 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
               <table className="w-full text-sm text-right border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-100">
-                    {currentTable.headers.map((h, index) => (
-                      <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
-                        {h}
-                      </th>
-                    ))}
+                    {currentTable.headers.map((h, index) => {
+                      const key = HEADER_MAP[h.trim()];
+                      const headerText = key ? t(key, h) : h;
+                      return (
+                        <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
+                          {headerText}
+                        </th>
+                      );
+                    })}
                     <th className="p-4 md:p-5 whitespace-nowrap text-center bg-indigo-50/40 text-indigo-950 font-black">
-                      التقييم والنجوم ⭐
+                      {t('tableHeaders.ratingAndStars', 'التقييم والنجوم ⭐')}
                     </th>
                   </tr>
                 </thead>
@@ -623,9 +652,9 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
         ) : (
           <div className="p-16 text-center space-y-3">
             <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
-            <h3 className="font-bold text-slate-900">لا توجد بيانات مسجلة حالياً في هذا القسم</h3>
+            <h3 className="font-bold text-slate-900">{t('reports.noDataInSection', 'لا توجد بيانات مسجلة حالياً في هذا القسم')}</h3>
             <p className="text-slate-500 text-xs max-w-sm mx-auto">
-              {currentTable?.message || 'يبدو أنك لم تبدأ بحل أي واجبات أو أنشطة في هذا البند بعد يا بطل.'}
+              {currentTable?.message || t('reports.noDataInSectionDesc', 'يبدو أنك لم تبدأ بحل أي واجبات أو أنشطة في هذا البند بعد يا بطل.')}
             </p>
           </div>
         )}
@@ -733,28 +762,29 @@ function calculateTableAverage(table: TableData | null): number {
 }
 
 function StarsRating({ percentage }: { percentage: number }) {
+  const { t } = useLanguage();
   const activeStars = Math.round((percentage / 100) * 10);
   
   let encouragement = '';
   if (percentage >= 95) {
-    encouragement = 'مستوى مبهر جداً! أداء متكامل وإتقان تام للدروس والتمارين. استمر في التميز والنجاح يا بطل! 👑🏆🌟';
+    encouragement = t('reports.evalStar10', 'مستوى مبهر جداً! أداء متكامل وإتقان تام للدروس والتمارين. استمر في التميز والنجاح يا بطل! 👑🏆🌟');
   } else if (percentage >= 85) {
-    encouragement = 'أداء رائع وممتاز! مهارات لغوية متفوقة وحل دقيق. أحسنت صنعاً وتستحق التقدير! 👏⭐🎖️';
+    encouragement = t('reports.evalStar9', 'أداء رائع وممتاز! مهارات لغوية متفوقة وحل دقيق. أحسنت صنعاً وتستحق التقدير! 👏⭐🎖️');
   } else if (percentage >= 75) {
-    encouragement = 'ممتاز جداً! درجات عالية تدل على فهم متميز وحرص كبير على الاستمرار والتفوق. 👍✨🚀';
+    encouragement = t('reports.evalStar8', 'ممتاز جداً! درجات عالية تدل على فهم متميز وحرص كبير على الاستمرار والتفوق. 👍✨🚀');
   } else if (percentage >= 60) {
-    encouragement = 'جيد جداً! خطوت خطوات ممتازة وبإمكانك تحقيق المزيد بالمزيد من التدرب والتركيز. 💪😊📈';
+    encouragement = t('reports.evalStar6', 'جيد جداً! خطوت خطوات ممتازة وبإمكانك تحقيق المزيد بالمزيد من التدرب والتركيز. 💪😊📈');
   } else if (percentage >= 50) {
-    encouragement = 'جيد! فهم مقبول ولكن تحتاج لمزيد من المراجعة والتركيز لتصل إلى درجات القمة اللغوية. ✊📚📝';
+    encouragement = t('reports.evalStar5', 'جيد! فهم مقبول ولكن تحتاج لمزيد من المراجعة والتركيز لتصل إلى درجات القمة اللغوية. ✊📚📝');
   } else if (percentage > 0) {
-    encouragement = 'بداية طيبة! استمر بالمحاولة والتعلم بانتظام فكل تدريب تحله يجعلك أكثر تميزاً وذكاءً. 🏃‍♂️🧭✨';
+    encouragement = t('reports.evalStar1', 'بداية طيبة! استمر بالمحاولة والتعلم بانتظام فكل تدريب تحله يجعلك أكثر تميزاً وذكاءً. 🏃‍♂️🧭✨');
   } else {
-    encouragement = 'لم تبدأ حل التمارين في هذا القسم بعد. نحن واثقون من قدرتك الفائقة على تحقيق العلامة الكاملة بمجرد البدء! 🚀🎯💫';
+    encouragement = t('reports.evalStar0', 'لم تبدأ حل التمارين في هذا القسم بعد. نحن واثقون من قدرتك الفائقة على تحقيق العلامة الكاملة بمجرد البدء! 🚀🎯💫');
   }
 
   return (
     <div className="bg-slate-50 border border-slate-100/80 rounded-2xl p-5 md:p-6 text-center space-y-3.5 shadow-sm">
-      <div className="text-slate-400 font-bold text-xs">تقييم الأداء والنجوم المكتسبة</div>
+      <div className="text-slate-400 font-bold text-xs">{t('reports.evalRatingAndStars', 'تقييم الأداء والنجوم المكتسبة')}</div>
       
       <div className="flex items-center justify-center gap-1.5 flex-row-reverse">
         {Array.from({ length: 10 }).map((_, i) => {
@@ -774,8 +804,8 @@ function StarsRating({ percentage }: { percentage: number }) {
 
       <div className="space-y-1">
         <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 text-xs font-black px-3 py-1 rounded-full border border-amber-200/50">
-          <span>النسبة المحققة: {percentage}%</span>
-          <span className="text-[10px]">({activeStars}/10 نجوم)</span>
+          <span>{t('reports.percentageAchieved', 'النسبة المحققة:')} {percentage}%</span>
+          <span className="text-[10px]">{t('reports.starsCountLabel', '({stars}/10 نجوم)').replace('{stars}', String(activeStars))}</span>
         </div>
         <p className="text-slate-700 font-bold text-xs md:text-sm leading-relaxed max-w-xl mx-auto pt-1">
           {encouragement}
@@ -862,23 +892,24 @@ function getRowPercentage(row: string[], headers: string[]): number {
 }
 
 function CompactStarsRating({ percentage }: { percentage: number }) {
+  const { t } = useLanguage();
   const activeStars = Math.round((percentage / 100) * 10);
   
   let encouragement = '';
   if (percentage >= 95) {
-    encouragement = 'مستوى مذهل وإتقان كامل! 👑🏆';
+    encouragement = t('reports.compactStar10', 'مستوى مذهل وإتقان كامل! 👑🏆');
   } else if (percentage >= 85) {
-    encouragement = 'أداء رائع وممتاز جداً! ⭐👏';
+    encouragement = t('reports.compactStar9', 'أداء رائع وممتاز جداً! ⭐👏');
   } else if (percentage >= 75) {
-    encouragement = 'ممتاز، فهم متميز للغاية! 👍✨';
+    encouragement = t('reports.compactStar8', 'ممتاز، فهم متميز للغاية! 👍✨');
   } else if (percentage >= 60) {
-    encouragement = 'جيد جداً، واصل التقدم والتركيز! 🚀📈';
+    encouragement = t('reports.compactStar6', 'جيد جداً، واصل التقدم والتركيز! 🚀📈');
   } else if (percentage >= 50) {
-    encouragement = 'جيد، ولديك القدرة على الأفضل! 😊💪';
+    encouragement = t('reports.compactStar5', 'جيد، ولديك القدرة على الأفضل! 😊💪');
   } else if (percentage > 0) {
-    encouragement = 'محاولة طيبة، استمر في التميز! 🏃‍♂️🎯';
+    encouragement = t('reports.compactStar1', 'محاولة طيبة، استمر في التميز! 🏃‍♂️🎯');
   } else {
-    encouragement = 'بانتظار البدء لتحقيق العلامة الكاملة! 💫';
+    encouragement = t('reports.compactStar0', 'بانتظار البدء لتحقيق العلامة الكاملة! 💫');
   }
 
   return (

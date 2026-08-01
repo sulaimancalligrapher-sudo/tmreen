@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { GeneralData } from '../types';
 import { HelpCircle, Phone, Info, Globe, Sparkles, ExternalLink, Video, Image, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface AboutProps {
   data: GeneralData | null;
@@ -27,6 +28,7 @@ interface ParsedCard {
 }
 
 export default function About({ data }: AboutProps) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'about' | 'contact'>('about');
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export default function About({ data }: AboutProps) {
     return (
       <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-500 text-right" dir="rtl">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
-        <span className="text-sm">جاري جلب المعلومات التعريفية...</span>
+        <span className="text-sm">{t('about.loadingAboutInfo', 'جاري جلب المعلومات التعريفية...')}</span>
       </div>
     );
   }
@@ -112,7 +114,7 @@ export default function About({ data }: AboutProps) {
             }`}
           >
             <Info className="w-4 h-4 text-amber-500" />
-            من نحن والتعريف بالمنصة
+            {t('about.whoWeAreTab', 'من نحن والتعريف بالمنصة')}
           </button>
           <button
             onClick={() => setActiveTab('contact')}
@@ -123,7 +125,7 @@ export default function About({ data }: AboutProps) {
             }`}
           >
             <Phone className="w-4 h-4 text-amber-500" />
-            اتصل بنا وقنوات الدعم
+            {t('about.contactSupportTab', 'اتصل بنا وقنوات الدعم')}
           </button>
         </div>
       </div>
@@ -140,9 +142,9 @@ export default function About({ data }: AboutProps) {
           >
             {/* Header Banner */}
             <div className="text-center space-y-2 max-w-xl mx-auto pb-4">
-              <h1 className="text-2xl font-extrabold text-slate-900 font-sans">معلومات عن المنصة 🌸</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 font-sans">{t('about.aboutPlatformHeader', 'معلومات عن المنصة 🌸')}</h1>
               <p className="text-slate-500 text-sm">
-                تعلّم، تدرّب، وارتقِ بمستواك في مهارات اللغة العربية والخطوط بمناهج إثرائية وتطبيقات تفاعلية.
+                {t('about.aboutPlatformDesc', 'تعلّم، تدرّب، وارتقِ بمستواك في مهارات اللغة العربية والخطوط بمناهج إثرائية وتطبيقات تفاعلية.')}
               </p>
             </div>
 

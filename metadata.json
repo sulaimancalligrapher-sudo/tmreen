@@ -1,6 +1,8 @@
 {
   "name": "منصة الضاد التعليمية",
   "description": "منصة تفاعلية لتعلم وممارسة مهارات اللغة العربية والخط والتوصيل والتقارير الشاملة",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera"
+  ],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

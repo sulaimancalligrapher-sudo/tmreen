@@ -17,6 +17,8 @@ import ExerciseMatching from './components/ExerciseMatching';
 import ReportDashboard from './components/ReportDashboard';
 import About from './components/About';
 import AdminDashboard from './components/AdminDashboard';
+import LanguageSwitcher from './components/LanguageSwitcher';
+import { useLanguage } from './context/LanguageContext';
 
 // Icons
 import {
@@ -33,6 +35,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
+  const { t } = useLanguage();
   const [apiConfigured, setApiConfigured] = useState<boolean>(isApiConfigured());
   const [student, setStudent] = useState<Student | null>(null);
   const [generalData, setGeneralData] = useState<GeneralData | null>(null);
@@ -66,14 +69,47 @@ export default function App() {
 
   // Initial check on mounting
   useEffect(() => {
-    const savedName = localStorage.getItem('studentName');
-    const savedId = localStorage.getItem('studentId');
+    // 1. Check URL query parameters for auto-login (?studentName=...&studentId=... or ?name=...&id=...)
+    const params = new URLSearchParams(window.location.search);
+    const paramName =
+      params.get('studentName') ||
+      params.get('name') ||
+      params.get('student') ||
+      params.get('sName') ||
+      params.get('user');
+    const paramId =
+      params.get('studentId') ||
+      params.get('id') ||
+      params.get('code') ||
+      params.get('sId') ||
+      params.get('pass');
 
-    if (savedName && savedId) {
-      const isAdmin = savedId === 'admin';
-      setStudent({ name: savedName, id: savedId, isAdmin });
+    if (paramName && paramId) {
+      const decodedName = decodeURIComponent(paramName).trim();
+      const decodedId = decodeURIComponent(paramId).trim();
+      const isAdmin = decodedId === 'admin';
+
+      localStorage.setItem('studentName', decodedName);
+      localStorage.setItem('studentId', decodedId);
+      sessionStorage.setItem('studentName', decodedName);
+      sessionStorage.setItem('studentId', decodedId);
+
+      setStudent({ name: decodedName, id: decodedId, isAdmin });
       if (isAdmin || isAdminPage) {
         setActiveScreen('admin');
+      } else {
+        setActiveScreen('home');
+      }
+    } else {
+      const savedName = localStorage.getItem('studentName') || sessionStorage.getItem('studentName');
+      const savedId = localStorage.getItem('studentId') || sessionStorage.getItem('studentId');
+
+      if (savedName && savedId) {
+        const isAdmin = savedId === 'admin';
+        setStudent({ name: savedName, id: savedId, isAdmin });
+        if (isAdmin || isAdminPage) {
+          setActiveScreen('admin');
+        }
       }
     }
 
@@ -114,8 +150,22 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('studentName');
     localStorage.removeItem('studentId');
+    sessionStorage.removeItem('studentName');
+    sessionStorage.removeItem('studentId');
     sessionStorage.removeItem('adminUser');
     sessionStorage.removeItem('adminRole');
+
+    // Clean URL query parameters
+    const url = new URL(window.location.href);
+    url.searchParams.delete('studentName');
+    url.searchParams.delete('studentId');
+    url.searchParams.delete('name');
+    url.searchParams.delete('id');
+    url.searchParams.delete('code');
+    url.searchParams.delete('sName');
+    url.searchParams.delete('sId');
+    window.history.pushState({}, '', url.toString());
+
     setStudent(null);
     if (isAdminPage) {
       setActiveScreen('admin');
@@ -191,8 +241,10 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
+              <LanguageSwitcher variant="minimal" />
+
               <div className="text-right hidden sm:block pl-2 border-l border-slate-800">
-                <span className="text-[10px] text-slate-400 block font-bold">المسؤول الحالي:</span>
+                <span className="text-[10px] text-slate-400 block font-bold">{t('common.currentAdmin', 'المسؤول الحالي:')}</span>
                 <span className="text-xs font-bold text-amber-400 block">{student.name}</span>
               </div>
 
@@ -349,7 +401,7 @@ export default function App() {
               }`}
             >
               <Home className="w-4 h-4 shrink-0" />
-              الرئيسية
+              {t('common.home', 'الرئيسية')}
             </button>
             <button
               onClick={() => setActiveScreen('reports')}
@@ -360,7 +412,7 @@ export default function App() {
               }`}
             >
               <FileText className="w-4 h-4 shrink-0" />
-              درجاتي
+              {t('common.myGrades', 'درجاتي')}
             </button>
             <button
               onClick={() => setActiveScreen('about')}
@@ -371,7 +423,7 @@ export default function App() {
               }`}
             >
               <HelpCircle className="w-4 h-4 shrink-0" />
-              معلومات
+              {t('common.info', 'معلومات')}
             </button>
 
             {/* Dynamic buttons from Profile Sheet */}
@@ -382,7 +434,19 @@ export default function App() {
                 const url = btn.buttonUrl;
                 if (!url) return;
                 if (url.startsWith('http')) {
-                  window.open(url, '_blank', 'noreferrer');
+                  try {
+                    const urlObj = new URL(url, window.location.href);
+                    if (student?.name && student?.id) {
+                      urlObj.searchParams.set('studentName', student.name);
+                      urlObj.searchParams.set('studentId', student.id);
+                      urlObj.searchParams.set('name', student.name);
+                      urlObj.searchParams.set('id', student.id);
+                      urlObj.searchParams.set('code', student.id);
+                    }
+                    window.open(urlObj.toString(), '_blank', 'noreferrer');
+                  } catch (e) {
+                    window.open(url, '_blank', 'noreferrer');
+                  }
                 } else if (url.startsWith('#')) {
                   setActiveScreen(url.substring(1));
                 } else {
@@ -405,8 +469,10 @@ export default function App() {
 
           {/* User profile & controls */}
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+
             <div className="text-right hidden sm:block">
-              <span className="text-xs text-slate-400 font-bold block">الطالب الحالي:</span>
+              <span className="text-xs text-slate-400 font-bold block">{t('common.currentStudent', 'الطالب الحالي:')}</span>
               <span className="text-sm font-extrabold text-slate-900 block">{student.name}</span>
             </div>
 
@@ -449,7 +515,7 @@ export default function App() {
           }`}
         >
           <Home className="w-5 h-5" />
-          الرئيسية
+          {t('common.home', 'الرئيسية')}
         </button>
         <button
           onClick={() => setActiveScreen('reports')}
@@ -458,7 +524,7 @@ export default function App() {
           }`}
         >
           <FileText className="w-5 h-5" />
-          تقريري
+          {t('common.myReportMobile', 'تقريري')}
         </button>
         <button
           onClick={() => setActiveScreen('about')}
@@ -467,7 +533,7 @@ export default function App() {
           }`}
         >
           <HelpCircle className="w-5 h-5" />
-          معلومات
+          {t('common.info', 'معلومات')}
         </button>
       </footer>
     </div>
