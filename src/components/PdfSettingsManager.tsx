@@ -45,13 +45,15 @@ export const defaultPdfSettings: PdfSettings = {
       bodyFontSize: '18px',
       bodyAlign: 'center',
       bodyFontFamily: 'Tajawal',
-      signatures: [
-        { id: 'sig_1', url: '', title: 'مدير المتابعة التعليمية', width: '120px', height: 'auto' },
-        { id: 'sig_2', url: '', title: 'المعلم المشرف', width: '120px', height: 'auto' }
-      ],
-      stamps: [
-        { id: 'stamp_1', url: '', title: 'الختم الرسمي للمركز', width: '100px', height: 'auto' }
-      ]
+      frameUrl: '',
+      marginTop: '25mm',
+      marginSide: '20mm',
+      marginBottom: '20mm',
+      footerImageUrl: '',
+      footerImageHeight: '120px',
+      footerImageAlign: 'center',
+      signatures: [],
+      stamps: []
     }
   ]
 };
@@ -108,7 +110,7 @@ export default function PdfSettingsManager() {
       setMessage(null);
       const res = await callGasApi<{ success: boolean; message?: string }>('savePdfSettings', {
         pdfSettings: settings
-      });
+      }, { timeoutMs: 35000 });
       if (res && res.success) {
         setMessage({ type: 'success', text: res.message || 'تم حفظ إعدادات PDF والشهادات بنجاح' });
       } else {
@@ -116,7 +118,7 @@ export default function PdfSettingsManager() {
       }
     } catch (err: any) {
       console.error('Error saving PDF settings:', err);
-      setMessage({ type: 'error', text: 'حدث خطأ أثناء حفظ الإعدادات' });
+      setMessage({ type: 'error', text: err?.message ? `حدث خطأ أثناء حفظ الإعدادات: ${err.message}` : 'حدث خطأ أثناء حفظ الإعدادات' });
     } finally {
       setSaving(false);
     }
@@ -195,8 +197,8 @@ export default function PdfSettingsManager() {
       bodyFontSize: '16px',
       bodyAlign: 'center',
       bodyFontFamily: 'Tajawal',
-      signatures: [{ id: 'sig_1', url: '', title: 'التوقيع الرئيسي', width: '120px', height: 'auto' }],
-      stamps: [{ id: 'stamp_1', url: '', title: 'الختم الرسمي', width: '100px', height: 'auto' }]
+      signatures: [],
+      stamps: []
     };
     setSettings(prev => ({
       ...prev,
@@ -884,16 +886,17 @@ export default function PdfSettingsManager() {
                 <span className="text-[10px] text-slate-400 font-mono">Page #{currentCert.pagePosition || 3}</span>
               </div>
 
-              <div
-                className="bg-white text-slate-900 rounded-xl shadow-2xl relative overflow-hidden min-h-[280px] flex flex-col justify-between"
-                style={{
-                  paddingTop: currentCert.marginTop || '25px',
-                  paddingRight: currentCert.marginSide || '20px',
-                  paddingLeft: currentCert.marginSide || '20px',
-                  paddingBottom: currentCert.marginBottom || '20px',
-                }}
-                dir="rtl"
-              >
+              <div className="w-full flex justify-center py-4 bg-slate-950/60 rounded-xl overflow-x-auto">
+                <div
+                  className="bg-white text-slate-900 shadow-2xl relative overflow-hidden flex flex-col justify-between w-full max-w-[440px] aspect-[1/1.414] border border-slate-200/90 rounded-sm my-2 transition-all"
+                  style={{
+                    paddingTop: currentCert.marginTop || '25px',
+                    paddingRight: currentCert.marginSide || '20px',
+                    paddingLeft: currentCert.marginSide || '20px',
+                    paddingBottom: currentCert.marginBottom || '20px',
+                  }}
+                  dir="rtl"
+                >
                 {/* Background image preview if present */}
                 {settings.backgroundUrl && (
                   <img
@@ -947,49 +950,45 @@ export default function PdfSettingsManager() {
                       alt="التواقيع والختم المدمجة"
                       style={{ height: currentCert.footerImageHeight || '120px' }}
                       className="inline-block max-w-full object-contain"
+                      loading="lazy"
                     />
                   </div>
-                ) : (
+                ) : ((currentCert.signatures && currentCert.signatures.some(s => s.url || s.title)) || (currentCert.stamps && currentCert.stamps.some(st => st.url || st.title))) ? (
                   <div className="relative z-10 flex items-end justify-around mt-8 pt-6 border-t border-slate-200/80 text-center">
-                    {(currentCert.signatures || []).map((sig, idx) => (
-                      <div key={idx} className="flex flex-col items-center">
-                        {sig.url ? (
+                    {(currentCert.signatures || []).filter(s => s.url || s.title).map((sig, idx) => (
+                      <div key={sig.id || idx} className="flex flex-col items-center">
+                        {sig.url && (
                           <img
                             src={transformGoogleDriveImageUrl(sig.url)}
                             alt=""
                             style={{ width: sig.width || '110px', height: sig.height || 'auto' }}
                             className="object-contain mb-1"
+                            loading="lazy"
                           />
-                        ) : (
-                          <div className="w-20 h-10 border border-dashed border-slate-300 rounded flex items-center justify-center text-[10px] text-slate-400 mb-1">
-                            توقيع #{idx + 1}
-                          </div>
                         )}
-                        <span className="text-[11px] font-bold text-slate-800">{sig.title || 'التوقيع'}</span>
+                        {sig.title && <span className="text-[11px] font-bold text-slate-800">{sig.title}</span>}
                       </div>
                     ))}
 
-                    {(currentCert.stamps || []).map((stamp, idx) => (
-                      <div key={idx} className="flex flex-col items-center">
-                        {stamp.url ? (
+                    {(currentCert.stamps || []).filter(st => st.url || st.title).map((stamp, idx) => (
+                      <div key={stamp.id || idx} className="flex flex-col items-center">
+                        {stamp.url && (
                           <img
                             src={transformGoogleDriveImageUrl(stamp.url)}
                             alt=""
                             style={{ width: stamp.width || '90px', height: stamp.height || 'auto' }}
                             className="object-contain mb-1"
+                            loading="lazy"
                           />
-                        ) : (
-                          <div className="w-16 h-16 rounded-full border border-dashed border-amber-300 bg-amber-50/50 flex items-center justify-center text-[10px] text-amber-700 mb-1">
-                            ختم #{idx + 1}
-                          </div>
                         )}
-                        <span className="text-[11px] font-bold text-slate-800">{stamp.title || 'الختم'}</span>
+                        {stamp.title && <span className="text-[11px] font-bold text-slate-800">{stamp.title}</span>}
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
+          </div>
           </div>
         )}
       </div>

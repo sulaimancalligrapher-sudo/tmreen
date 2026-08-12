@@ -80,7 +80,9 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all_a');
   const [loading, setLoading] = useState(true);
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [certGenerating, setCertGenerating] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
   const [showPdfBtn, setShowPdfBtn] = useState(false);
 
   // Table states
@@ -191,12 +193,15 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
 
   const checkPdfControl = async () => {
     try {
-      const response = await callGasApi<{ success: boolean; control: string }>('getPdfControlForStudent', {
+      const response = await callGasApi<{ success: boolean; control: string; pdfUrl?: string; certPdfUrl?: string }>('getPdfControlForStudent', {
         studentId: student.id,
       });
 
       if (response.success) {
-        const control = response.control.trim();
+        if (response.pdfUrl) setPdfUrl(response.pdfUrl);
+        if (response.certPdfUrl) setCertPdfUrl(response.certPdfUrl);
+
+        const control = response.control ? response.control.trim() : '';
         if (control === 'نعم') {
           setShowPdfBtn(true);
         } else if (control === 'لا' || !control) {
@@ -216,18 +221,38 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
     }
   };
 
-  const handleGeneratePDF = async () => {
+  const handleGenerateCertPDF = async () => {
+    setCertGenerating(true);
+    try {
+      const response = await callGasApi<{ success: boolean; certPdfUrl?: string; message?: string }>(
+        'generateStudentCertificatePDF',
+        { studentId: student.id, studentName: student.name }
+      );
+
+      if (response.success && response.certPdfUrl) {
+        setCertPdfUrl(response.certPdfUrl);
+        alert('تم إنشاء الشهادة المخصصة بصيغة PDF وحفظها بنجاح! 🏆');
+      } else {
+        alert(response.message || 'فشل توليد ملف الشهادة حالياً.');
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء إنشاء الشهادة: ${err.message}`);
+    } finally {
+      setCertGenerating(false);
+    }
+  };
+
+  const handleGenerateFullPDF = async () => {
     setPdfGenerating(true);
-    setPdfUrl(null);
     try {
       const response = await callGasApi<{ success: boolean; pdfUrl?: string; message?: string }>(
-        'generateStudentPDF',
-        { studentId: student.id }
+        'generateStudentConsolidatedPDF',
+        { studentId: student.id, studentName: student.name }
       );
 
       if (response.success && response.pdfUrl) {
         setPdfUrl(response.pdfUrl);
-        alert('تم إنشاء التقرير الموحد بصيغة PDF وحفظه في حساب جوجل درايف بنجاح! 🚀');
+        alert('تم إنشاء التقرير الشامل بصيغة PDF وحفظه بنجاح! 🚀');
       } else {
         alert(response.message || 'فشل توليد ملف الـ PDF حالياً.');
       }
@@ -270,51 +295,96 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
             {t('reports.comprehensiveReportTitle', 'تقرير الأداء اللغوي الشامل للطالب')}
           </h1>
           <p className="text-slate-500 text-sm">
-            {t('reports.reportWelcomeDesc', 'أهلاً {name}! استعرض درجاتك، تقييمات المدرس، ونقاط تركيزك، وقم باستخراج الشهادة بصيغة PDF.').replace('{name}', student.name)}
+            {t('reports.reportWelcomeDesc', 'أهلاً {name}! استعرض درجاتك، تقييمات المدرس، ونقاط تركيزك، وقم باستخراج الشهادة والتقرير بصيغة PDF.').replace('{name}', student.name)}
           </p>
         </div>
 
-        {/* Generate PDF button controlled by settings */}
+        {/* Generate PDF buttons controlled by settings */}
         {showPdfBtn && (
-          <button
-            onClick={handleGeneratePDF}
-            disabled={pdfGenerating}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold px-6 py-3 rounded-2xl text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-600/10 shrink-0"
-          >
-            {pdfGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                جاري توليد الـ PDF...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                استخراج التقرير الرسمي (PDF)
-              </>
-            )}
-          </button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              onClick={handleGenerateCertPDF}
+              disabled={certGenerating}
+              className="bg-amber-500 hover:bg-amber-400 disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg shadow-amber-500/10"
+            >
+              {certGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  جاري استخراج الشهادة...
+                </>
+              ) : (
+                <>
+                  <Award className="w-4 h-4" />
+                  استخراج الشهادة فقط (PDF)
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleGenerateFullPDF}
+              disabled={pdfGenerating}
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold px-5 py-3 rounded-2xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-600/10"
+            >
+              {pdfGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  جاري استخراج التقرير...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  استخراج التقرير الشامل (PDF)
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
-      {pdfUrl && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between gap-4"
-        >
-          <div className="text-emerald-800 text-sm font-bold flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-emerald-600" />
-            جاهز للتحميل! يمكنك الآن تنزيل ملف التقرير الموحد الخاص بك.
-          </div>
-          <a
-            href={pdfUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5"
-          >
-            فتح الملف المستخرج
-          </a>
-        </motion.div>
+      {/* Download Banners */}
+      {(certPdfUrl || pdfUrl) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {certPdfUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-amber-50 border border-amber-200/80 p-4 rounded-2xl flex items-center justify-between gap-4"
+            >
+              <div className="text-amber-950 text-xs sm:text-sm font-bold flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-600 shrink-0" />
+                <span>شهادتك المخصصة جاهزة!</span>
+              </div>
+              <a
+                href={certPdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0"
+              >
+                فتح الشهادة (PDF)
+              </a>
+            </motion.div>
+          )}
+
+          {pdfUrl && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-emerald-50 border border-emerald-200/80 p-4 rounded-2xl flex items-center justify-between gap-4"
+            >
+              <div className="text-emerald-950 text-xs sm:text-sm font-bold flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>التقرير الشامل جاهز للتحميل!</span>
+              </div>
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0"
+              >
+                فتح التقرير الشامل (PDF)
+              </a>
+            </motion.div>
+          )}
+        </div>
       )}
 
       {/* Tabs list */}

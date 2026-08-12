@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { callGasApi } from '../utils/api';
+import { callGasApi, getApiUrl, setApiUrl, resetApiUrlToDefault, DEFAULT_GAS_API_URL } from '../utils/api';
 import { Student } from '../types';
-import { User, Lock, Loader2, AlertCircle, Smartphone, ShieldAlert, QrCode, Camera, Upload, X, CheckCircle2, Sparkles, Globe } from 'lucide-react';
+import { User, Lock, Loader2, AlertCircle, Smartphone, ShieldAlert, QrCode, Camera, Upload, X, CheckCircle2, Sparkles, Globe, Settings, RefreshCw, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useLanguage } from '../context/LanguageContext';
@@ -40,6 +40,49 @@ export default function LoginModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // GAS Server URL State
+  const [showUrlEditor, setShowUrlEditor] = useState(false);
+  const [customGasUrl, setCustomGasUrl] = useState('');
+  const [testingUrl, setTestingUrl] = useState(false);
+  const [urlStatusMsg, setUrlStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (showUrlEditor) {
+      setCustomGasUrl(getApiUrl());
+    }
+  }, [showUrlEditor]);
+
+  const handleSaveAndTestUrl = async (urlToSave?: string) => {
+    const target = (urlToSave !== undefined ? urlToSave : customGasUrl).trim();
+    if (!target) {
+      setUrlStatusMsg({ type: 'error', text: 'يرجى أدخال رابط الـ Web App الخاص بك أولاً!' });
+      return;
+    }
+    setTestingUrl(true);
+    setUrlStatusMsg(null);
+    try {
+      setApiUrl(target);
+      await callGasApi('getData', {}, { bypassCache: true, timeoutMs: 15000 });
+      setUrlStatusMsg({ type: 'success', text: 'تم اختبار الاتصال بالخادم بنجاح! الرابط يعمل بامتياز.' });
+      setError('');
+      setTimeout(() => {
+        setShowUrlEditor(false);
+        setUrlStatusMsg(null);
+      }, 1500);
+    } catch (err: any) {
+      setUrlStatusMsg({ type: 'error', text: `فشل الاتصال بهذا الرابط: ${err.message}` });
+    } finally {
+      setTestingUrl(false);
+    }
+  };
+
+  const handleResetUrlDefault = async () => {
+    resetApiUrlToDefault();
+    const defaultUrl = DEFAULT_GAS_API_URL;
+    setCustomGasUrl(defaultUrl);
+    await handleSaveAndTestUrl(defaultUrl);
+  };
 
   // QR Modal States
   const [showQrModal, setShowQrModal] = useState(false);
@@ -469,12 +512,102 @@ export default function LoginModal({
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-xl text-xs flex gap-2 items-center"
+              className="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-xl text-xs space-y-2.5"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-              <span>{error}</span>
+              <div className="flex gap-2 items-start">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <span className="leading-relaxed">{error}</span>
+              </div>
+              <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUrlEditor(true)}
+                  className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
+                >
+                  <Settings className="w-3.5 h-3.5 text-amber-600" />
+                  <span>تعديل رابط خادم الشيت</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetUrlDefault}
+                  className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
+                >
+                  إعادة الضبط للافتراضي
+                </button>
+              </div>
             </motion.div>
           )}
+
+          {/* GAS Server URL Drawer */}
+          <AnimatePresence>
+            {showUrlEditor && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-slate-900 text-slate-100 p-4 rounded-2xl space-y-3 text-xs border border-slate-800 shadow-xl overflow-hidden"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold">
+                    <Link2 className="w-4 h-4" />
+                    <span>إعداد رابط خادم Google Apps Script</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlEditor(false)}
+                    className="text-slate-400 hover:text-white p-1 rounded-md"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  إذا أظهر الخادم خطأ 404، يرجى لصق رابط الـ Web App الجديد المنسوخ من مشروع Google Apps Script الخاص بك:
+                </p>
+
+                <div className="space-y-1">
+                  <input
+                    type="url"
+                    value={customGasUrl}
+                    onChange={(e) => setCustomGasUrl(e.target.value)}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="w-full bg-slate-950 border border-slate-700 text-amber-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono text-left"
+                  />
+                </div>
+
+                {urlStatusMsg && (
+                  <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                    urlStatusMsg.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800' : 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                  }`}>
+                    {urlStatusMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span>{urlStatusMsg.text}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={testingUrl}
+                    onClick={() => handleSaveAndTestUrl()}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+                  >
+                    {testingUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>حفظ واختبار الاتصال</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={testingUrl}
+                    onClick={handleResetUrlDefault}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1"
+                    title="إعادة الضبط للرابط الافتراضي"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>الافتراضي</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <button
             type="submit"
@@ -502,6 +635,14 @@ export default function LoginModal({
               <Smartphone className="w-4 h-4 text-slate-400" />
               <span>{t('login.deviceProtectionActive', 'حماية الأجهزة مفعّلة')}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowUrlEditor(!showUrlEditor)}
+              className="text-slate-500 hover:text-amber-600 transition flex items-center gap-1 font-bold"
+            >
+              <Settings className="w-3.5 h-3.5 text-slate-400" />
+              <span>رابط الخادم</span>
+            </button>
           </div>
 
           {forcedMode === 'admin' && onGoToStudentPage && (

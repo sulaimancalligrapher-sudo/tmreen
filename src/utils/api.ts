@@ -5,7 +5,7 @@
 
 // Default Google Apps Script Web App URL
 // You can set this variable directly or set VITE_GAS_API_URL in Vercel environment variables
-export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbwUm-285QCFSB40pDMf8g_HZEgIwmwrm-wOGawxtp3vs2KEqmhM_9tvCfK3coLRsl_p3g/exec";
+export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbyGhHVE2EQxD9TDqyixXdLE6Yu40zFensurdEhWiU4vcrHEcZMRisrzaSBlnDvfQQJa/exec";
 
 // Retrieve Google Apps Script Web App URL (LocalStorage > Environment Variable > Hardcoded Default)
 export function getApiUrl(): string {
@@ -21,7 +21,12 @@ export function getApiUrl(): string {
 }
 
 export function setApiUrl(url: string): void {
-  localStorage.setItem('gas_api_url', url.trim());
+  const clean = url.trim();
+  if (clean) {
+    localStorage.setItem('gas_api_url', clean);
+  } else {
+    localStorage.removeItem('gas_api_url');
+  }
 }
 
 export function resetApiUrlToDefault(): void {
@@ -40,11 +45,11 @@ interface CacheEntry {
   data: any;
 }
 const apiCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 15000; // 15 seconds short cache for GET-like actions
+const CACHE_TTL_MS = 30000; // 30 seconds cache for GET-like actions
 
-// Simple Queue to limit concurrency to Google Apps Script (Max 2 simultaneous requests)
+// Queue to limit concurrency to Google Apps Script (Max 4 simultaneous requests)
 let activeRequestsCount = 0;
-const MAX_CONCURRENT_REQUESTS = 2;
+const MAX_CONCURRENT_REQUESTS = 4;
 const requestQueue: (() => void)[] = [];
 
 async function acquireSlot(): Promise<void> {
@@ -82,8 +87,8 @@ export async function callGasApi<T>(
   }
 
   const bypassCache = options.bypassCache ?? false;
-  const maxRetries = options.retries ?? 2;
-  const timeoutMs = options.timeoutMs ?? 15000;
+  const maxRetries = options.retries ?? 1;
+  const timeoutMs = options.timeoutMs ?? 45000; // 45 seconds default timeout for GAS execution
 
   // Actions that can be safely cached for short duration
   const isReadOnlyAction = [
@@ -96,9 +101,15 @@ export async function callGasApi<T>(
     'getWaslExerciseData',
     'getWritingExerciseData',
     'getLessons',
+    'getLessonsForAdmin',
     'getLetters',
     'getLessonsFromMatches',
-    'getStudentsEvaluations'
+    'getStudentsEvaluations',
+    'getAllStudentsSchedule',
+    'getPdfSettings',
+    'getStudentFullReportData',
+    'getStudentResults',
+    'getLessonDetails'
   ].includes(action);
 
   const cacheKey = `${action}:${JSON.stringify(payload)}`;
@@ -114,6 +125,7 @@ export async function callGasApi<T>(
 
   try {
     let lastError: Error | null = null;
+    const targetUrl = url;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
@@ -125,7 +137,7 @@ export async function callGasApi<T>(
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(targetUrl, {
           method: 'POST',
           mode: 'cors',
           headers: {
@@ -140,11 +152,32 @@ export async function callGasApi<T>(
 
         clearTimeout(timer);
 
+        const responseText = await response.text();
+
         if (!response.ok) {
+          if (response.status === 404 || responseText.includes('404') || responseText.includes('找不到網頁')) {
+            throw new Error('خطأ 404 (غير موجود): رابط خادم Google Apps Script غير متاح على خوادم غوغل. يرجى التأكد من اختيار (Deploy > New deployment > Web App) وضبط (Who has access: Anyone).');
+          }
           throw new Error(`حالة الاستجابة: ${response.status} ${response.statusText}`);
         }
 
-        const data = await response.json();
+        let data: any;
+        try {
+          data = JSON.parse(responseText);
+        } catch (jsonErr) {
+          if (
+            responseText.includes('404') ||
+            responseText.includes('找不到網頁') ||
+            responseText.includes('Unable to open file') ||
+            responseText.includes('Google Drive') ||
+            responseText.includes('doctype html') ||
+            responseText.includes('DOCTYPE html')
+          ) {
+            throw new Error('خطأ 404 (الصفحة غير موجودة): الرابط يرجع صفحة خطأ من غوغل (الصفحة غير متاحة أو تتطلب إعادة النشر بصلاحية Anyone كإصدار جديد New Version).');
+          }
+          throw new Error('الاستجابة من الخادم ليست بصيغة JSON. يرجى التأكد من نشر السكريبت كـ Web App واختيار (Anyone/الجميع).');
+        }
+
         if (data && data.error) {
           throw new Error(data.error);
         }
@@ -157,10 +190,11 @@ export async function callGasApi<T>(
       } catch (err: any) {
         clearTimeout(timer);
         let msg = err.message || '';
+
         if (err.name === 'AbortError') {
-          msg = 'انتهت مهلة الاتصال بالخادم (استغرق الخادم وقتاً أطول من المتوقع)';
+          msg = `انتهت مهلة الاتصال بالخادم (${timeoutMs / 1000} ثانية). الخادم يستغرق وقتاً أطول من المتوقع.`;
         } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-          msg = 'فشل الاتصال بالشبكة أو انقطع الاتصال بخادم Google Apps Script';
+          msg = 'فشل الاتصال بالشبكة أو تم حظر الطلب (CORS/NetworkError). يرجى التأكد من صحة الرابط وأن نشر السكريبت بصلاحية "Anyone".';
         }
         lastError = new Error(msg);
 

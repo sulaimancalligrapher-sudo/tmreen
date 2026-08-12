@@ -152,6 +152,8 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [selectedReportStudentId, setSelectedReportStudentId] = useState<string | null>(null);
   const [selectedReportStudent, setSelectedReportStudent] = useState<StudentSchedule | null>(null);
   const [studentSavedPdfUrl, setStudentSavedPdfUrl] = useState<string>('');
+  const [studentSavedCertPdfUrl, setStudentSavedCertPdfUrl] = useState<string>('');
+  const [generatingCertPdfId, setGeneratingCertPdfId] = useState<string | null>(null);
   const [loadingPdfUrl, setLoadingPdfUrl] = useState(false);
   const [reportLessonFilter, setReportLessonFilter] = useState('');
   const [reportCompletionFilter, setReportCompletionFilter] = useState<'all' | 'completed' | 'not_started' | 'partial'>('all');
@@ -557,18 +559,45 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const handleSelectReportStudent = async (student: StudentSchedule) => {
     setSelectedReportStudent(student);
     setStudentSavedPdfUrl('');
+    setStudentSavedCertPdfUrl('');
     setLoadingPdfUrl(true);
     try {
-      const response = await callGasApi<{ success: boolean; control: string; pdfUrl?: string }>('getPdfControlForStudent', {
+      const response = await callGasApi<{ success: boolean; control: string; pdfUrl?: string; certPdfUrl?: string }>('getPdfControlForStudent', {
         studentId: student.studentId
       });
-      if (response && response.success && response.pdfUrl) {
-        setStudentSavedPdfUrl(response.pdfUrl);
+      if (response && response.success) {
+        if (response.pdfUrl) setStudentSavedPdfUrl(response.pdfUrl);
+        if (response.certPdfUrl) setStudentSavedCertPdfUrl(response.certPdfUrl);
       }
     } catch (err) {
       console.warn('Failed to fetch student saved PDF url:', err);
     } finally {
       setLoadingPdfUrl(false);
+    }
+  };
+
+  const handleGenerateStudentCertPDF = async (student: StudentSchedule) => {
+    try {
+      setGeneratingCertPdfId(student.studentId);
+      const res = await callGasApi<{ success: boolean; certPdfUrl?: string; message?: string }>('generateStudentCertificatePDF', { 
+        studentId: student.studentId, 
+        studentName: student.studentName 
+      });
+      if (res && res.success && res.certPdfUrl) {
+        setStudentSavedCertPdfUrl(res.certPdfUrl);
+        alert('تم توليد ملف الشهادة فقط (PDF) بنجاح وحفظه على جوجل درايف في العمود D!\n\nيمكنك الآن النقر على زر "فتح الشهادة (PDF)" للفتح والتحميل.');
+        try {
+          window.open(res.certPdfUrl, '_blank');
+        } catch (e) {
+          console.warn('Popup blocked:', e);
+        }
+      } else {
+        alert(res.message || 'فشل توليد ملف الشهادة حالياً.');
+      }
+    } catch (err: any) {
+      alert(`خطأ أثناء استخراج الشهادة: ${err.message}`);
+    } finally {
+      setGeneratingCertPdfId(null);
     }
   };
 
@@ -581,7 +610,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       });
       if (res && res.success && res.pdfUrl) {
         setStudentSavedPdfUrl(res.pdfUrl);
-        alert('تم توليد التقرير التقييمي الشامل (PDF) بنجاح وحفظه على جوجل درايف!\n\nيمكنك الآن النقر على زر "فتح وتحميل ملف الـ PDF" الأخضر في الأسفل للفتح والتحميل.');
+        alert('تم توليد التقرير التقييمي الشامل (PDF) بنجاح وحفظه على جوجل درايف في العمود E!\n\nيمكنك الآن النقر على زر "فتح التقرير الشامل (PDF)" للفتح والتحميل.');
         try {
           window.open(res.pdfUrl, '_blank');
         } catch (e) {
@@ -681,7 +710,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
     try {
       setLoadingLessons(true);
       setLessonsError('');
-      const data = await callGasApi<any>('getLessonsForAdmin');
+      const data = await callGasApi<any>('getLessonsForAdmin', {}, { timeoutMs: 60000 });
       if (data && data.success) {
         setLessons({
           questionsLessons: data.questionsLessons || [],
@@ -3172,51 +3201,102 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
-                تحديث الشيت المجمع (Sync Sheet)
+                تحديث الشيت المجمع
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateStudentCertPDF(selectedReportStudent)}
+                disabled={generatingCertPdfId === selectedReportStudent.studentId}
+                className="flex items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl transition font-extrabold text-xs shadow-md shadow-amber-200/50 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {generatingCertPdfId === selectedReportStudent.studentId ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                ) : (
+                  <Award className="w-4 h-4" />
+                )}
+                عمل الشهادة فقط (PDF)
               </button>
               <button
                 type="button"
                 onClick={() => handleGenerateStudentReportPDF(selectedReportStudent)}
                 disabled={generatingStudentPdfId === selectedReportStudent.studentId}
-                className="flex items-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl transition font-extrabold text-xs shadow-md shadow-amber-200/50 disabled:bg-slate-200 disabled:text-slate-400"
+                className="flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl transition font-extrabold text-xs shadow-md shadow-emerald-200/50 disabled:bg-slate-200 disabled:text-slate-400"
               >
                 {generatingStudentPdfId === selectedReportStudent.studentId ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
                 ) : (
                   <FileText className="w-4 h-4" />
                 )}
-                عمل ملف بي دي اف (PDF)
+                عمل التقرير الشامل (PDF)
               </button>
             </div>
           </div>
 
-          {/* Saved PDF Link Display on the student card */}
-          <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-3">
-            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm">🔗 رابط ملف التقرير المرفق (PDF)</h4>
+          {/* Saved PDF Links Display on the student card */}
+          <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-4">
+            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm">🔗 روابط ملفات الـ PDF المسجلة للطالب (شيت PDF)</h4>
             {loadingPdfUrl ? (
               <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
                 <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
                 <span>جاري البحث عن روابط PDF سابقة للطالب...</span>
               </div>
-            ) : studentSavedPdfUrl ? (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/50 border border-emerald-100 p-3 rounded-2xl text-right">
-                <div className="text-right">
-                  <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100/60 px-2 py-0.5 rounded-full">جاهز للتحميل 🏆</span>
-                  <p className="text-[11px] text-slate-600 mt-1 truncate max-w-md font-sans" dir="ltr">{studentSavedPdfUrl}</p>
+            ) : (studentSavedCertPdfUrl || studentSavedPdfUrl) ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Cert PDF Link (Col D) */}
+                <div className="bg-amber-50/60 border border-amber-200/80 p-3.5 rounded-2xl text-right space-y-2 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-amber-900 font-extrabold bg-amber-100 px-2 py-0.5 rounded-full">العمود D (الشهادة فقط)</span>
+                      <Award className="w-4 h-4 text-amber-600" />
+                    </div>
+                    {studentSavedCertPdfUrl ? (
+                      <p className="text-[11px] text-slate-600 mt-2 truncate font-mono" dir="ltr">{studentSavedCertPdfUrl}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 mt-2 font-sans">لم يتم إصدار رابط شهادة فردي بعد.</p>
+                    )}
+                  </div>
+                  {studentSavedCertPdfUrl && (
+                    <a
+                      href={studentSavedCertPdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-xs w-full mt-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      فتح وتحميل الشهادة (PDF)
+                    </a>
+                  )}
                 </div>
-                <a
-                  href={studentSavedPdfUrl}
-                  target="_blank"
-                  rel="noreferrer referrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 font-sans"
-                >
-                  <Eye className="w-4 h-4" />
-                  فتح وتحميل ملف الـ PDF
-                </a>
+
+                {/* Full Report PDF Link (Col E) */}
+                <div className="bg-emerald-50/60 border border-emerald-200/80 p-3.5 rounded-2xl text-right space-y-2 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-emerald-900 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full">العمود E (التقرير الشامل)</span>
+                      <FileText className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    {studentSavedPdfUrl ? (
+                      <p className="text-[11px] text-slate-600 mt-2 truncate font-mono" dir="ltr">{studentSavedPdfUrl}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 mt-2 font-sans">لم يتم إصدار رابط تقرير شامل بعد.</p>
+                    )}
+                  </div>
+                  {studentSavedPdfUrl && (
+                    <a
+                      href={studentSavedPdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-xs w-full mt-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      فتح وتحميل التقرير الشامل (PDF)
+                    </a>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl text-center text-slate-400 text-xs">
-                لا يوجد تقرير PDF محفوظ ومسجل في الشيت حالياً لهذا الطالب. اضغط على زر "عمل ملف بي دي اف" في الأعلى لإنشاء الرابط وحفظه.
+                لا توجد روابط PDF مسجلة في الشيت حالياً لهذا الطالب. اضغط على أزرار التوليد أعلاه لإنشاء الشهادة أو التقرير وتخزينه.
               </div>
             )}
           </div>
