@@ -131,6 +131,64 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'My Report',
       th: 'รายงานของฉัน',
     },
+    openFile: {
+      ar: '🔗 افتح الملف',
+      en: '🔗 Open File',
+      th: '🔗 เปิดไฟล์',
+    },
+    yesCompleted: {
+      ar: 'نعم (مكتمل)',
+      en: 'Yes (Completed)',
+      th: 'ใช่ (เสร็จสมบูรณ์)',
+    },
+    noIncomplete: {
+      ar: 'لا (غير مكتمل)',
+      en: 'No (Incomplete)',
+      th: 'ไม่ (ยังไม่เสร็จ)',
+    },
+  },
+
+  encouragements: {
+    image90: {
+      ar: 'ممتاز! خط ورسم رائع وواضح جداً 🎨✨',
+      en: 'Excellent! Wonderful, clear handwriting and drawing 🎨✨',
+      th: 'ยอดเยี่ยมมาก! ลายมือและภาพวาดสวยงามและชัดเจนมาก 🎨✨',
+    },
+    image75: {
+      ar: 'جيد جداً! خط جميل ومقروء 📝🌟',
+      en: 'Very Good! Beautiful and legible handwriting 📝🌟',
+      th: 'ดีมาก! ลายมือสวยงามและอ่านง่าย 📝🌟',
+    },
+    image50: {
+      ar: 'جيد! أداء حسن وجاري التحسن ✏️👍',
+      en: 'Good! Good performance and improving ✏️👍',
+      th: 'ดี! ทำได้ดีและกำลังพัฒนาขึ้น ✏️👍',
+    },
+    imageUnder50: {
+      ar: 'يحتاج لمزيد من التدريب على الكتابة ✏️💪',
+      en: 'Needs more writing practice ✏️💪',
+      th: 'ต้องฝึกฝนการเขียนเพิ่มเติม ✏️💪',
+    },
+    audio90: {
+      ar: 'مبدع! نطق ومخارج حروف ممتازة وصوت واضح 🎙️✨',
+      en: 'Creative! Excellent pronunciation, articulation, and clear voice 🎙️✨',
+      th: 'สร้างสรรค์มาก! การออกเสียงและการออกอักขระยอดเยี่ยม เสียงชัดเจน 🎙️✨',
+    },
+    audio75: {
+      ar: 'جيد جداً! قراءة وأداء صوتي ممتاز 🎧🌟',
+      en: 'Very Good! Excellent reading and vocal performance 🎧🌟',
+      th: 'ดีมาก! การอ่านและการแสดงออกทางเสียงยอดเยี่ยม 🎧🌟',
+    },
+    audio50: {
+      ar: 'جيد! أداء صوتي حسن ويحتاج وضوح أكثر 🗣️👍',
+      en: 'Good! Good vocal performance, needs more clarity 🗣️👍',
+      th: 'ดี! การแสดงออกทางเสียงดี แต่ต้องการความชัดเจนมากขึ้น 🗣️👍',
+    },
+    audioUnder50: {
+      ar: 'يحتاج لمزيد من التدريب والممارسة الصوتية 🎧💪',
+      en: 'Needs more voice practice and training 🎧💪',
+      th: 'ต้องฝึกฝนและซ้อมการใช้เสียงเพิ่มเติม 🎧💪',
+    },
   },
 
   header: {
@@ -1954,6 +2012,16 @@ export const defaultTranslations: TranslationDictionary = {
       ar: 'التقييم والنجوم ⭐',
       en: 'Rating & Stars ⭐',
       th: 'การประเมินและดาว ⭐',
+    },
+    imageRating: {
+      ar: 'تقييم درجة الصورة ⭐',
+      en: 'Image Grade Rating ⭐',
+      th: 'การประเมินคะแนนรูปภาพ ⭐',
+    },
+    audioRating: {
+      ar: 'تقييم درجة الصوت ⭐',
+      en: 'Audio Grade Rating ⭐',
+      th: 'การประเมินคะแนนเสียง ⭐',
     },
     videoAnswersResult: {
       ar: 'نتائج اجابة الفيديو',

@@ -322,6 +322,8 @@ function doPost(e) {
       result = getWaslExerciseData(request.studentId);
     } else if (action === 'getWritingExerciseData') {
       result = getWritingExerciseData(request.studentId);
+    } else if (action === 'getStudentFullReportData') {
+      result = getStudentFullReportData(request.studentId, request.studentName);
     } else if (action === 'syncConsolidatedEvaluations') {
       result = syncConsolidatedEvaluations(request.studentId, request.studentName);
     } else if (action === 'getStudentsEvaluations') {
@@ -330,6 +332,10 @@ function doPost(e) {
       result = getStudentConsolidatedEvaluation(request.studentId, request.studentName);
     } else if (action === 'generateStudentConsolidatedPDF') {
       result = generateStudentConsolidatedPDF(request.studentId, request.studentName);
+    } else if (action === 'getPdfSettings') {
+      result = getPdfSettings();
+    } else if (action === 'savePdfSettings') {
+      result = savePdfSettings(request.pdfSettings);
     } else if (action === 'generateStudentPDF') {
       result = generateStudentPDF(request.studentId, 'student');
     } else if (action === 'getPdfControlForStudent') {
@@ -821,6 +827,9 @@ function recordAnswer(studentId, studentName, topic, questionIndex, isCorrect) {
       sheet.getRange(targetRow, 31).setValue(percentage); // AE
     }
   }
+  try {
+    syncConsolidatedEvaluations(studentId, studentName);
+  } catch (err) {}
   return 'Recorded';
 }
 
@@ -1113,6 +1122,9 @@ function saveProgress(studentId, studentName, label, details, repetitionsComplet
   var finalPercent = fullScore > 0 ? (finalScore / fullScore) * 100 : 0;
   sheetProgress.getRange(rowIndex, 38).setValue(finalPercent.toFixed(1) + "%");
   
+  try {
+    syncConsolidatedEvaluations(studentId, studentName);
+  } catch (err) {}
   return { success: true };
 }
 
@@ -1513,6 +1525,9 @@ function saveAnswers(studentId, studentName, lessonName, results, numQuestions) 
     
     sheet.appendRow(rowData);
   }
+  try {
+    syncConsolidatedEvaluations(studentId, studentName);
+  } catch (err) {}
   return { success: true };
 }
 
@@ -1686,8 +1701,11 @@ function getStudentData(studentId) {
       if (rId === studentId.toString().trim()) {
         var topic = corrData[r][2] ? corrData[r][2].toString().trim() : '';
         if (topic) {
-          var correctedText = corrData[r][21] ? corrData[r][21].toString().trim() : '';
-          var isDone = (correctedText !== '');
+          var teacherNotes = corrData[r][20] ? corrData[r][20].toString().trim() : '';
+          var picGrade = corrData[r][19] ? corrData[r][19].toString().trim() : '';
+          var audioGrade = corrData[r][28] ? corrData[r][28].toString().trim() : '';
+          var corrDate = corrData[r][26] ? corrData[r][26].toString().trim() : '';
+          var isDone = (teacherNotes !== '' || picGrade !== '' || audioGrade !== '' || corrDate !== '');
           hwMap[topic] = { status: isDone ? 'تم التصحيح والتقييم' : 'بانتظار التصحيح', isDone: isDone };
         }
       }
@@ -1760,24 +1778,31 @@ function getStudentVideoData(studentId) {
   
   var headers = [
     'موضوع الدرس',
-    'صورة الواجب',
-    'تسجيل صوت',
-    'تصحيح',
-    'درجات الصورة',
-    'درجات الصوت',
-    'اضافة صورة',
-    'اضافة فيديو',
-    'اضافة صوت',
-    'تاريخ التصحيح'
+    'رابط صورة الواجب',
+    'رابط تسجيل الصوت',
+    'درجات صورة الواجب',
+    'درجات التسجيل الصوتي',
+    'ملاحظات وتصحيح المعلم',
+    'رابط صورة توضيحية',
+    'تاريخ التصحيح',
+    'تقييم درجة الصورة ⭐',
+    'تقييم درجة الصوت ⭐'
   ];
   
   // Columns map to indexes in correction:
-  // C (2), E (4), G (6), V (21), U (20), W (22), X (23), Y (24), Z (25), AA (26)
-  var cols = [2, 4, 6, 21, 20, 22, 23, 24, 25, 26];
+  // C (2): موضوع الدرس
+  // E (4): رابط صورة الواجب
+  // G (6): رابط تسجيل الصوت الخاص بالطالب
+  // T (19): درجات صورة الواجب
+  // AC (28): درجات التسجيل الصوتي
+  // U (20): ملاحظات وتصحيح المعلم
+  // V (21): رابط صورة توضيحية من المعلم
+  // AA (26): تاريخ التصحيح
+  var cols = [2, 4, 6, 19, 28, 20, 21, 26];
   
   var studentData = [];
   var studentName = 'غير معروف';
-  
+
   for (var row = 1; row < data.length; row++) {
     if (data[row][0] && data[row][0].toString().trim() === studentId.toString().trim()) {
       if (data[row][1]) {
@@ -1787,6 +1812,15 @@ function getStudentVideoData(studentId) {
         var val = data[row][c];
         return val !== undefined && val !== null ? val.toString().trim() : '';
       });
+
+      var imgGradeVal = data[row][19];
+      var audGradeVal = data[row][28];
+      var imgEval = formatGradeToStars(imgGradeVal, 'image');
+      var audEval = formatGradeToStars(audGradeVal, 'audio');
+
+      rowData.push(imgEval);
+      rowData.push(audEval);
+
       studentData.push(rowData);
     }
   }
@@ -2099,6 +2133,49 @@ function getSettings() {
     if (key && value) settings[key] = value;
   }
   return settings;
+}
+
+function getPdfSettings() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var settingsSheet = ss.getSheetByName('Settings');
+  if (!settingsSheet) return null;
+  var settingsData = settingsSheet.getRange("U1:V" + settingsSheet.getLastRow()).getValues();
+  for (var i = 1; i < settingsData.length; i++) {
+    var key = settingsData[i][0] ? settingsData[i][0].toString().trim() : '';
+    var val = settingsData[i][1] ? settingsData[i][1].toString().trim() : '';
+    if (key === 'pdf_settings_json') {
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function savePdfSettings(settingsObj) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var settingsSheet = ss.getSheetByName('Settings');
+  if (!settingsSheet) {
+    settingsSheet = ss.insertSheet('Settings');
+    settingsSheet.appendRow(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Key', 'Value']);
+  }
+  var jsonStr = JSON.stringify(settingsObj || {});
+  var settingsData = settingsSheet.getRange("U1:V" + settingsSheet.getLastRow()).getValues();
+  var foundRow = -1;
+  for (var i = 1; i < settingsData.length; i++) {
+    if (settingsData[i][0] && settingsData[i][0].toString().trim() === 'pdf_settings_json') {
+      foundRow = i + 1;
+      break;
+    }
+  }
+  if (foundRow !== -1) {
+    settingsSheet.getRange(foundRow, 22).setValue(jsonStr);
+  } else {
+    settingsSheet.appendRow(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'pdf_settings_json', jsonStr]);
+  }
+  return { success: true, message: "تم حفظ إعدادات الـ PDF والشهادات بنجاح" };
 }
 
 function generateStudentPDF(studentId, source) {
@@ -3484,6 +3561,39 @@ function updateStudentSchedule(studentId, startDate, activeDays, lessonsPerWeek,
   return { success: true, message: 'تم تحديث جدولة الطالب بنجاح' };
 }
 
+function formatGradeToStars(val, type) {
+  if (val === undefined || val === null) return '-';
+  var str = val.toString().trim();
+  if (!str || str === '-') return '-';
+  var clean = str.replace('%', '').trim();
+  var num = parseFloat(clean);
+  if (isNaN(num)) return str;
+  var pct = str.indexOf('%') !== -1 ? num : (num <= 10 ? num * 10 : num);
+  var starsCount = Math.round((pct / 100) * 10);
+  if (starsCount < 0) starsCount = 0;
+  if (starsCount > 10) starsCount = 10;
+  
+  var stars = '';
+  for (var i = 0; i < starsCount; i++) {
+    stars += '⭐';
+  }
+
+  var text = '';
+  if (type === 'image') {
+    if (pct >= 90) text = 'ممتاز! خط ورسم رائع وواضح جداً 🎨✨';
+    else if (pct >= 75) text = 'جيد جداً! خط جميل ومقروء 📝🌟';
+    else if (pct >= 50) text = 'جيد! أداء حسن وجاري التحسن ✏️👍';
+    else text = 'يحتاج لمزيد من التدريب على الكتابة ✏️💪';
+  } else if (type === 'audio') {
+    if (pct >= 90) text = 'مبدع! نطق ومخارج حروف ممتازة وصوت واضح 🎙️✨';
+    else if (pct >= 75) text = 'جيد جداً! قراءة وأداء صوتي ممتاز 🎧🌟';
+    else if (pct >= 50) text = 'جيد! أداء صوتي حسن ويحتاج وضوح أكثر 🗣️👍';
+    else text = 'يحتاج لمزيد من التدريب والممارسة الصوتية 🎧💪';
+  }
+
+  return stars ? stars + ' (' + Math.round(pct) + '%) ' + text : str;
+}
+
 function getTenStars(percentageStr) {
   if (percentageStr === undefined || percentageStr === null || percentageStr === '') return '☆☆☆☆☆☆☆☆☆☆';
   var str = String(percentageStr).replace('%', '').trim();
@@ -3515,8 +3625,8 @@ function syncConsolidatedEvaluations(studentId, studentName) {
     'درجات الصورة',
     'درجات الصوت',
     'حالة درجات التركيز',
-    'الدرجة النهائية',
-    'التقييم بالنجوم',
+    'تقييم درجة الصورة ⭐',
+    'تقييم درجة الصوت ⭐',
     'حالة تمارين الكلمات',
     'تفاصيل الكلمات',
     'النسبة المئوية للكلمات',
@@ -3573,15 +3683,15 @@ function syncConsolidatedEvaluations(studentId, studentName) {
   var corrMap = {};
   var corrSheet = getSheetByNameFlexible(ss, 'correction');
   if (corrSheet && corrSheet.getLastRow() >= 2) {
-    var maxCols = Math.max(23, corrSheet.getLastColumn());
+    var maxCols = Math.max(29, corrSheet.getLastColumn());
     var corrData = corrSheet.getRange(2, 1, corrSheet.getLastRow() - 1, maxCols).getValues();
     corrData.forEach(function(row) {
       var rowId = row[0] ? row[0].toString().trim() : '';
       var rowTopic = row[2] ? row[2].toString().trim() : '';
       if (rowId === studentId.toString().trim() && rowTopic !== '') {
-        var picVal = row[20] !== undefined && row[20] !== null ? row[20].toString().trim() : '';
-        var audioVal = row[22] !== undefined && row[22] !== null ? row[22].toString().trim() : '';
-        var finalVal = row[21] !== undefined && row[21] !== null ? row[21].toString().trim() : '';
+        var picVal = row[19] !== undefined && row[19] !== null ? row[19].toString().trim() : '';
+        var audioVal = row[28] !== undefined && row[28] !== null ? row[28].toString().trim() : '';
+        var finalVal = row[20] !== undefined && row[20] !== null ? row[20].toString().trim() : '';
         var fg = formatPercentage(finalVal || picVal || audioVal || '100%');
         corrMap[rowTopic] = {
           sentStatus: 'تم',
@@ -3673,8 +3783,9 @@ function syncConsolidatedEvaluations(studentId, studentName) {
     var picGrade = c.picGrade;
     var audioGrade = c.audioGrade;
     var focusStatus = c.hasFocus ? 'تم' : 'لم';
-    var finalGrade = c.finalGrade;
-    var focusStars = getTenStars(finalGrade);
+
+    var imgEval = formatGradeToStars(picGrade, 'image');
+    var audEval = formatGradeToStars(audioGrade, 'audio');
 
     var wordsSummary = (w.summary && w.summary !== '-' && w.summary !== 'لم يبدأ') ? w.summary : '-';
     var wordsStatus = (wordsSummary !== '-') ? 'تم' : 'لم';
@@ -3705,8 +3816,8 @@ function syncConsolidatedEvaluations(studentId, studentName) {
       picGrade,              // Col 5
       audioGrade,            // Col 6
       focusStatus,           // Col 7
-      finalGrade,            // Col 8
-      focusStars,            // Col 9
+      imgEval,               // Col 8: تقييم درجة الصورة ⭐
+      audEval,               // Col 9: تقييم درجة الصوت ⭐
       wordsStatus,           // Col 10
       wordsSummary,          // Col 11
       wordsPct,              // Col 12
@@ -3810,8 +3921,8 @@ function getStudentsEvaluations() {
     'درجات الصورة',
     'درجات الصوت',
     'حالة درجات التركيز',
-    'الدرجة النهائية',
-    'التقييم بالنجوم',
+    'تقييم درجة الصورة ⭐',
+    'تقييم درجة الصوت ⭐',
     'حالة تمارين الكلمات',
     'تفاصيل الكلمات',
     'النسبة المئوية للكلمات',
@@ -3843,10 +3954,6 @@ function getStudentsEvaluations() {
 }
 
 function getStudentConsolidatedEvaluation(studentId, studentName) {
-  try {
-    syncConsolidatedEvaluations(studentId, studentName);
-  } catch (e) {}
-  
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getSheetByNameFlexible(ss, 'ConsolidatedEvaluations');
   if (!sheet) return { success: false, data: [] };
@@ -3854,13 +3961,55 @@ function getStudentConsolidatedEvaluation(studentId, studentName) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), 22 - sheet.getMaxColumns());
   }
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { success: true, data: [] };
+  if (lastRow < 2) {
+    try {
+      syncConsolidatedEvaluations(studentId, studentName);
+      lastRow = sheet.getLastRow();
+      if (lastRow < 2) return { success: true, data: [] };
+    } catch (e) {}
+  }
   var data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
   var filtered = data.filter(function(row) {
     return row[0].toString().trim() === studentId.toString().trim() && row[0].toString().trim() !== 'dummy';
   });
   
+  if (filtered.length === 0 && studentId) {
+    try {
+      syncConsolidatedEvaluations(studentId, studentName);
+      lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+        filtered = data.filter(function(row) {
+          return row[0].toString().trim() === studentId.toString().trim() && row[0].toString().trim() !== 'dummy';
+        });
+      }
+    } catch (e) {}
+  }
+  
   return { success: true, data: filtered };
+}
+
+function getStudentFullReportData(studentId, studentName) {
+  var aReport = getStudentData(studentId);
+  var vReport = getStudentVideoData(studentId);
+  var cReport = getCorrectionData(studentId);
+  var wReport = getWordsExerciseData(studentId);
+  var waslReport = getWaslExerciseData(studentId);
+  var writReport = getWritingExerciseData(studentId);
+  var pdfControl = getPdfControlForStudent(studentId);
+  var consolidated = getStudentConsolidatedEvaluation(studentId, studentName);
+
+  return {
+    success: true,
+    aReport: aReport,
+    vReport: vReport,
+    cReport: cReport,
+    wReport: wReport,
+    waslReport: waslReport,
+    writReport: writReport,
+    pdfControl: pdfControl,
+    consolidated: consolidated
+  };
 }
 
 function generateStudentConsolidatedPDF(studentId, studentName) {
@@ -3889,30 +4038,221 @@ function generateStudentConsolidatedPDF(studentId, studentName) {
   
   var issueDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy/MM/dd');
 
+  // Load PDF Settings and PDF Sheet Row for Student (Images G:K, Texts L:U)
+  var pdfSettings = getPdfSettings();
+  var pdfSheet = ss.getSheetByName('PDF') || ss.insertSheet('PDF');
+  var pdfDataValues = pdfSheet.getDataRange().getValues();
+  var studentPdfRow = null;
+  for (var pr = 1; pr < pdfDataValues.length; pr++) {
+    if (pdfDataValues[pr][1] && pdfDataValues[pr][1].toString().trim() === studentId.toString().trim()) {
+      studentPdfRow = pdfDataValues[pr];
+      break;
+    }
+  }
+
+  function transformUrlForImg(url) {
+    if (!url || typeof url !== 'string') return '';
+    var trimmed = url.trim();
+    if (!trimmed) return '';
+    var imgId = '';
+    if (trimmed.indexOf('/file/d/') !== -1) {
+      var p1 = trimmed.split('/file/d/')[1];
+      if (p1) imgId = p1.split('/')[0].split('?')[0].split('#')[0];
+    } else if (trimmed.indexOf('id=') !== -1) {
+      var p2 = trimmed.split('id=')[1];
+      if (p2) imgId = p2.split('&')[0].split('#')[0];
+    } else if (trimmed.length > 20 && trimmed.indexOf('http') === -1) {
+      imgId = trimmed;
+    }
+    if (imgId) {
+      return 'https://lh3.googleusercontent.com/d/' + imgId;
+    }
+    return trimmed;
+  }
+
+  // Build Dynamic Variables Map
+  var dynamicVars = {
+    '{{اسم_الطالب}}': studentName,
+    '{{اسم الطالب}}': studentName,
+    '{{رقم_الطالب}}': studentId,
+    '{{رقم الطالب}}': studentId,
+    '{{تاريخ_الإصدار}}': issueDate,
+    '{{تاريخ الإصدار}}': issueDate
+  };
+
+  // Map Images G:K (Col index 6 to 10)
+  var customSizes = (pdfSettings && pdfSettings.customImageSizes) || {};
+  for (var imgI = 1; imgI <= 5; imgI++) {
+    var colIdx = 6 + (imgI - 1);
+    var rawImgUrl = (studentPdfRow && studentPdfRow[colIdx]) ? studentPdfRow[colIdx].toString().trim() : '';
+    var tImgUrl = transformUrlForImg(rawImgUrl);
+    var w = customSizes['img' + imgI + 'Width'] || '150px';
+    var h = customSizes['img' + imgI + 'Height'] || 'auto';
+    var imgHtml = tImgUrl ? '<img src="' + tImgUrl + '" style="max-width:100%; width:' + w + '; height:' + h + '; object-fit:contain; display:inline-block; vertical-align:middle; border-radius:8px;" />' : '';
+    
+    dynamicVars['{{صورة ' + imgI + '}}'] = imgHtml;
+    dynamicVars['{{صورة' + imgI + '}}'] = imgHtml;
+    dynamicVars['{{صورة_' + imgI + '}}'] = imgHtml;
+  }
+
+  // Map Texts L:U (Col index 11 to 20)
+  for (var txtJ = 1; txtJ <= 10; txtJ++) {
+    var txtColIdx = 11 + (txtJ - 1);
+    var txtVal = (studentPdfRow && studentPdfRow[txtColIdx]) ? studentPdfRow[txtColIdx].toString().trim() : '';
+    dynamicVars['{{نص ' + txtJ + '}}'] = txtVal;
+    dynamicVars['{{نص' + txtJ + '}}'] = txtVal;
+    dynamicVars['{{نص_' + txtJ + '}}'] = txtVal;
+  }
+
+  function replacePlaceholders(text) {
+    if (!text) return '';
+    var res = text;
+    for (var k in dynamicVars) {
+      if (dynamicVars.hasOwnProperty(k)) {
+        res = res.split(k).join(dynamicVars[k] || '');
+      }
+    }
+    return res;
+  }
+
+  var bgUrl = (pdfSettings && pdfSettings.backgroundUrl) ? transformUrlForImg(pdfSettings.backgroundUrl) : '';
+
   var htmlContent = '<html><head><meta charset="UTF-8">';
   htmlContent += '<style>';
-  htmlContent += 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; direction: rtl; text-align: right; padding: 20px; color: #1e293b; background-color: #ffffff; }';
-  htmlContent += '.header { text-align: center; border-bottom: 3px double #cbd5e1; padding-bottom: 15px; margin-bottom: 20px; }';
+  htmlContent += '@page { size: A4; margin: 0; }';
+  htmlContent += 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; direction: rtl; text-align: right; margin: 0; padding: 0; color: #1e293b; background-color: transparent; }';
+  htmlContent += '.report-wrapper { padding: 18mm 15mm; box-sizing: border-box; position: relative; background: transparent; }';
+  htmlContent += '.header { text-align: center; border-bottom: 2px solid #64748b; padding-bottom: 12px; margin-bottom: 20px; }';
   htmlContent += '.header h1 { color: #0f172a; font-size: 24px; margin: 0 0 6px 0; font-weight: 800; }';
-  htmlContent += '.header p { color: #64748b; font-size: 14px; margin: 0; }';
-  htmlContent += '.info-box { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 25px; }';
+  htmlContent += '.header p { color: #475569; font-size: 14px; margin: 0; }';
+  htmlContent += '.info-box { background-color: rgba(255, 255, 255, 0.45); border: 1px solid #cbd5e1; border-radius: 12px; padding: 15px; margin-bottom: 25px; }';
   htmlContent += '.info-box table { width: 100%; border-collapse: collapse; }';
-  htmlContent += '.info-box td { padding: 6px; font-size: 13px; color: #334155; }';
+  htmlContent += '.info-box td { padding: 6px; font-size: 13px; color: #1e293b; }';
   htmlContent += '.info-box td.label { font-weight: bold; color: #0f172a; width: 140px; }';
-  htmlContent += '.section-header { font-size: 16px; font-weight: bold; color: #1e1b4b; background-color: #f1f5f9; padding: 10px 14px; border-radius: 8px; margin-bottom: 15px; border-right: 5px solid #4f46e5; }';
-  htmlContent += 'table.results-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }';
-  htmlContent += 'table.results-table th { background-color: #0f172a; color: #ffffff; padding: 10px 6px; font-size: 11px; font-weight: bold; text-align: center; border: 1px solid #0f172a; }';
-  htmlContent += 'table.results-table td { padding: 9px 6px; font-size: 11px; text-align: center; border: 1px solid #cbd5e1; color: #334155; }';
-  htmlContent += 'table.results-table tr:nth-child(even) { background-color: #f8fafc; }';
-  htmlContent += '.badge-success { color: #15803d; font-weight: bold; background-color: #f0fdf4; padding: 3px 8px; border-radius: 6px; border: 1px solid #bbf7d0; display: inline-block; }';
-  htmlContent += '.badge-fail { color: #b91c1c; font-weight: bold; background-color: #fef2f2; padding: 3px 8px; border-radius: 6px; border: 1px solid #fecaca; display: inline-block; }';
-  htmlContent += '.page-break { page-break-before: always; }';
-  htmlContent += '.footer { text-align: center; margin-top: 30px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15px; }';
-  htmlContent += '.notes-card { background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 18px; color: #92400e; margin-top: 15px; }';
-  htmlContent += '.notes-card-success { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 18px; color: #166534; margin-top: 15px; }';
+  htmlContent += '.section-header { font-size: 16px; font-weight: bold; color: #1e1b4b; background-color: rgba(241, 245, 249, 0.65); padding: 10px 14px; border-radius: 8px; margin-bottom: 15px; border-right: 5px solid #4f46e5; }';
+  htmlContent += 'table.results-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; background-color: transparent; }';
+  htmlContent += 'table.results-table thead { display: table-header-group; }';
+  htmlContent += 'table.results-table tr { page-break-inside: avoid; background-color: transparent !important; }';
+  htmlContent += 'table.results-table th { background-color: rgba(15, 23, 42, 0.92); color: #ffffff; padding: 11px 8px; font-size: 12px; font-weight: bold; text-align: center; border: 1px solid #0f172a; }';
+  htmlContent += 'table.results-table td { padding: 9px 6px; font-size: 11px; text-align: center; border: 1px solid #cbd5e1; color: #0f172a; background-color: transparent !important; }';
+  htmlContent += 'table.results-table tr:nth-child(even) td { background-color: transparent !important; }';
+  htmlContent += '.badge-success { color: #15803d; font-weight: bold; background-color: rgba(240, 253, 244, 0.85); padding: 3px 8px; border-radius: 6px; border: 1px solid #bbf7d0; display: inline-block; }';
+  htmlContent += '.badge-fail { color: #b91c1c; font-weight: bold; background-color: rgba(254, 242, 242, 0.85); padding: 3px 8px; border-radius: 6px; border: 1px solid #fecaca; display: inline-block; }';
+  htmlContent += '.page-break { page-break-before: always; height: 18mm; display: block; clear: both; }';
+  htmlContent += '.footer { text-align: center; margin-top: 30px; font-size: 11px; color: #475569; border-top: 1px solid #cbd5e1; padding-top: 15px; }';
+  htmlContent += '.notes-card { background-color: rgba(255, 251, 235, 0.65); border: 1px solid #fde68a; border-radius: 12px; padding: 18px; color: #78350f; margin-top: 15px; }';
+  htmlContent += '.notes-card-success { background-color: rgba(240, 253, 244, 0.65); border: 1px solid #bbf7d0; border-radius: 12px; padding: 18px; color: #14532d; margin-top: 15px; }';
   htmlContent += '</style>';
   htmlContent += '</head><body>';
-  
+
+  // Fixed Background Image Overlay (renders perfectly centered across full A4 canvas on every page)
+  if (bgUrl) {
+    htmlContent += '<img src="' + bgUrl + '" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; z-index: -1000; object-fit: cover; object-position: center center; margin: 0; padding: 0;" />';
+  }
+
+  // Filter valid image URLs and certificates
+  var validImagesBefore = (pdfSettings && Array.isArray(pdfSettings.imagesBeforeTable))
+    ? pdfSettings.imagesBeforeTable.filter(function(u) { return u && u.toString().trim().length > 0; })
+    : [];
+  var validImagesAfter = (pdfSettings && Array.isArray(pdfSettings.imagesAfterTable))
+    ? pdfSettings.imagesAfterTable.filter(function(u) { return u && u.toString().trim().length > 0; })
+    : [];
+  var validCertificates = (pdfSettings && Array.isArray(pdfSettings.certificates))
+    ? pdfSettings.certificates.filter(function(c) { return c && (c.subjectText || c.bodyText); })
+    : [];
+
+  // 1. Render Images Before Table (A4 Full Pages, no margins)
+  validImagesBefore.forEach(function(imgUrl) {
+    var tUrl = transformUrlForImg(imgUrl);
+    if (tUrl) {
+      htmlContent += '<div style="width:100%; height:100vh; page-break-after:always; margin:0; padding:0; overflow:hidden; position:relative;">';
+      htmlContent += '<img src="' + tUrl + '" style="width:100%; height:100%; object-fit:cover; display:block; margin:0; padding:0; border:none;" />';
+      htmlContent += '</div>';
+    }
+  });
+
+  // 2. Render Certificates (Transparent background, frame support, custom margins, bottom signatures image)
+  validCertificates.forEach(function(cert) {
+    var subject = cert.subjectText || 'شهادة شكر وتقدير';
+    var subjectSize = cert.subjectFontSize || '26px';
+    var subjectAlign = cert.subjectAlign || 'center';
+    var subjectFont = cert.subjectFontFamily || 'Amiri';
+
+    var bodyText = replacePlaceholders(cert.bodyText || '');
+    var bodySize = cert.bodyFontSize || '18px';
+    var bodyAlign = cert.bodyAlign || 'center';
+    var bodyFont = cert.bodyFontFamily || 'Tajawal';
+
+    var padTop = cert.marginTop || '25mm';
+    var padSide = cert.marginSide || '20mm';
+    var padBottom = cert.marginBottom || '20mm';
+
+    htmlContent += '<div style="width:100%; min-height:100vh; page-break-after:always; padding:' + padTop + ' ' + padSide + ' ' + padBottom + ' ' + padSide + '; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; position:relative; background:transparent;">';
+    
+    // Frame Image Overlay if present
+    if (cert.frameUrl) {
+      var frameImgUrl = transformUrlForImg(cert.frameUrl);
+      if (frameImgUrl) {
+        htmlContent += '<img src="' + frameImgUrl + '" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:-10; object-fit:fill; margin:0; padding:0; border:none;" />';
+      }
+    }
+
+    htmlContent += '<div style="position:relative; z-index:2;">';
+    htmlContent += '<div style="text-align:' + subjectAlign + '; font-size:' + subjectSize + '; font-family:' + subjectFont + ', serif; font-weight:bold; color:#0f172a; margin-bottom:12px;">' + subject + '</div>';
+    htmlContent += '<div style="text-align:' + bodyAlign + '; font-size:' + bodySize + '; font-family:' + bodyFont + ', sans-serif; color:#0f172a; line-height:1.8; white-space:pre-line;">' + bodyText + '</div>';
+    htmlContent += '</div>';
+
+    // Signatures & Stamps: Prefer single bottom image (footerImageUrl), fallback to individual signatures/stamps
+    if (cert.footerImageUrl) {
+      var footerUrl = transformUrlForImg(cert.footerImageUrl);
+      var footerH = cert.footerImageHeight || '120px';
+      var footerAlign = cert.footerImageAlign || 'center';
+      if (footerUrl) {
+        htmlContent += '<div style="text-align:' + footerAlign + '; width:100%; margin-top:20px; position:relative; z-index:2;">';
+        htmlContent += '<img src="' + footerUrl + '" style="max-width:100%; height:' + footerH + '; object-fit:contain; display:inline-block;" />';
+        htmlContent += '</div>';
+      }
+    } else {
+      // Legacy Signatures & Stamps Row
+      htmlContent += '<div style="display:flex; justify-content:space-around; align-items:flex-end; margin-top:25px; padding-top:15px; border-top:1px solid #e2e8f0; text-align:center; position:relative; z-index:2;">';
+      
+      if (Array.isArray(cert.signatures)) {
+        cert.signatures.forEach(function(sig) {
+          var sigUrl = transformUrlForImg(sig.url);
+          var w = sig.width || '120px';
+          var h = sig.height || 'auto';
+          htmlContent += '<div style="display:inline-block; margin:0 15px; text-align:center;">';
+          if (sigUrl) {
+            htmlContent += '<img src="' + sigUrl + '" style="width:' + w + '; height:' + h + '; object-fit:contain; display:block; margin:0 auto 5px auto;" />';
+          }
+          htmlContent += '<div style="font-size:12px; font-weight:bold; color:#334155;">' + (sig.title || 'التوقيع') + '</div>';
+          htmlContent += '</div>';
+        });
+      }
+
+      if (Array.isArray(cert.stamps)) {
+        cert.stamps.forEach(function(stamp) {
+          var stampUrl = transformUrlForImg(stamp.url);
+          var w = stamp.width || '100px';
+          var h = stamp.height || 'auto';
+          htmlContent += '<div style="display:inline-block; margin:0 15px; text-align:center;">';
+          if (stampUrl) {
+            htmlContent += '<img src="' + stampUrl + '" style="width:' + w + '; height:' + h + '; object-fit:contain; display:block; margin:0 auto 5px auto;" />';
+          }
+          htmlContent += '<div style="font-size:12px; font-weight:bold; color:#334155;">' + (stamp.title || 'الختم') + '</div>';
+          htmlContent += '</div>';
+        });
+      }
+
+      htmlContent += '</div>'; // End signatures row
+    }
+
+    htmlContent += '</div>'; // End certificate container
+  });
+
+  // Start Report Wrapper for tables and text content
+  htmlContent += '<div class="report-wrapper">';
+
   // Header Block template helper
   function buildMiniHeader() {
     var h = '<div class="header">';
@@ -3947,41 +4287,44 @@ function generateStudentConsolidatedPDF(studentId, studentName) {
 
   // --- Page 1: جدول الدروس المرسلة ---
   htmlContent += buildMiniHeader();
-  htmlContent += '<div class="section-header">1. جدول الدروس المرسلة</div>';
+  htmlContent += '<div class="section-header">1. جدول الدروس المرسلة والواجبات</div>';
   htmlContent += '<table class="results-table"><thead><tr>';
   htmlContent += '<th>موضوع</th>';
-  htmlContent += '<th>درجات الصورة</th>';
-  htmlContent += '<th>درجات الصوت</th>';
+  htmlContent += '<th>تقييم درجة الصورة ⭐</th>';
+  htmlContent += '<th>تقييم درجة الصوت ⭐</th>';
   htmlContent += '</tr></thead><tbody>';
   studentRecords.forEach(function(row) {
     var topic = row[2];
-    var pic = row[4] || '-';
-    var audio = row[5] || '-';
+    var picEval = row[7] || '-';
+    var audioEval = row[8] || '-';
     htmlContent += '<tr>';
-    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:40%;">' + topic + '</td>';
-    htmlContent += '<td>' + pic + '</td>';
-    htmlContent += '<td>' + audio + '</td>';
+    htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:30%;">' + topic + '</td>';
+    htmlContent += '<td>' + picEval + '</td>';
+    htmlContent += '<td>' + audioEval + '</td>';
     htmlContent += '</tr>';
   });
   htmlContent += '</tbody></table>';
 
-  // --- Page 2: جدول التركيز في الدروس ---
+  // --- Page 2: جدول الدرجات والتركيز ---
   htmlContent += '<div class="page-break"></div>';
   htmlContent += buildMiniHeader();
-  htmlContent += '<div class="section-header">2. جدول التركيز في الدروس</div>';
+  htmlContent += '<div class="section-header">2. جدول درجات الواجبات والتركيز</div>';
   htmlContent += '<table class="results-table"><thead><tr>';
   htmlContent += '<th>موضوع</th>';
-  htmlContent += '<th>الدرجة النهائية</th>';
-  htmlContent += '<th>تقييم النجوم</th>';
+  htmlContent += '<th>درجات الصورة</th>';
+  htmlContent += '<th>درجات الصوت</th>';
+  htmlContent += '<th>حالة التركيز</th>';
   htmlContent += '</tr></thead><tbody>';
   studentRecords.forEach(function(row) {
     var topic = row[2];
-    var finalGrade = formatPercentage(row[7]);
-    var stars = row[8] || '☆☆☆☆☆☆☆☆☆☆';
+    var picGrade = formatPercentage(row[4]);
+    var audioGrade = formatPercentage(row[5]);
+    var focusStatus = row[6] || '-';
     htmlContent += '<tr>';
     htmlContent += '<td style="font-weight:bold; text-align:right; color:#0f172a; width:40%;">' + topic + '</td>';
-    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + finalGrade + '</td>';
-    htmlContent += '<td style="letter-spacing:1px; font-size:11px;">' + stars + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + picGrade + '</td>';
+    htmlContent += '<td style="font-weight:bold; color:#4f46e5;">' + audioGrade + '</td>';
+    htmlContent += '<td>' + focusStatus + '</td>';
     htmlContent += '</tr>';
   });
   htmlContent += '</tbody></table>';
@@ -4102,6 +4445,18 @@ function generateStudentConsolidatedPDF(studentId, studentName) {
   htmlContent += '<div class="footer">';
   htmlContent += 'تم إنتاج هذا الملف التقييمي تلقائياً بواسطة منصة اللغة العربية للأطفال، وهو معتمد رسمياً لدى إدارة المتابعة.';
   htmlContent += '</div>';
+  htmlContent += '</div>'; // End report-wrapper
+
+  // Render Images After Table (A4 Full Pages, no margins)
+  validImagesAfter.forEach(function(imgUrl) {
+    var tUrl = transformUrlForImg(imgUrl);
+    if (tUrl) {
+      htmlContent += '<div style="width:100%; height:100vh; page-break-before:always; margin:0; padding:0; overflow:hidden; position:relative;">';
+      htmlContent += '<img src="' + tUrl + '" style="width:100%; height:100%; object-fit:cover; display:block; margin:0; padding:0; border:none;" />';
+      htmlContent += '</div>';
+    }
+  });
+
   htmlContent += '</body></html>';
   
   var htmlBlob = HtmlService.createHtmlOutput(htmlContent).getBlob();

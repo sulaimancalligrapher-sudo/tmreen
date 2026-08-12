@@ -9,6 +9,7 @@ import { Student } from '../types';
 import StudentScheduleCard, { StudentSchedule } from './StudentScheduleCard';
 import ReportDashboard from './ReportDashboard';
 import AdminTranslationManager from './AdminTranslationManager';
+import PdfSettingsManager from './PdfSettingsManager';
 import {
   Database,
   Plus,
@@ -37,6 +38,8 @@ import {
   FolderDown,
   Home,
   Globe,
+  Award,
+
   GraduationCap,
   Tv,
   Megaphone,
@@ -97,7 +100,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [lessonsError, setLessonsError] = useState('');
 
   // Editing state
-  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'home_content' | 'students' | 'reports' | 'translations'>('words');
+  const [activeTab, setActiveTab] = useState<'words' | 'matching' | 'drawing' | 'home_content' | 'students' | 'reports' | 'translations' | 'pdf_settings'>('words');
   const [isEditing, setIsEditing] = useState(false);
   const [editingLessonType, setEditingLessonType] = useState<'words' | 'matching' | 'drawing'>('words');
   const [originalLessonName, setOriginalLessonName] = useState('');
@@ -2543,6 +2546,20 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
             🇸🇦 🇬🇧 🇹🇭
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab('pdf_settings')}
+          className={`pb-4 px-4 border-b-2 transition flex items-center gap-1.5 ${
+            activeTab === 'pdf_settings'
+              ? 'border-emerald-600 text-emerald-950 font-extrabold'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Award className="w-4 h-4 text-emerald-600" />
+          <span>إعدادات PDF والشهادات</span>
+          <span className="bg-emerald-100 text-emerald-900 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+            جديد 🎉
+          </span>
+        </button>
       </div>
 
       {/* Tabs content rendering */}
@@ -3297,6 +3314,13 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       {activeTab === 'translations' && (
         <div className="animate-fade-in pt-2">
           <AdminTranslationManager />
+        </div>
+      )}
+
+      {/* Active Tab: PDF & Certificates Manager */}
+      {activeTab === 'pdf_settings' && (
+        <div className="animate-fade-in pt-2">
+          <PdfSettingsManager />
         </div>
       )}
 

@@ -72,6 +72,8 @@ function doPost(e) {
       result = getWaslExerciseData(request.studentId);
     } else if (action === 'getWritingExerciseData') {
       result = getWritingExerciseData(request.studentId);
+    } else if (action === 'getStudentFullReportData') {
+      result = getStudentFullReportData(request.studentId, request.studentName);
     } else if (action === 'syncConsolidatedEvaluations') {
       result = syncConsolidatedEvaluations(request.studentId, request.studentName);
     } else if (action === 'getStudentsEvaluations') {
@@ -80,6 +82,10 @@ function doPost(e) {
       result = getStudentConsolidatedEvaluation(request.studentId, request.studentName);
     } else if (action === 'generateStudentConsolidatedPDF') {
       result = generateStudentConsolidatedPDF(request.studentId, request.studentName);
+    } else if (action === 'getPdfSettings') {
+      result = getPdfSettings();
+    } else if (action === 'savePdfSettings') {
+      result = savePdfSettings(request.pdfSettings);
     } else if (action === 'generateStudentPDF') {
       result = generateStudentPDF(request.studentId, 'student');
     } else if (action === 'getPdfControlForStudent') {

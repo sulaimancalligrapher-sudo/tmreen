@@ -43,15 +43,27 @@ interface ReminderData {
 const HEADER_MAP: Record<string, string> = {
   'موضوع الدرس': 'tableHeaders.lessonTopic',
   'صورة الواجب': 'tableHeaders.homeworkImage',
+  'رابط صورة الواجب': 'tableHeaders.homeworkImage',
   'تسجيل صوت': 'tableHeaders.audioRecord',
+  'رابط تسجيل الصوت': 'tableHeaders.audioRecord',
   'تصحيح': 'tableHeaders.correction',
+  'ملاحظات وتصحيح المعلم': 'tableHeaders.correction',
   'درجات الصورة': 'tableHeaders.imageGrades',
+  'درجات صورة الواجب': 'tableHeaders.imageGrades',
   'درجات الصوت': 'tableHeaders.audioGrades',
+  'درجات التسجيل الصوتي': 'tableHeaders.audioGrades',
   'اضافة صورة': 'tableHeaders.addImage',
+  'رابط صورة توضيحية': 'tableHeaders.addImage',
   'اضافة فيديو': 'tableHeaders.addVideo',
+  'رابط فيديو شرح/تصحيح': 'tableHeaders.addVideo',
   'اضافة صوت': 'tableHeaders.addAudio',
+  'رابط تسجيل صوتي توضيحي': 'tableHeaders.addAudio',
   'تاريخ التصحيح': 'tableHeaders.correctionDate',
   'التقييم والنجوم ⭐': 'tableHeaders.ratingAndStars',
+  'تقييم درجة الصورة ⭐': 'tableHeaders.imageRating',
+  'تقييم درجة الصوت ⭐': 'tableHeaders.audioRating',
+  'تقييم درجة الصورة': 'tableHeaders.imageRating',
+  'تقييم درجة الصوت': 'tableHeaders.audioRating',
   'نتائج اجابة الفيديو': 'tableHeaders.videoAnswersResult',
   'نتائج اجابة الصوت': 'tableHeaders.audioAnswersResult',
   'النتيجة الكلية': 'tableHeaders.totalResult',
@@ -82,13 +94,63 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
 
   useEffect(() => {
     fetchAllReports();
-    checkPdfControl();
   }, [student.id]);
 
   const fetchAllReports = async () => {
     setLoading(true);
     try {
-      // Step 1: Fetch core student reminder and video data first
+      const fullReport = await callGasApi<any>('getStudentFullReportData', {
+        studentId: student.id,
+        studentName: student.name,
+      });
+
+      if (fullReport && fullReport.success) {
+        if (fullReport.aReport) {
+          setAllAData(fullReport.aReport);
+          if (fullReport.aReport.success) {
+            if (fullReport.aReport.todayLessons && fullReport.aReport.todayLessons.length > 0) {
+              setSelectedLessonTopic(fullReport.aReport.todayLessons[0].topic);
+            } else if (fullReport.aReport.pendingLessons && fullReport.aReport.pendingLessons.length > 0) {
+              setSelectedLessonTopic(fullReport.aReport.pendingLessons[0].topic);
+            } else if (fullReport.aReport.completedLessons && fullReport.aReport.completedLessons.length > 0) {
+              setSelectedLessonTopic(fullReport.aReport.completedLessons[0].topic);
+            }
+          }
+        }
+        if (fullReport.vReport) setAllVData(fullReport.vReport);
+        if (fullReport.cReport) setCorrectionData(fullReport.cReport);
+        if (fullReport.wReport) setWordsData(fullReport.wReport);
+        if (fullReport.waslReport) setWaslData(fullReport.waslReport);
+        if (fullReport.writReport) setWritingData(fullReport.writReport);
+
+        if (fullReport.pdfControl && fullReport.pdfControl.success) {
+          const control = (fullReport.pdfControl.control || '').trim();
+          if (control === 'نعم') {
+            setShowPdfBtn(true);
+          } else if (control === 'لا' || !control) {
+            setShowPdfBtn(false);
+          } else {
+            const releaseDate = new Date(control);
+            if (!isNaN(releaseDate.getTime())) {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              setShowPdfBtn(releaseDate <= today);
+            }
+          }
+        }
+      } else {
+        await fetchLegacyReports();
+      }
+    } catch (err) {
+      console.error('Error fetching full report data:', err);
+      await fetchLegacyReports();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLegacyReports = async () => {
+    try {
       const [aReport, vReport] = await Promise.all([
         callGasApi<ReminderData>('getStudentData', { studentId: student.id }).catch(() => null),
         callGasApi<TableData>('getStudentVideoData', { studentId: student.id }).catch(() => null),
@@ -110,9 +172,6 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
         setAllVData(vReport);
       }
 
-      setLoading(false);
-
-      // Step 2: Fetch secondary exercise tables
       const [cReport, wReport, waslReport, writReport] = await Promise.all([
         callGasApi<TableData>('getCorrectionData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
         callGasApi<TableData>('getWordsExerciseData', { studentId: student.id }).catch(() => ({ headers: [], data: [], success: false })),
@@ -124,9 +183,9 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
       setWordsData(wReport);
       setWaslData(waslReport);
       setWritingData(writReport);
+      await checkPdfControl();
     } catch (err) {
-      console.error('Error fetching report tables:', err);
-      setLoading(false);
+      console.error('Error in fetchLegacyReports:', err);
     }
   };
 
@@ -583,82 +642,120 @@ export default function ReportDashboard({ student }: ReportDashboardProps) {
             );
           })()
         ) : currentTable && currentTable.success ? (
-          <div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-right border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-100">
-                    {currentTable.headers.map((h, index) => {
-                      const key = HEADER_MAP[h.trim()];
-                      const headerText = key ? t(key, h) : h;
-                      return (
-                        <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
-                          {headerText}
-                        </th>
-                      );
-                    })}
-                    <th className="p-4 md:p-5 whitespace-nowrap text-center bg-indigo-50/40 text-indigo-950 font-black">
-                      {t('tableHeaders.ratingAndStars', 'التقييم والنجوم ⭐')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {currentTable.data.map((row, rIdx) => {
-                    const rowPct = getRowPercentage(row, currentTable.headers);
-                    return (
-                      <tr key={rIdx} className="hover:bg-slate-50/50 transition">
-                        {row.map((cell, cIdx) => {
-                          const cellTrim = String(cell || '').trim();
-                          let content: React.ReactNode = cell;
-
-                          if (cellTrim.startsWith('http')) {
-                            content = (
-                              <a
-                                href={cellTrim}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
-                              >
-                                🔗 افتح الملف
-                              </a>
-                            );
-                          } else if (cellTrim === 'Yes' || cellTrim === 'YES') {
-                            content = (
-                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold">
-                                نعم (مكتمل)
-                              </span>
-                            );
-                          } else if (cellTrim === 'No' || cellTrim === 'NO') {
-                            content = (
-                              <span className="bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full text-xs font-bold">
-                                لا (غير مكتمل)
-                              </span>
-                            );
-                          } else if (cellTrim === '') {
-                            content = <span className="text-slate-300">-</span>;
-                          }
-
+          (() => {
+            const showExtraRatingColumn = !currentTable.headers.some(h => h.includes('⭐') || h.includes('تقييم') || h.includes('نجوم'));
+            return (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-right border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-100">
+                        {currentTable.headers.map((h, index) => {
+                          const key = HEADER_MAP[h.trim()];
+                          const headerText = key ? t(key, h) : h;
                           return (
-                            <td key={cIdx} className="p-4 md:p-5 whitespace-normal leading-relaxed">
-                              {content}
-                            </td>
+                            <th key={index} className="p-4 md:p-5 whitespace-nowrap text-right">
+                              {headerText}
+                            </th>
                           );
                         })}
-                        <td className="p-4 md:p-5 text-center whitespace-nowrap min-w-[180px] bg-indigo-50/5">
-                          <CompactStarsRating percentage={rowPct} />
-                        </td>
+                        {showExtraRatingColumn && (
+                          <th className="p-4 md:p-5 whitespace-nowrap text-center bg-indigo-50/40 text-indigo-950 font-black">
+                            {t('tableHeaders.ratingAndStars', 'التقييم والنجوم ⭐')}
+                          </th>
+                        )}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {currentTable.data.map((row, rIdx) => {
+                        const rowPct = getRowPercentage(row, currentTable.headers);
+                        return (
+                          <tr key={rIdx} className="hover:bg-slate-50/50 transition">
+                            {row.map((cell, cIdx) => {
+                              const cellTrim = String(cell || '').trim();
+                              const colHeader = (currentTable.headers[cIdx] || '').toLowerCase();
+                              let content: React.ReactNode = cell;
 
-            {/* Stars rating and custom encouragement footer for standard tables */}
-            <div className="p-6 md:p-8 border-t border-slate-100 bg-slate-50/10">
-              <StarsRating percentage={calculateTableAverage(currentTable)} />
-            </div>
-          </div>
+                              if (cellTrim.startsWith('http')) {
+                                content = (
+                                  <a
+                                    href={cellTrim}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-bold transition inline-flex items-center gap-1"
+                                  >
+                                    {t('common.openFile', '🔗 افتح الملف')}
+                                  </a>
+                                );
+                              } else if (cellTrim.includes('⭐') || colHeader.includes('تقييم')) {
+                                const translatedText = (() => {
+                                  let res = cellTrim;
+                                  if (res.includes('ممتاز! خط ورسم رائع وواضح جداً 🎨✨')) {
+                                    res = res.replace('ممتاز! خط ورسم رائع وواضح جداً 🎨✨', t('encouragements.image90', 'ممتاز! خط ورسم رائع وواضح جداً 🎨✨'));
+                                  } else if (res.includes('جيد جداً! خط جميل ومقروء 📝🌟')) {
+                                    res = res.replace('جيد جداً! خط جميل ومقروء 📝🌟', t('encouragements.image75', 'جيد جداً! خط جميل ومقروء 📝🌟'));
+                                  } else if (res.includes('جيد! أداء حسن وجاري التحسن ✏️👍')) {
+                                    res = res.replace('جيد! أداء حسن وجاري التحسن ✏️👍', t('encouragements.image50', 'جيد! أداء حسن وجاري التحسن ✏️👍'));
+                                  } else if (res.includes('يحتاج لمزيد من التدريب على الكتابة ✏️💪')) {
+                                    res = res.replace('يحتاج لمزيد من التدريب على الكتابة ✏️💪', t('encouragements.imageUnder50', 'يحتاج لمزيد من التدريب على الكتابة ✏️💪'));
+                                  } else if (res.includes('مبدع! نطق ومخارج حروف ممتازة وصوت واضح 🎙️✨')) {
+                                    res = res.replace('مبدع! نطق ومخارج حروف ممتازة وصوت واضح 🎙️✨', t('encouragements.audio90', 'مبدع! نطق ومخارج حروف ممتازة وصوت واضح 🎙️✨'));
+                                  } else if (res.includes('جيد جداً! قراءة وأداء صوتي ممتاز 🎧🌟')) {
+                                    res = res.replace('جيد جداً! قراءة وأداء صوتي ممتاز 🎧🌟', t('encouragements.audio75', 'جيد جداً! قراءة وأداء صوتي ممتاز 🎧🌟'));
+                                  } else if (res.includes('جيد! أداء صوتي حسن ويحتاج وضوح أكثر 🗣️👍')) {
+                                    res = res.replace('جيد! أداء صوتي حسن ويحتاج وضوح أكثر 🗣️👍', t('encouragements.audio50', 'جيد! أداء صوتي حسن ويحتاج وضوح أكثر 🗣️👍'));
+                                  } else if (res.includes('يحتاج لمزيد من التدريب والممارسة الصوتية 🎧💪')) {
+                                    res = res.replace('يحتاج لمزيد من التدريب والممارسة الصوتية 🎧💪', t('encouragements.audioUnder50', 'يحتاج لمزيد من التدريب والممارسة الصوتية 🎧💪'));
+                                  }
+                                  return res;
+                                })();
+
+                                content = (
+                                  <span className="inline-flex items-center gap-1.5 bg-amber-50/90 text-amber-900 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold leading-relaxed max-w-xs shadow-xs">
+                                    {translatedText}
+                                  </span>
+                                );
+                              } else if (cellTrim === 'Yes' || cellTrim === 'YES' || cellTrim === 'نعم') {
+                                content = (
+                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold">
+                                    {t('common.yesCompleted', 'نعم (مكتمل)')}
+                                  </span>
+                                );
+                              } else if (cellTrim === 'No' || cellTrim === 'NO' || cellTrim === 'لا') {
+                                content = (
+                                  <span className="bg-rose-50 text-rose-700 border border-rose-100 px-3 py-1 rounded-full text-xs font-bold">
+                                    {t('common.noIncomplete', 'لا (غير مكتمل)')}
+                                  </span>
+                                );
+                              } else if (cellTrim === '') {
+                                content = <span className="text-slate-300">-</span>;
+                              }
+
+                              return (
+                                <td key={cIdx} className="p-4 md:p-5 whitespace-normal leading-relaxed">
+                                  {content}
+                                </td>
+                              );
+                            })}
+                            {showExtraRatingColumn && (
+                              <td className="p-4 md:p-5 text-center whitespace-nowrap min-w-[180px] bg-indigo-50/5">
+                                <CompactStarsRating percentage={rowPct} />
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Stars rating and custom encouragement footer for standard tables */}
+                <div className="p-6 md:p-8 border-t border-slate-100 bg-slate-50/10">
+                  <StarsRating percentage={calculateTableAverage(currentTable)} />
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div className="p-16 text-center space-y-3">
             <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
