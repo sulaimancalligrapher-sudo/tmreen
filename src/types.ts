@@ -167,6 +167,9 @@ export interface CertificateConfig {
   footerImageHeight?: string; // ارتفاع الصورة السفلية (e.g. "120px")
   footerImageAlign?: 'center' | 'right' | 'left';
 
+  // Per-certificate Custom Image Sizes for {{صورة 1}} to {{صورة 5}}
+  customImageSizes?: CustomImageSizes;
+
   // Legacy Signatures & Stamps
   signatures?: SignatureConfig[];
   stamps?: StampConfig[];

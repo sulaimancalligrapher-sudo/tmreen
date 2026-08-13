@@ -79,6 +79,8 @@ function doPost(e) {
       result = generateStudentConsolidatedPDF(request.studentId, request.studentName);
     } else if (action === 'generateStudentCertificatePDF') {
       result = generateStudentCertificatePDF(request.studentId, request.studentName);
+    } else if (action === 'generateStudentBothPDFs') {
+      result = generateStudentBothPDFs(request.studentId, request.studentName);
     } else if (action === 'getPdfSettings') {
       result = getPdfSettings();
     } else if (action === 'savePdfSettings') {
@@ -3941,12 +3943,37 @@ function generateStudentConsolidatedPDF(studentId, studentName) {
     dynamicVars['{{نص_' + txtJ + '}}'] = txtVal;
   }
 
-  function replacePlaceholders(text) {
+  function replacePlaceholders(text, certObj) {
     if (!text) return '';
     var res = text;
+    var currentVars = {};
     for (var k in dynamicVars) {
       if (dynamicVars.hasOwnProperty(k)) {
-        res = res.split(k).join(dynamicVars[k] || '');
+        currentVars[k] = dynamicVars[k];
+      }
+    }
+
+    // Override {{صورة 1}}..{{صورة 5}} if certObj has customImageSizes defined
+    var cSizes = (certObj && certObj.customImageSizes && (certObj.customImageSizes.img1Width || certObj.customImageSizes.img1Height))
+      ? certObj.customImageSizes
+      : ((pdfSettings && pdfSettings.customImageSizes) || {});
+
+    for (var imgIdx = 1; imgIdx <= 5; imgIdx++) {
+      var cIdx = 6 + (imgIdx - 1);
+      var rUrl = (studentPdfRow && studentPdfRow[cIdx]) ? studentPdfRow[cIdx].toString().trim() : '';
+      var tUrl = transformUrlForImg(rUrl);
+      var widthVal = cSizes['img' + imgIdx + 'Width'] || '150px';
+      var heightVal = cSizes['img' + imgIdx + 'Height'] || 'auto';
+      var imgHtmlTag = tUrl ? '<img src="' + tUrl + '" style="max-width:100%; width:' + widthVal + '; height:' + heightVal + '; object-fit:contain; display:inline-block; vertical-align:middle; border-radius:8px;" />' : '';
+      
+      currentVars['{{صورة ' + imgIdx + '}}'] = imgHtmlTag;
+      currentVars['{{صورة' + imgIdx + '}}'] = imgHtmlTag;
+      currentVars['{{صورة_' + imgIdx + '}}'] = imgHtmlTag;
+    }
+
+    for (var key in currentVars) {
+      if (currentVars.hasOwnProperty(key)) {
+        res = res.split(key).join(currentVars[key] || '');
       }
     }
     return res;
@@ -4066,7 +4093,7 @@ function generateStudentConsolidatedPDF(studentId, studentName) {
       var subjectAlign = cert.subjectAlign || 'center';
       var subjectFont = cert.subjectFontFamily || 'Amiri';
 
-      var bodyText = replacePlaceholders(cert.bodyText || '');
+      var bodyText = replacePlaceholders(cert.bodyText || '', cert);
       var bodySize = cert.bodyFontSize || '18px';
       var bodyAlign = cert.bodyAlign || 'center';
       var bodyFont = cert.bodyFontFamily || 'Tajawal';
@@ -4492,7 +4519,7 @@ function generateStudentCertificatePDF(studentId, studentName) {
     return trimmed;
   }
 
-  function replacePlaceholders(str) {
+  function replacePlaceholders(str, certObj) {
     if (!str) return '';
     var res = str;
     res = res.replace(/\{\{اسم_الطالب\}\}/g, studentName || '');
@@ -4504,7 +4531,9 @@ function generateStudentCertificatePDF(studentId, studentName) {
     res = res.replace(/\{\{تاريخ_الإصدار\}\}/g, issueDate || '');
     res = res.replace(/\{\{تاريخ الإصدار\}\}/g, issueDate || '');
 
-    var customSizes = (pdfSettings && pdfSettings.customImageSizes) || {};
+    var customSizes = (certObj && certObj.customImageSizes && (certObj.customImageSizes.img1Width || certObj.customImageSizes.img1Height))
+      ? certObj.customImageSizes
+      : ((pdfSettings && pdfSettings.customImageSizes) || {});
 
     for (var i = 1; i <= 5; i++) {
       var imgColIndex = 5 + i;
@@ -4566,7 +4595,7 @@ function generateStudentCertificatePDF(studentId, studentName) {
     var subjectAlign = cert.subjectAlign || 'center';
     var subjectFont = cert.subjectFontFamily || 'Amiri';
 
-    var bodyText = replacePlaceholders(cert.bodyText || '');
+    var bodyText = replacePlaceholders(cert.bodyText || '', cert);
     var bodySize = cert.bodyFontSize || '18px';
     var bodyAlign = cert.bodyAlign || 'center';
     var bodyFont = cert.bodyFontFamily || 'Tajawal';
@@ -4690,5 +4719,21 @@ function generateStudentCertificatePDF(studentId, studentName) {
   }
 
   return { success: true, certPdfUrl: certPdfUrl, pdfUrl: certPdfUrl };
+}
+
+function generateStudentBothPDFs(studentId, studentName) {
+  var certRes = generateStudentCertificatePDF(studentId, studentName);
+  var reportRes = generateStudentConsolidatedPDF(studentId, studentName);
+
+  var certUrl = (certRes && certRes.certPdfUrl) ? certRes.certPdfUrl : ((certRes && certRes.pdfUrl) ? certRes.pdfUrl : '');
+  var reportUrl = (reportRes && reportRes.pdfUrl) ? reportRes.pdfUrl : '';
+
+  return {
+    success: (certRes && certRes.success) || (reportRes && reportRes.success),
+    certPdfUrl: certUrl,
+    reportPdfUrl: reportUrl,
+    pdfUrl: reportUrl,
+    message: 'تم تصدير الشهادة والتقرير الشامل بنجاح'
+  };
 }
 `;

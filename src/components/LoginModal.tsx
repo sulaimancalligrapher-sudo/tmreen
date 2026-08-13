@@ -635,14 +635,6 @@ export default function LoginModal({
               <Smartphone className="w-4 h-4 text-slate-400" />
               <span>{t('login.deviceProtectionActive', 'حماية الأجهزة مفعّلة')}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowUrlEditor(!showUrlEditor)}
-              className="text-slate-500 hover:text-amber-600 transition flex items-center gap-1 font-bold"
-            >
-              <Settings className="w-3.5 h-3.5 text-slate-400" />
-              <span>رابط الخادم</span>
-            </button>
           </div>
 
           {forcedMode === 'admin' && onGoToStudentPage && (

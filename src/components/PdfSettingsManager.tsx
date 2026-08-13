@@ -523,71 +523,7 @@ export default function PdfSettingsManager() {
         </div>
       </div>
 
-      {/* Section 2: Custom Image Sizes for {{صورة 1}} to {{صورة 5}} */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <div className="p-2.5 bg-amber-50 text-amber-700 rounded-xl">
-            <Sliders className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">2. التحكم بحجم الصور المتغيرة في الشيت {'{{صورة 1}}'} إلى {'{{صورة 5}}'}</h3>
-            <p className="text-xs text-slate-500">تطبيق مقاسات محددة بالبيكسل أو النسبة المئوية للصور الجلبية من أعمدة الشيت G:K في نص الشهادة.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map(num => {
-            const widthKey = `img${num}Width` as keyof typeof settings.customImageSizes;
-            const heightKey = `img${num}Height` as keyof typeof settings.customImageSizes;
-            return (
-              <div key={num} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                <div className="text-xs font-black text-amber-900 flex items-center justify-between">
-                  <span>صورة {num}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">{`{{صورة ${num}}}`}</span>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 mb-0.5">العرض (Width):</label>
-                  <input
-                    type="text"
-                    value={settings.customImageSizes[widthKey] || '150px'}
-                    onChange={e =>
-                      setSettings({
-                        ...settings,
-                        customImageSizes: {
-                          ...settings.customImageSizes,
-                          [widthKey]: e.target.value
-                        }
-                      })
-                    }
-                    placeholder="150px أو 100%"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 mb-0.5">الارتفاع (Height):</label>
-                  <input
-                    type="text"
-                    value={settings.customImageSizes[heightKey] || 'auto'}
-                    onChange={e =>
-                      setSettings({
-                        ...settings,
-                        customImageSizes: {
-                          ...settings.customImageSizes,
-                          [heightKey]: e.target.value
-                        }
-                      })
-                    }
-                    placeholder="auto أو 180px"
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Section 3: Certificates Manager */}
+      {/* Section 2: Certificates Manager */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
@@ -595,8 +531,8 @@ export default function PdfSettingsManager() {
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">3. إدارة وتخصيص الشهادات والتقديرات</h3>
-              <p className="text-xs text-slate-500">إضافة شهادة أو أكثر (مثل شهادة عربي / إنجليزي / تقدير إضافي) مع التحكم بمكان ظهورها والخطوط والتواقيع.</p>
+              <h3 className="text-lg font-bold text-slate-900">2. إدارة وتخصيص الشهادات والتقديرات</h3>
+              <p className="text-xs text-slate-500">إضافة شهادة أو أكثر (مثل شهادة عربي / إنجليزي / تقدير إضافي) مع التحكم بأحجام صورها وبمكان ظهورها والخطوط والتواقيع.</p>
             </div>
           </div>
 
@@ -716,6 +652,72 @@ export default function PdfSettingsManager() {
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Per-Certificate Custom Image Sizes for {{صورة 1}} to {{صورة 5}} */}
+            <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-200/80 space-y-3">
+              <div className="flex items-center gap-2 border-b border-amber-200/50 pb-2">
+                <Sliders className="w-4 h-4 text-amber-700" />
+                <h4 className="text-xs font-black text-amber-950">
+                  التحكم بحجم الصور المتغيرة {'{{صورة 1}}'} إلى {'{{صورة 5}}'} المخصصة لهاته الشهادة:
+                </h4>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                تخصيص أبعاد وعرض وارتفاع الصور المستدعاة من أرقام الشيت لهذه الشهادة تحديداً. يمكنك جعل الصور كبيرة في هذه الشهادة وصغيرة في شهادات أخرى.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                {[1, 2, 3, 4, 5].map(num => {
+                  const wKey = `img${num}Width` as keyof typeof currentCert.customImageSizes;
+                  const hKey = `img${num}Height` as keyof typeof currentCert.customImageSizes;
+                  const certSizes = currentCert.customImageSizes || settings.customImageSizes || {};
+                  const currentWidth = certSizes[wKey] || '150px';
+                  const currentHeight = certSizes[hKey] || 'auto';
+
+                  const updateCertImgSize = (key: string, val: string) => {
+                    const updatedCerts = [...settings.certificates];
+                    const targetC = updatedCerts[activeCertTab];
+                    const existingSizes = targetC.customImageSizes || { ...settings.customImageSizes };
+                    updatedCerts[activeCertTab] = {
+                      ...targetC,
+                      customImageSizes: {
+                        ...existingSizes,
+                        [key]: val
+                      }
+                    };
+                    setSettings({ ...settings, certificates: updatedCerts });
+                  };
+
+                  return (
+                    <div key={num} className="bg-white p-3 rounded-xl border border-amber-200/60 shadow-xs space-y-2">
+                      <div className="text-xs font-black text-amber-900 flex items-center justify-between">
+                        <span>صورة {num}</span>
+                        <span className="text-[10px] text-amber-600 font-mono">{`{{صورة ${num}}}`}</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">العرض (Width):</label>
+                        <input
+                          type="text"
+                          value={currentWidth}
+                          onChange={e => updateCertImgSize(`img${num}Width`, e.target.value)}
+                          placeholder="150px أو 100%"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-0.5">الارتفاع (Height):</label>
+                        <input
+                          type="text"
+                          value={currentHeight}
+                          onChange={e => updateCertImgSize(`img${num}Height`, e.target.value)}
+                          placeholder="auto أو 180px"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

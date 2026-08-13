@@ -668,15 +668,15 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       const displayName = student.studentName || student.studentId;
       setBulkPdfProgress({ current: i + 1, total: activeStudents.length, currentStudentName: displayName });
 
-      // If smart skip is enabled, check if student already has a saved PDF URL
+      // If smart skip is enabled, check if student already has saved PDF URLs
       if (skipExistingPdfs) {
         try {
-          const checkRes = await callGasApi<{ success: boolean; pdfUrl?: string }>('getPdfControlForStudent', {
+          const checkRes = await callGasApi<{ success: boolean; pdfUrl?: string; certPdfUrl?: string }>('getPdfControlForStudent', {
             studentId: student.studentId
           });
-          if (checkRes && checkRes.pdfUrl && checkRes.pdfUrl.trim().length > 0) {
+          if (checkRes && checkRes.pdfUrl && checkRes.certPdfUrl && checkRes.pdfUrl.trim().length > 0 && checkRes.certPdfUrl.trim().length > 0) {
             skippedCount++;
-            continue; // Skip re-generating
+            continue; // Skip re-generating if both exist
           }
         } catch (checkErr) {
           console.warn('Could not check existing PDF for student:', student.studentId, checkErr);
@@ -684,7 +684,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       }
 
       try {
-        const res = await callGasApi<{ success: boolean; pdfUrl?: string; message?: string }>('generateStudentConsolidatedPDF', {
+        const res = await callGasApi<{ success: boolean; certPdfUrl?: string; reportPdfUrl?: string; message?: string }>('generateStudentBothPDFs', {
           studentId: student.studentId,
           studentName: student.studentName
         });
@@ -699,7 +699,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
     }
 
     setBulkPdfGenerating(false);
-    alert(`🎉 اكتملت عملية التصدير الجماعي للتقارير بنجاح!\n\n✅ تم إنشاء وتجديد: ${successCount} ملف PDF\n⏩ تم تخطيهم (موجودين مسبقاً): ${skippedCount} طالب\n❌ تعذر معالجة: ${failCount} طالب`);
+    alert(`🎉 اكتملت عملية التصدير الجماعي بنجاح!\n\n✅ تم إنشاء وتحديث الشهادة والتقرير الشامل لـ: ${successCount} طالب\n⏩ تم تخطيهم (موجودين مسبقاً): ${skippedCount} طالب\n❌ تعذر معالجة: ${failCount} طالب`);
 
     if (selectedReportStudent) {
       handleSelectReportStudent(selectedReportStudent);
@@ -3909,25 +3909,25 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
 
             <div>
               <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
-                تصدير PDF لجميع الطلاب 📁
+                تصدير ملفات PDF لجميع الطلاب (دفعة واحدة) 📁
               </h3>
               <p className="text-slate-500 text-xs mt-2 leading-relaxed">
-                هل تريد البدء في تصدير وتوليد ملفات الـ PDF التقييمية لجميع الطلاب الأبطال المسجلين (عددهم <span className="font-extrabold text-emerald-600 font-sans text-sm">{studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT').length}</span> طالب)؟
+                هل تريد البدء في تصدير وتوليد ملفات الـ PDF (الشهادة فقط + التقرير الشامل) لجميع الطلاب المسجلين (عددهم <span className="font-extrabold text-emerald-600 font-sans text-sm">{studentSchedules.filter(s => s.studentId !== 'DEFAULT_STUDENT').length}</span> طالب)؟
               </p>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-right space-y-2.5 text-xs text-slate-600">
               <div className="flex items-center gap-2 font-bold text-slate-800">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>سيتم إنشاء وتحديث ملف PDF لكل طالب منفرد</span>
+                <span>إنشاء وتحديث الشهادة فقط وحفظ الرابط في العمود D</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-800">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>حفظ الرابط المباشر في ورقة PDF لتسهيل الوصول</span>
+                <span>إنشاء وتحديث التقرير الشامل وحفظ الرابط في العمود E</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-800">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>تتم المعالجة تتابعياً لتفادي أي مهلة زمنية</span>
+                <span>معالجة متتابعة لضمان استقرار الخادم وحفظ جميع البيانات</span>
               </div>
 
               <label className="flex items-center gap-2.5 pt-2 border-t border-slate-200 mt-2 cursor-pointer font-extrabold text-slate-800">
