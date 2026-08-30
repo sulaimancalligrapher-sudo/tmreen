@@ -275,6 +275,19 @@ export async function processTelegramBotUpdates(params: ProcessTelegramUpdatesPa
               telegramChatId: chatId,
               preferredLanguage: chosenLang,
             });
+            try {
+              window.dispatchEvent(
+                new CustomEvent('telegram_student_linked', {
+                  detail: {
+                    studentId: student.studentId,
+                    studentName: student.studentName,
+                    chatId,
+                    lang: chosenLang,
+                  },
+                })
+              );
+              window.dispatchEvent(new Event('telegram_data_changed'));
+            } catch (e) {}
           }
         } catch (e) {}
 
@@ -486,6 +499,19 @@ export async function processTelegramBotUpdates(params: ProcessTelegramUpdatesPa
               telegramChatId: sub.chatId,
               preferredLanguage: langToSave,
             });
+            try {
+              window.dispatchEvent(
+                new CustomEvent('telegram_student_linked', {
+                  detail: {
+                    studentId: matched.studentId,
+                    studentName: matched.studentName,
+                    chatId: sub.chatId,
+                    lang: langToSave,
+                  },
+                })
+              );
+              window.dispatchEvent(new Event('telegram_data_changed'));
+            } catch (e) {}
           } catch (e) {}
 
           const confirmMsg = getWelcomeSuccessText(matched.studentName, langToSave, matched.studentId);
@@ -720,6 +746,19 @@ export async function processTelegramBotUpdates(params: ProcessTelegramUpdatesPa
             telegramChatId: chatId,
             preferredLanguage: langToSave,
           });
+          try {
+            window.dispatchEvent(
+              new CustomEvent('telegram_student_linked', {
+                detail: {
+                  studentId: matchedStudent.studentId,
+                  studentName: matchedStudent.studentName,
+                  chatId,
+                  lang: langToSave,
+                },
+              })
+            );
+            window.dispatchEvent(new Event('telegram_data_changed'));
+          } catch (e) {}
         } catch (e) {}
 
         const confirmMsg = getWelcomeSuccessText(matchedStudent.studentName, langToSave, matchedStudent.studentId);

@@ -328,6 +328,21 @@ export default function App() {
                 plainStarts: updatesRes.plainStarts,
                 idSubmissions: updatesRes.idSubmissions,
                 callbackQueries: updatesRes.callbackQueries,
+                onUpdateScheduleStudentTelegram: (studentId, telegramChatId, lang) => {
+                  try {
+                    const rawCached = localStorage.getItem('all_schedules_cached');
+                    if (rawCached) {
+                      const list = JSON.parse(rawCached);
+                      const sKey = String(studentId).toLowerCase().trim();
+                      const updated = list.map((s: any) =>
+                        s.studentId === studentId || (s.studentId && String(s.studentId).toLowerCase().trim() === sKey)
+                          ? { ...s, telegramChatId, preferredLanguage: lang || s.preferredLanguage || 'ar' }
+                          : s
+                      );
+                      localStorage.setItem('all_schedules_cached', JSON.stringify(updated));
+                    }
+                  } catch (e) {}
+                },
               });
             }
           } catch (botErr) {}

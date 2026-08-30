@@ -226,6 +226,48 @@ export default function MonitoringDashboard({
     fetchMonitoringData(false);
   }, []);
 
+  // Listen for real-time Telegram linking events from the bot background engine
+  useEffect(() => {
+    const handleLinkedEvent = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.studentId && detail.chatId) {
+        const sKey = String(detail.studentId).toLowerCase().trim();
+        recentlySavedOverridesRef.current.set(sKey, {
+          override: {
+            telegramChatId: detail.chatId,
+            preferredLanguage: detail.lang || 'ar',
+          },
+          timestamp: Date.now(),
+        });
+
+        setAllSchedules((prev) => {
+          const updated = prev.map((s) => {
+            if (
+              s.studentId === detail.studentId ||
+              (s.studentId && s.studentId.toLowerCase().trim() === sKey)
+            ) {
+              return {
+                ...s,
+                telegramChatId: detail.chatId,
+                preferredLanguage: detail.lang || s.preferredLanguage || 'ar',
+              };
+            }
+            return s;
+          });
+          try {
+            localStorage.setItem('all_schedules_cached', JSON.stringify(updated));
+          } catch (err) {}
+          return updated;
+        });
+      }
+    };
+
+    window.addEventListener('telegram_student_linked', handleLinkedEvent);
+    return () => {
+      window.removeEventListener('telegram_student_linked', handleLinkedEvent);
+    };
+  }, []);
+
   // Auto Refresh interval: every 30 seconds in background (lightweight)
   useEffect(() => {
     if (!autoRefresh) return;

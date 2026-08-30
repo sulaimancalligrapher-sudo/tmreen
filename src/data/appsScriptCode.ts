@@ -3252,6 +3252,25 @@ function getStudentSchedule(studentId) {
       var customForceRaw = row[19] !== null && row[19] !== undefined ? row[19].toString().trim().toLowerCase() : '';
       var customForceLogin = (customForceRaw === 'نعم' || customForceRaw === 'true' || customForceRaw === '1' || customForceRaw === 'مفعل' || customForceRaw === 'مُفعّل') ? true : (customForceRaw === 'لا' || customForceRaw === 'false' || customForceRaw === '0' || customForceRaw === 'معطل' ? false : undefined);
 
+      var tgChatId = '';
+      var tgLang = 'ar';
+      var tgSheet = getSheetByNameFlexible(ss, 'Telegram_Users');
+      if (tgSheet && tgSheet.getLastRow() >= 2) {
+        var tgData = tgSheet.getRange(2, 1, tgSheet.getLastRow() - 1, 4).getValues();
+        for (var t = 0; t < tgData.length; t++) {
+          var tId = tgData[t][1] ? tgData[t][1].toString().trim().toLowerCase() : '';
+          var tName = tgData[t][0] ? tgData[t][0].toString().trim().toLowerCase() : '';
+          if (tId === target || tName === target) {
+            tgChatId = tgData[t][2] ? tgData[t][2].toString().trim() : '';
+            var lRaw = tgData[t][3] ? tgData[t][3].toString().trim().toLowerCase() : '';
+            if (lRaw.indexOf('en') !== -1 || lRaw.indexOf('eng') !== -1) tgLang = 'en';
+            else if (lRaw.indexOf('th') !== -1 || lRaw.indexOf('ไทย') !== -1) tgLang = 'th';
+            else tgLang = 'ar';
+            break;
+          }
+        }
+      }
+
       return {
         studentId: sId,
         studentName: sName,
@@ -3265,7 +3284,9 @@ function getStudentSchedule(studentId) {
         customSessionDuration: customSessionDuration,
         customDurationType: customDurationType,
         customPreventEarlyEntry: customPreventEarlyEntry,
-        customForceLogin: customForceLogin
+        customForceLogin: customForceLogin,
+        telegramChatId: tgChatId,
+        preferredLanguage: tgLang
       };
     }
   }
@@ -3460,6 +3481,23 @@ function getAllStudentsSchedule() {
   var list = [];
   list.push(getDefaultSchedule());
   
+  var tgMap = {};
+  var tgSheet = getSheetByNameFlexible(ss, 'Telegram_Users');
+  if (tgSheet && tgSheet.getLastRow() >= 2) {
+    var tgData = tgSheet.getRange(2, 1, tgSheet.getLastRow() - 1, 4).getValues();
+    for (var t = 0; t < tgData.length; t++) {
+      var tId = tgData[t][1] ? tgData[t][1].toString().trim().toLowerCase() : '';
+      var tName = tgData[t][0] ? tgData[t][0].toString().trim().toLowerCase() : '';
+      var tChatId = tgData[t][2] ? tgData[t][2].toString().trim() : '';
+      var lRaw = tgData[t][3] ? tgData[t][3].toString().trim().toLowerCase() : '';
+      var tLang = 'ar';
+      if (lRaw.indexOf('en') !== -1 || lRaw.indexOf('eng') !== -1) tLang = 'en';
+      else if (lRaw.indexOf('th') !== -1 || lRaw.indexOf('ไทย') !== -1) tLang = 'th';
+      if (tId) tgMap[tId] = { chatId: tChatId, lang: tLang };
+      if (tName) tgMap[tName] = { chatId: tChatId, lang: tLang };
+    }
+  }
+
   for (var k = 0; k < scheduleRows.length; k++) {
     var r = scheduleRows[k];
     var sId = r[0] ? r[0].toString().trim() : '';
@@ -3518,6 +3556,8 @@ function getAllStudentsSchedule() {
     var customForceRaw = r[19] !== null && r[19] !== undefined ? r[19].toString().trim().toLowerCase() : '';
     var customForceLogin = (customForceRaw === 'نعم' || customForceRaw === 'true' || customForceRaw === '1' || customForceRaw === 'مفعل' || customForceRaw === 'مُفعّل') ? true : (customForceRaw === 'لا' || customForceRaw === 'false' || customForceRaw === '0' || customForceRaw === 'معطل' ? false : undefined);
     
+    var tgInfo = tgMap[sId.toLowerCase()] || (sName ? tgMap[sName.toLowerCase()] : null) || {};
+
     list.push({
       studentId: sId,
       studentName: sName,
@@ -3531,7 +3571,9 @@ function getAllStudentsSchedule() {
       customSessionDuration: customSessionDuration,
       customDurationType: customDurationType,
       customPreventEarlyEntry: customPreventEarlyEntry,
-      customForceLogin: customForceLogin
+      customForceLogin: customForceLogin,
+      telegramChatId: tgInfo.chatId || '',
+      preferredLanguage: tgInfo.lang || 'ar'
     });
   }
   return list;

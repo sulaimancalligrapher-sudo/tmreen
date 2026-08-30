@@ -138,8 +138,7 @@ export function clearAllTelegramNotificationMemory(): { clearedCount: number; cl
           k.startsWith('student_present_') ||
           k.startsWith('student_attended_') ||
           k.startsWith('punchin_') ||
-          k.startsWith('attendance_punch_in_') ||
-          k.startsWith('student_custom_sched_')
+          k.startsWith('attendance_punch_in_')
         ) {
           presenceKeysToRemove.push(k);
         }
@@ -771,7 +770,14 @@ export async function dispatchAttendanceTelegramNotification(
   }
 
   // 1️⃣ Send to Student (Direct to student chat if linked, or fallback to general configured Chat ID)
-  const targetStudentChatId = (studentChatId || settings.telegramChatId || '').trim();
+  let resolvedDirectChatId = studentChatId;
+  if (!resolvedDirectChatId) {
+    const r = resolveStudentTelegramChatId(student.id, student.name);
+    if (r.chatId) {
+      resolvedDirectChatId = r.chatId;
+    }
+  }
+  const targetStudentChatId = (resolvedDirectChatId || settings.telegramChatId || '').trim();
   if (targetStudentChatId && studentMessage) {
     try {
       const res = await sendTelegramMessage({

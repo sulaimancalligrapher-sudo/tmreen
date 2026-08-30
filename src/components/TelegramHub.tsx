@@ -559,6 +559,36 @@ export default function TelegramHub({
     }
   }, [allSchedules]);
 
+  // Real-time listener for Telegram link events (instant UI reactivity)
+  useEffect(() => {
+    const handleStudentLinked = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.studentId && detail.chatId) {
+        const sKey = String(detail.studentId).toLowerCase().trim();
+        setLocalSchedules((prev) =>
+          prev.map((s) => {
+            if (
+              s.studentId === detail.studentId ||
+              (s.studentId && s.studentId.toLowerCase().trim() === sKey)
+            ) {
+              return {
+                ...s,
+                telegramChatId: detail.chatId,
+                preferredLanguage: detail.lang || s.preferredLanguage || 'ar',
+              };
+            }
+            return s;
+          })
+        );
+      }
+    };
+
+    window.addEventListener('telegram_student_linked', handleStudentLinked);
+    return () => {
+      window.removeEventListener('telegram_student_linked', handleStudentLinked);
+    };
+  }, []);
+
   // Ignored / explicitly unlinked student IDs to prevent auto-poller from re-linking old getUpdates
   const ignoredStudentIdsRef = useRef<Set<string>>(new Set());
 

@@ -516,12 +516,17 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
            rawSched.customSessionDuration !== undefined ||
            rawSched.customDurationType !== undefined ||
            rawSched.customPreventEarlyEntry !== undefined ||
-           rawSched.customForceLogin !== undefined)
+           rawSched.customForceLogin !== undefined ||
+           rawSched.telegramChatId)
         ) {
           setStudentCustomSchedule(rawSched);
           try {
             if (sId) localStorage.setItem(`student_custom_sched_${sId}`, JSON.stringify(rawSched));
             if (sName) localStorage.setItem(`student_custom_sched_${sName}`, JSON.stringify(rawSched));
+            if (rawSched.telegramChatId) {
+              if (sId) localStorage.setItem(`student_telegram_${sId}`, JSON.stringify({ telegramChatId: rawSched.telegramChatId, preferredLang: rawSched.preferredLanguage || 'ar', studentName: sName }));
+              if (sName) localStorage.setItem(`student_telegram_${sName}`, JSON.stringify({ telegramChatId: rawSched.telegramChatId, preferredLang: rawSched.preferredLanguage || 'ar', studentName: sName }));
+            }
           } catch (e) {}
         } else {
           setStudentCustomSchedule(null);
