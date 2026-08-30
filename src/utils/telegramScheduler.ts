@@ -547,6 +547,17 @@ export function isStudentPresentOrActiveToday(
 }
 
 /**
+ * Normalizes any language string or code (e.g. 'العربية (AR)', 'ภาษาไทย (TH)', 'English (EN)', 'th-TH', 'thai') into a clean 'ar' | 'en' | 'th'
+ */
+export function normalizeTelegramLanguage(lang?: any): 'ar' | 'en' | 'th' {
+  if (!lang) return 'ar';
+  const l = String(lang).toLowerCase().trim();
+  if (l === 'en' || l.startsWith('en') || l.includes('eng') || l.includes('english')) return 'en';
+  if (l === 'th' || l.startsWith('th') || l.includes('thai') || l.includes('ไทย')) return 'th';
+  return 'ar';
+}
+
+/**
  * Resolves the student's Telegram Chat ID from multiple fallback sources.
  */
 export function resolveStudentTelegramChatId(
@@ -558,7 +569,7 @@ export function resolveStudentTelegramChatId(
     let lang: 'ar' | 'en' | 'th' = 'ar';
     try {
       const storedLang = localStorage.getItem(`tg_chat_lang_${explicitChatId.trim()}`);
-      if (storedLang === 'en' || storedLang === 'th' || storedLang === 'ar') lang = storedLang;
+      if (storedLang) lang = normalizeTelegramLanguage(storedLang);
     } catch (e) {}
     return { chatId: explicitChatId.trim(), lang };
   }
@@ -594,14 +605,19 @@ export function resolveStudentTelegramChatId(
           if (cid && String(cid).trim()) {
             return {
               chatId: String(cid).trim(),
-              lang: parsed.preferredLang || parsed.preferredLanguage || parsed.languagePreference || 'ar',
+              lang: normalizeTelegramLanguage(parsed.preferredLang || parsed.preferredLanguage || parsed.languagePreference),
             };
           }
         } catch (e) {
           // If raw is a plain chatId string
           const trimmed = raw.trim();
           if (trimmed && /^-?\d+$/.test(trimmed)) {
-            return { chatId: trimmed, lang: 'ar' };
+            let directLang: 'ar' | 'en' | 'th' = 'ar';
+            try {
+              const sl = localStorage.getItem(`tg_chat_lang_${trimmed}`);
+              if (sl) directLang = normalizeTelegramLanguage(sl);
+            } catch (e2) {}
+            return { chatId: trimmed, lang: directLang };
           }
         }
       }
@@ -625,7 +641,7 @@ export function resolveStudentTelegramChatId(
           if (matched && matched.telegramChatId && String(matched.telegramChatId).trim()) {
             return {
               chatId: String(matched.telegramChatId).trim(),
-              lang: matched.preferredLanguage || matched.preferredLang || 'ar',
+              lang: normalizeTelegramLanguage(matched.preferredLanguage || matched.preferredLang),
             };
           }
         }
@@ -726,7 +742,8 @@ export async function dispatchAttendanceTelegramNotification(
     student.telegramChatId || customSchedule?.telegramChatId
   );
   const studentChatId = resolved.chatId;
-  const studentLang = student.preferredLanguage || customSchedule?.preferredLanguage || resolved.lang || 'ar';
+  const rawStudentLang = student.preferredLanguage || customSchedule?.preferredLanguage || resolved.lang || 'ar';
+  const studentLang = normalizeTelegramLanguage(rawStudentLang);
 
   // Compute Times & Common Variables
   const now = new Date();
@@ -764,8 +781,9 @@ export async function dispatchAttendanceTelegramNotification(
     ...extraVars,
   };
 
-  // Helper to get localized template
-  const getTemplate = (lang: 'ar' | 'en' | 'th', key: keyof TelegramLanguageTemplates): string => {
+  // Helper to get localized template safely
+  const getTemplate = (langInput: string | undefined, key: keyof TelegramLanguageTemplates): string => {
+    const lang = normalizeTelegramLanguage(langInput);
     if (lang === 'en') {
       return settings.templatesEn?.[key] || DEFAULT_TELEGRAM_TEMPLATES_EN[key] || '';
     }
@@ -908,11 +926,17 @@ export async function dispatchTeacherPreClassBriefing(options: {
   if (targetTeacher?.telegramChatId?.trim()) {
     recipients.add(targetTeacher.telegramChatId.trim());
   } else {
-    (settings.teachers || []).filter((t) => t.enabled && t.telegramChatId?.trim()).forEach((t) => recipients.add(t.telegramChatId.trim()));
-  }
+    const teacherChatIds = (settings.teachers || [])
+      .filter((t) => t.enabled && t.telegramChatId?.trim())
+      .map((t) => t.telegramChatId.trim());
 
-  if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
-  if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    if (teacherChatIds.length > 0) {
+      teacherChatIds.forEach((id) => recipients.add(id));
+    } else {
+      if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
+      if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    }
+  }
 
   if (recipients.size === 0) {
     return { ok: false, error: 'لا يوجد معرّف محادثة (Chat ID) مسجل للمعلم في دليل المعلمين أو في خانة الإدارة بالإعدادات' };
@@ -1010,11 +1034,17 @@ export async function dispatchTeacherMidClassSnapshot(options: {
   if (targetTeacher?.telegramChatId?.trim()) {
     recipients.add(targetTeacher.telegramChatId.trim());
   } else {
-    (settings.teachers || []).filter((t) => t.enabled && t.telegramChatId?.trim()).forEach((t) => recipients.add(t.telegramChatId.trim()));
-  }
+    const teacherChatIds = (settings.teachers || [])
+      .filter((t) => t.enabled && t.telegramChatId?.trim())
+      .map((t) => t.telegramChatId.trim());
 
-  if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
-  if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    if (teacherChatIds.length > 0) {
+      teacherChatIds.forEach((id) => recipients.add(id));
+    } else {
+      if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
+      if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    }
+  }
 
   if (recipients.size === 0) {
     return { ok: false, error: 'لا يوجد معرّف محادثة (Chat ID) مسجل للمعلم في دليل المعلمين أو في خانة الإدارة بالإعدادات' };
@@ -1112,11 +1142,17 @@ export async function dispatchTeacherPostSessionWrapup(options: {
   if (targetTeacher?.telegramChatId?.trim()) {
     recipients.add(targetTeacher.telegramChatId.trim());
   } else {
-    (settings.teachers || []).filter((t) => t.enabled && t.telegramChatId?.trim()).forEach((t) => recipients.add(t.telegramChatId.trim()));
-  }
+    const teacherChatIds = (settings.teachers || [])
+      .filter((t) => t.enabled && t.telegramChatId?.trim())
+      .map((t) => t.telegramChatId.trim());
 
-  if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
-  if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    if (teacherChatIds.length > 0) {
+      teacherChatIds.forEach((id) => recipients.add(id));
+    } else {
+      if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
+      if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    }
+  }
 
   if (recipients.size === 0) {
     return { ok: false, error: 'لا يوجد معرّف محادثة (Chat ID) مسجل للمعلم في دليل المعلمين أو في خانة الإدارة بالإعدادات' };
@@ -1191,6 +1227,23 @@ export async function checkAndDispatchAutomatedAlerts(
       studentDiagnostics: [],
       digestsEvaluated: [],
     };
+  }
+
+  // Atomic single-flight lock across intervals and tabs
+  if (!options?.skipLocks && !options?.forceSend) {
+    const activeRunLock = localStorage.getItem('tg_scheduler_active_run_lock');
+    if (activeRunLock) {
+      const lockTs = Number(activeRunLock) || 0;
+      if (Date.now() - lockTs < 6000) {
+        return {
+          dispatchedCount: 0,
+          logs: ['ℹ️ تم تخطي الفحص لتفادي التكرار (عملية فحص أخرى جارية حالياً).'],
+          studentDiagnostics: [],
+          digestsEvaluated: [],
+        };
+      }
+    }
+    localStorage.setItem('tg_scheduler_active_run_lock', String(Date.now()));
   }
 
   const now = new Date();
@@ -1306,13 +1359,18 @@ export async function checkAndDispatchAutomatedAlerts(
 
     // 1️⃣ STUDENT PRE-CLASS REMINDER
     const preClassTriggerTime = startTotalMinutes - preClassMins;
+    const normKey = normalizeStudentIdForMatching(studentId) || normalizeArabicText(studentName) || String(studentId).trim();
     const preClassSentKey = `tg_preclass_sent_${studentId}_${todayIsoKey}_${classStartTimeStr}_${preClassMins}`;
     const preClassLockKey = `tg_preclass_lock_${studentId}_${todayIsoKey}_${classStartTimeStr}_${preClassMins}`;
 
     if (
       nowTotalMinutes >= preClassTriggerTime &&
       nowTotalMinutes < startTotalMinutes &&
-      !hasPunchedIn
+      !hasPunchedIn &&
+      (options?.skipLocks || (
+        localStorage.getItem(preClassSentKey) !== 'true' &&
+        localStorage.getItem(`tg_preclass_sent_${normKey}_${todayIsoKey}_${classStartTimeStr}_${preClassMins}`) !== 'true'
+      ))
     ) {
       const lockAcquired = options?.skipLocks || acquireAtomicDispatchLock(preClassLockKey);
       if (lockAcquired) {
@@ -1336,7 +1394,10 @@ export async function checkAndDispatchAutomatedAlerts(
         releaseAtomicDispatchLock(preClassLockKey, isSuccess);
 
         if (isSuccess) {
-          if (!options?.skipLocks) localStorage.setItem(preClassSentKey, 'true');
+          if (!options?.skipLocks) {
+            localStorage.setItem(preClassSentKey, 'true');
+            if (normKey) localStorage.setItem(`tg_preclass_sent_${normKey}_${todayIsoKey}_${classStartTimeStr}_${preClassMins}`, 'true');
+          }
           dispatchedCount++;
           actionTaken = `🚀 تم إرسال تذكير ما قبل الحصة (${preClassMins} دقيقة)`;
           logs.push(`[تذكير مسبق] تم إرسال تذكير للحصة (${classStartTimeStr}) للطالب ${studentName} (#${studentId})`);
@@ -1346,23 +1407,30 @@ export async function checkAndDispatchAutomatedAlerts(
 
     // 2️⃣ STUDENT LATE ALERT
     const firstLateTriggerTime = startTotalMinutes + lateDelayMins;
-    const normKey = normalizeStudentIdForMatching(studentId) || normalizeArabicText(studentName) || String(studentId).trim();
     const lateSentCountKey = `tg_late_count_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
     const lastLateMsKey = `tg_late_last_ms_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
     const lateCompletedKey = `tg_late_completed_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
 
-    // Maximum total sends: 1 initial warning + maxRepeatCount repetitions
-    const maxTotalLateSends = repeatEnabled ? (1 + maxRepeatCount) : 1;
+    // Maximum total sends: If repeatEnabled is true, repeat up to maxRepeatCount times (e.g. 2 means 2 total alerts)
+    const maxTotalLateSends = repeatEnabled ? Math.max(1, maxRepeatCount) : 1;
 
     if (nowTotalMinutes >= firstLateTriggerTime && nowTotalMinutes < endTotalMinutes && !hasPunchedIn) {
-      const isAlreadyCompleted = localStorage.getItem(lateCompletedKey) === 'true';
-      const currentSentCount = Number(localStorage.getItem(lateSentCountKey)) || 0;
-      const lastSentMs = Number(localStorage.getItem(lastLateMsKey)) || 0;
+      const isAlreadyCompleted =
+        localStorage.getItem(lateCompletedKey) === 'true' ||
+        localStorage.getItem(`tg_late_completed_${studentId}_${todayIsoKey}_${classStartTimeStr}`) === 'true';
+      const currentSentCount =
+        Number(localStorage.getItem(lateSentCountKey)) ||
+        Number(localStorage.getItem(`tg_late_count_${studentId}_${todayIsoKey}_${classStartTimeStr}`)) ||
+        0;
+      const lastSentMs =
+        Number(localStorage.getItem(lastLateMsKey)) ||
+        Number(localStorage.getItem(`tg_late_last_ms_${studentId}_${todayIsoKey}_${classStartTimeStr}`)) ||
+        0;
       const nowMs = Date.now();
-      const intervalMs = repeatIntervalMins * 60 * 1000;
+      const intervalMs = Math.max(1, repeatIntervalMins) * 60 * 1000;
 
       let shouldSendLate = false;
-      if (!isAlreadyCompleted) {
+      if (!isAlreadyCompleted && currentSentCount < maxTotalLateSends) {
         if (options?.skipLocks || currentSentCount === 0) {
           shouldSendLate = true;
         } else if (repeatEnabled && currentSentCount < maxTotalLateSends) {

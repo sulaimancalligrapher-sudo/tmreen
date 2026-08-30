@@ -5554,7 +5554,12 @@ function processScheduledTelegramNotifications() {
     var lateTimeKey = 'tg_gas_late_tm_' + sId + '_' + todayDateStr + '_' + startTimeStr;
     var finalAbsentKey = 'tg_gas_abs_cnt_' + sId + '_' + todayDateStr + '_' + startTimeStr;
 
-    var lang = s.preferredLanguage || 'ar';
+    var rawLang = s.preferredLanguage || 'ar';
+    var lLow = rawLang.toString().toLowerCase().trim();
+    var lang = 'ar';
+    if (lLow.indexOf('en') !== -1 || lLow.indexOf('eng') !== -1) lang = 'en';
+    else if (lLow.indexOf('th') !== -1 || lLow.indexOf('ไทย') !== -1 || lLow.indexOf('thai') !== -1) lang = 'th';
+    else lang = 'ar';
 
     var interpolate = function(tpl) {
       if (!tpl) return '';
@@ -5591,7 +5596,7 @@ function processScheduledTelegramNotifications() {
     if (nowMinutes >= (startMinutes + lateDelayMins) && nowMinutes < endMinutes && !hasAttended) {
       var currentLateCount = parseInt(cache.get(lateCountKey), 10) || 0;
       var lastLateMinutes = parseInt(cache.get(lateTimeKey), 10) || 0;
-      var maxTotalLateSends = lateRepeatEnabled ? (1 + lateMaxCount) : 1;
+      var maxTotalLateSends = lateRepeatEnabled ? Math.max(1, lateMaxCount) : 1;
 
       var shouldSendLateGas = false;
       if (currentLateCount === 0) {
@@ -5637,6 +5642,37 @@ function processScheduledTelegramNotifications() {
 }
 
 // ====================== TELEGRAM_USERS DEDICATED SHEET HANDLERS ======================
+
+function getStudentTelegramFromDedicatedSheet(ss, studentId, studentName) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getSheetByNameFlexible(ss, 'Telegram_Users');
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  
+  var cleanId = (studentId || '').toString().trim().toLowerCase();
+  var cleanName = (studentName || '').toString().trim().toLowerCase();
+  if (!cleanId && !cleanName) return null;
+  
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+  for (var i = 0; i < data.length; i++) {
+    var rName = data[i][0] ? data[i][0].toString().trim().toLowerCase() : '';
+    var rId = data[i][1] ? data[i][1].toString().trim().toLowerCase() : '';
+    var rChatId = data[i][2] ? data[i][2].toString().trim() : '';
+    var rLangRaw = data[i][3] ? data[i][3].toString().trim().toLowerCase() : '';
+    
+    if ((cleanId && rId === cleanId) || (cleanName && rName === cleanName)) {
+      var rLang = 'ar';
+      if (rLangRaw.indexOf('en') !== -1 || rLangRaw.indexOf('eng') !== -1) rLang = 'en';
+      else if (rLangRaw.indexOf('th') !== -1 || rLangRaw.indexOf('ไทย') !== -1 || rLangRaw.indexOf('thai') !== -1) rLang = 'th';
+      else rLang = 'ar';
+      
+      return {
+        telegramChatId: rChatId,
+        preferredLanguage: rLang
+      };
+    }
+  }
+  return null;
+}
 
 function getOrCreateTelegramUsersSheet(ss) {
   var sheet = getSheetByNameFlexible(ss, 'Telegram_Users');
