@@ -17,8 +17,26 @@ import ExerciseMatching from './components/ExerciseMatching';
 import ReportDashboard from './components/ReportDashboard';
 import About from './components/About';
 import AdminDashboard from './components/AdminDashboard';
+import MonitoringDashboard from './components/MonitoringDashboard';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useLanguage } from './context/LanguageContext';
+import {
+  sendTelegramMessage,
+  interpolateTelegramTemplate,
+  syncTelegramSignups,
+  DEFAULT_TELEGRAM_TEMPLATES_AR,
+  DEFAULT_TELEGRAM_TEMPLATES_EN,
+  DEFAULT_TELEGRAM_TEMPLATES_TH,
+} from './utils/telegram';
+import { processTelegramBotUpdates } from './utils/telegramBotProcessor';
+import {
+  dispatchAttendanceTelegramNotification,
+  checkAndDispatchAutomatedAlerts,
+  resolveStudentTelegramChatId,
+  isRealStudentRecord,
+  registerStudentActivePresence,
+  clearStudentActivePresence,
+} from './utils/telegramScheduler';
 
 // Icons
 import {
@@ -31,6 +49,7 @@ import {
   Sparkles,
   BookOpen,
   ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,14 +59,23 @@ export default function App() {
   const [student, setStudent] = useState<Student | null>(null);
   const [generalData, setGeneralData] = useState<GeneralData | null>(null);
   
-  // URL routing state: check if URL query has ?page=admin
-  const [isAdminPage, setIsAdminPage] = useState<boolean>(() => {
+  // URL routing state: check if URL query has ?page=admin or ?page=monitoring
+  const [pageParam, setPageParam] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('page') === 'admin';
+    return params.get('page') || 'student';
   });
 
+  const isAdminPage = pageParam === 'admin';
+  const isMonitoringPage = pageParam === 'monitoring';
+
   // App routing state
-  const [activeScreen, setActiveScreen] = useState<string>('home');
+  const [activeScreen, setActiveScreen] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get('page');
+    if (p === 'admin') return 'admin';
+    if (p === 'monitoring') return 'monitoring';
+    return 'home';
+  });
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
@@ -55,99 +83,351 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const isParamAdmin = params.get('page') === 'admin';
-      setIsAdminPage(isParamAdmin);
-      if (isParamAdmin) {
+      const p = params.get('page') || 'student';
+      setPageParam(p);
+      if (p === 'admin') {
         setActiveScreen('admin');
-      } else if (activeScreen === 'admin') {
+      } else if (p === 'monitoring') {
+        setActiveScreen('monitoring');
+      } else {
         setActiveScreen('home');
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeScreen]);
+  }, []);
 
-  // Initial check on mounting
+  // Ping student presence when student is logged in
   useEffect(() => {
-    // 1. Check URL query parameters for auto-login (?studentName=...&studentId=... or ?name=...&id=...)
-    const params = new URLSearchParams(window.location.search);
-    const paramName =
-      params.get('studentName') ||
-      params.get('name') ||
-      params.get('student') ||
-      params.get('sName') ||
-      params.get('user');
-    const paramId =
-      params.get('studentId') ||
-      params.get('id') ||
-      params.get('code') ||
-      params.get('sId') ||
-      params.get('pass');
-
-    if (paramName && paramId) {
-      const decodedName = decodeURIComponent(paramName).trim();
-      const decodedId = decodeURIComponent(paramId).trim();
-      const isAdmin = decodedId === 'admin';
-
-      localStorage.setItem('studentName', decodedName);
-      localStorage.setItem('studentId', decodedId);
-      sessionStorage.setItem('studentName', decodedName);
-      sessionStorage.setItem('studentId', decodedId);
-
-      setStudent({ name: decodedName, id: decodedId, isAdmin });
-      if (isAdmin || isAdminPage) {
-        setActiveScreen('admin');
-      } else {
-        setActiveScreen('home');
-      }
-    } else {
-      const savedName = localStorage.getItem('studentName') || sessionStorage.getItem('studentName');
-      const savedId = localStorage.getItem('studentId') || sessionStorage.getItem('studentId');
-
-      if (savedName && savedId) {
-        const isAdmin = savedId === 'admin';
-        setStudent({ name: savedName, id: savedId, isAdmin });
-        if (isAdmin || isAdminPage) {
-          setActiveScreen('admin');
+    if (student && !student.isAdmin && apiConfigured) {
+      const pingPresence = async () => {
+        try {
+          await callGasApi('logStudentPresence', {
+            studentId: student.id,
+            studentName: student.name,
+            actionType: 'ping',
+          });
+        } catch (e) {
+          // silent fail
         }
-      }
+      };
+      pingPresence();
+      const interval = setInterval(pingPresence, 60000); // ping every 1 min
+      return () => clearInterval(interval);
     }
-
-    if (apiConfigured) {
-      fetchGeneralMetadata();
-    }
-  }, [apiConfigured]);
+  }, [student, apiConfigured]);
 
   const goToAdminPage = () => {
     const url = new URL(window.location.href);
     url.searchParams.set('page', 'admin');
     window.history.pushState({}, '', url.toString());
-    setIsAdminPage(true);
+    setPageParam('admin');
     setActiveScreen('admin');
+  };
+
+  const goToMonitoringPage = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', 'monitoring');
+    window.history.pushState({}, '', url.toString());
+    setPageParam('monitoring');
+    setActiveScreen('monitoring');
   };
 
   const goToStudentPage = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete('page');
     window.history.pushState({}, '', url.toString());
-    setIsAdminPage(false);
+    setPageParam('student');
     setActiveScreen('home');
   };
 
-  const fetchGeneralMetadata = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const data = await callGasApi<GeneralData>('getData');
-      setGeneralData(data);
-    } catch (err: any) {
-      setError(err.message || 'تعذر تحميل بيانات التكوين والملف التعريفي من الشيت.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Global Automated Background Telegram Scheduler Runner
+  useEffect(() => {
+    if (!apiConfigured) return;
+
+    let lastSettingsFetchTime = 0;
+
+    const fetchLatestSettingsAndLiveState = async () => {
+      // Only fetch from GAS after a student or admin is logged in, keeping the GAS queue 100% free and instant for loginUser and loginAdmin
+      if (!student) return;
+
+      try {
+        const [settingsRes, liveRes, schedulesRes] = await Promise.all([
+          callGasApi<any>('getAttendanceSettings').catch(() => null),
+          student?.isAdmin ? callGasApi<any>('getLiveMonitoringData').catch(() => null) : Promise.resolve(null),
+          callGasApi<any>('getAllStudentsSchedule').catch(() => null),
+        ]);
+
+        const lastSavedAt = Number(localStorage.getItem('attendance_settings_saved_at')) || 0;
+        const isRecentlySavedLocally = (Date.now() - lastSavedAt < 90000);
+
+        if (settingsRes && typeof settingsRes === 'object' && !isRecentlySavedLocally) {
+          const s = (settingsRes as any).data?.settings || (settingsRes as any).settings || settingsRes;
+          localStorage.setItem('attendance_settings_cached', JSON.stringify(s));
+        }
+
+        const liveData = (liveRes as any)?.data || liveRes;
+        if (liveData) {
+          if (Array.isArray(liveData.activeStudents)) {
+            localStorage.setItem('live_active_students_cached', JSON.stringify(liveData.activeStudents));
+          }
+          if (Array.isArray(liveData.completedStudents)) {
+            localStorage.setItem('live_completed_students_cached', JSON.stringify(liveData.completedStudents));
+          }
+          if (Array.isArray(liveData.loggedOutStudents)) {
+            localStorage.setItem('live_logged_out_students_cached', JSON.stringify(liveData.loggedOutStudents));
+          }
+          if (Array.isArray(liveData.absentStudents)) {
+            localStorage.setItem('live_absent_students_cached', JSON.stringify(liveData.absentStudents));
+          }
+          if (liveData.settings && !isRecentlySavedLocally) {
+            localStorage.setItem('attendance_settings_cached', JSON.stringify(liveData.settings));
+          }
+        }
+
+        if (Array.isArray(schedulesRes) && schedulesRes.length > 0) {
+          const mergedSchedules = schedulesRes.map((sched: any) => {
+            const sKey = (sched.studentId || '').toLowerCase().trim();
+            let localTelegram: any = null;
+            try {
+              const raw = localStorage.getItem(`student_telegram_${sched.studentId}`);
+              if (raw) localTelegram = JSON.parse(raw);
+            } catch (e) {}
+
+            let resSched = { ...sched };
+            if (localTelegram && localTelegram.telegramChatId && !resSched.telegramChatId) {
+              resSched.telegramChatId = localTelegram.telegramChatId;
+              if (localTelegram.preferredLang) resSched.preferredLanguage = localTelegram.preferredLang;
+              if (localTelegram.guardianPhone) resSched.guardianPhone = localTelegram.guardianPhone;
+            }
+
+            // Check if there is an individual student custom sched override
+            try {
+              const rawCustom = localStorage.getItem(`student_custom_sched_${sched.studentId}`);
+              if (rawCustom) {
+                const parsed = JSON.parse(rawCustom);
+                resSched = { ...resSched, ...parsed };
+              }
+            } catch (e) {}
+
+            return resSched;
+          });
+          localStorage.setItem('all_schedules_cached', JSON.stringify(mergedSchedules));
+        }
+      } catch (e) {}
+    };
+
+    const runAutomatedScheduler = async () => {
+      try {
+        let rawSettings = localStorage.getItem('attendance_settings_cached');
+        const nowMs = Date.now();
+        // Throttle GAS fetches to once every 3 minutes (180,000ms) when a user/admin is logged in
+        if (student && (!rawSettings || nowMs - lastSettingsFetchTime > 180000)) {
+          lastSettingsFetchTime = nowMs;
+          await fetchLatestSettingsAndLiveState();
+          rawSettings = localStorage.getItem('attendance_settings_cached');
+        }
+        if (!rawSettings) return;
+        const settings = JSON.parse(rawSettings);
+        if (!settings?.telegramToken || (settings?.telegramEnabled === false && !settings?.telegramToken)) return;
+
+        // Collect all available student schedules (filtering out default templates or admin records)
+        const schedules: any[] = [];
+        const seenIds = new Set<string>();
+
+        // 1. Check all_schedules_cached
+        try {
+          const cachedSchedulesRaw = localStorage.getItem('all_schedules_cached');
+          if (cachedSchedulesRaw) {
+            const parsedList = JSON.parse(cachedSchedulesRaw);
+            if (Array.isArray(parsedList)) {
+              for (const item of parsedList) {
+                const sId = item.studentId || item.id;
+                const sName = item.studentName || item.name || '';
+                if (sId && isRealStudentRecord(sId, sName) && !seenIds.has(sId)) {
+                  seenIds.add(sId);
+                  schedules.push({
+                    studentId: sId,
+                    studentName: sName || 'المشترك',
+                    customStartTime: item.customStartTime || settings.startTime || '19:00',
+                    customSessionDuration: item.customSessionDuration || settings.sessionDurationFromStart || 120,
+                    telegramChatId: item.telegramChatId,
+                    preferredLanguage: item.preferredLanguage || 'ar',
+                    assignedTeacherId: item.assignedTeacherId,
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {}
+
+        // 2. Check individual student_custom_sched_ keys in localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('student_custom_sched_')) {
+            try {
+              const val = localStorage.getItem(key);
+              if (val) {
+                const parsed = JSON.parse(val);
+                const sId = parsed.studentId || key.replace('student_custom_sched_', '');
+                const sName = parsed.studentName || '';
+                if (sId && isRealStudentRecord(sId, sName) && !seenIds.has(sId)) {
+                  seenIds.add(sId);
+                  schedules.push({
+                    studentId: sId,
+                    studentName: sName || 'المشترك',
+                    customStartTime: parsed.customStartTime || settings.startTime || '19:00',
+                    customSessionDuration: parsed.customSessionDuration || settings.sessionDurationFromStart || 120,
+                    telegramChatId: parsed.telegramChatId,
+                    preferredLanguage: parsed.preferredLanguage || 'ar',
+                    assignedTeacherId: parsed.assignedTeacherId,
+                  });
+                }
+              }
+            } catch (e) {}
+          }
+        }
+
+        // 3. If currently logged-in student exists, ensure their presence and record are evaluated
+        if (student && !student.isAdmin) {
+          const sId = student.id;
+          const sName = student.name;
+          if (sId && isRealStudentRecord(sId, sName)) {
+            registerStudentActivePresence(String(sId), String(sName));
+            if (!seenIds.has(sId)) {
+              seenIds.add(sId);
+              const rawSched = localStorage.getItem(`student_custom_sched_${sId}`) || localStorage.getItem(`student_custom_sched_${sName}`);
+              const parsed = rawSched ? JSON.parse(rawSched) : {};
+              schedules.push({
+                studentId: sId,
+                studentName: sName,
+                customStartTime: parsed.customStartTime || settings.startTime || '19:00',
+                customSessionDuration: parsed.customSessionDuration || settings.sessionDurationFromStart || 120,
+                telegramChatId: parsed.telegramChatId || (student as any).telegramChatId,
+                preferredLanguage: parsed.preferredLanguage || 'ar',
+                assignedTeacherId: parsed.assignedTeacherId || (student as any).assignedTeacherId,
+              });
+            }
+          }
+        }
+
+        if (schedules.length > 0) {
+          await checkAndDispatchAutomatedAlerts(schedules, settings);
+        }
+
+        // Real-time Telegram Bot updates processor (Responds instantly to تفاصيل, /menu, /results, /remaining, etc.)
+        if (settings.telegramToken && settings.telegramToken.trim()) {
+          try {
+            const updatesRes = await syncTelegramSignups(settings.telegramToken);
+            if (updatesRes && updatesRes.ok) {
+              await processTelegramBotUpdates({
+                token: settings.telegramToken,
+                settings,
+                allSchedules: schedules,
+                signups: updatesRes.signups,
+                plainStarts: updatesRes.plainStarts,
+                idSubmissions: updatesRes.idSubmissions,
+                callbackQueries: updatesRes.callbackQueries,
+              });
+            }
+          } catch (botErr) {}
+        }
+      } catch (err) {}
+    };
+
+    runAutomatedScheduler();
+    const interval = setInterval(runAutomatedScheduler, 4000); // Fast check every 4s for real-time responsiveness
+    return () => clearInterval(interval);
+  }, [apiConfigured, student]);
 
   const handleLogout = () => {
+    // Notify server of logout if student
+    if (student && !student.isAdmin && apiConfigured) {
+      try {
+        callGasApi('logStudentPresence', {
+          studentId: student.id,
+          studentName: student.name,
+          actionType: 'logout',
+        }).catch(() => {});
+
+        // Send automated Telegram Exit Notification with multi-target fallback
+        const cachedSettingsRaw = localStorage.getItem('attendance_settings_cached');
+        const cachedSchedRaw = localStorage.getItem(`student_custom_sched_${student.id}`);
+        if (cachedSettingsRaw) {
+          try {
+            const parsedSettings = JSON.parse(cachedSettingsRaw);
+            const parsedSched = cachedSchedRaw ? JSON.parse(cachedSchedRaw) : null;
+            const startTimeStr = parsedSched?.customStartTime || parsedSettings?.startTime || '19:00';
+            const durationMins = parsedSched?.customSessionDuration || parsedSettings?.sessionDurationFromStart || 120;
+            
+            const [sh, sm] = startTimeStr.split(':').map(Number);
+            const startTotal = (sh || 0) * 60 + (sm || 0);
+            const endTotal = startTotal + durationMins;
+
+            const now = new Date();
+            const nowTotal = now.getHours() * 60 + now.getMinutes();
+            const isEarlyExit = nowTotal < endTotal;
+            const eventType = isEarlyExit ? 'earlyExit' : 'regularExit';
+
+            dispatchAttendanceTelegramNotification({
+              eventType,
+              student: {
+                id: student.id,
+                name: student.name,
+                telegramChatId: parsedSched?.telegramChatId || (student as any).telegramChatId,
+                preferredLanguage: parsedSched?.preferredLanguage,
+              },
+              settings: parsedSettings,
+              customSchedule: parsedSched,
+              extraVars: {
+                classTime: startTimeStr,
+              },
+            }).catch(() => {});
+          } catch (err) {}
+        }
+      } catch (e) {}
+    }
+
+    if (student?.id) {
+      const todayIsoStr = new Date().toISOString().split('T')[0];
+      try {
+        clearStudentActivePresence(student.id, student.name);
+        
+        // Thoroughly clear all student entry and event deduplication locks
+        const keysToCleanLs: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.includes(student.id) || (student.name && k.includes(student.name)))) {
+            if (
+              k.startsWith('tg_entry_notified_') ||
+              k.startsWith('tg_event_dispatched_') ||
+              k.startsWith('student_present_') ||
+              k.startsWith('punchin_') ||
+              k.startsWith('attendance_punch_in_')
+            ) {
+              keysToCleanLs.push(k);
+            }
+          }
+        }
+        keysToCleanLs.forEach((k) => localStorage.removeItem(k));
+
+        const keysToCleanSs: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k && (k.includes(student.id) || (student.name && k.includes(student.name)))) {
+            if (
+              k.startsWith('tg_entry_notified_') ||
+              k.startsWith('tg_event_dispatched_') ||
+              k.startsWith('student_active_session_')
+            ) {
+              keysToCleanSs.push(k);
+            }
+          }
+        }
+        keysToCleanSs.forEach((k) => sessionStorage.removeItem(k));
+      } catch (e) {}
+    }
+
     localStorage.removeItem('studentName');
     localStorage.removeItem('studentId');
     sessionStorage.removeItem('studentName');
@@ -205,6 +485,18 @@ export default function App() {
   }
 
   // ==========================================
+  // ROUTE 0: MONITORING PAGE (?page=monitoring)
+  // ==========================================
+  if (isMonitoringPage || activeScreen === 'monitoring') {
+    return (
+      <MonitoringDashboard
+        onBackToAdmin={goToAdminPage}
+        onGoToStudentHome={goToStudentPage}
+      />
+    );
+  }
+
+  // ==========================================
   // ROUTE 1: ADMIN PAGE (?page=admin)
   // ==========================================
   if (isAdminPage) {
@@ -247,6 +539,15 @@ export default function App() {
                 <span className="text-[10px] text-slate-400 block font-bold">{t('common.currentAdmin', 'المسؤول الحالي:')}</span>
                 <span className="text-xs font-bold text-amber-400 block">{student.name}</span>
               </div>
+
+              <button
+                onClick={goToMonitoringPage}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20"
+                title="فتح لوحة المتابعة المباشرة الأونلاين"
+              >
+                <Activity className="w-4 h-4 text-emerald-300 animate-pulse" />
+                <span>لوحة المتابعة المباشرة 🟢</span>
+              </button>
 
               <button
                 onClick={() => setActiveScreen('onboarding')}

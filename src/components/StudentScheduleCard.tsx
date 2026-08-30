@@ -15,24 +15,31 @@ export interface StudentSchedule {
   daysToKeep?: string;
   expiryDate?: string;
   examOverrides?: string;
+  customStartTime?: string;
+  customSessionDuration?: number;
+  customDurationType?: 'from_start' | 'from_login';
+  customPreventEarlyEntry?: boolean;
 }
 
 interface StudentScheduleCardProps {
   schedule: StudentSchedule;
   defaultSchedule?: StudentSchedule;
   onSave: (studentId: string, startDate: string, activeDays: string, lessonsPerWeek: string, daysToKeep: string, expiryDate: string) => Promise<void>;
+  onReset?: (studentId: string) => Promise<void>;
   onOpenExamOverrides?: (schedule: StudentSchedule) => void;
   isSaving: boolean;
   key?: React.Key;
 }
 
-export default function StudentScheduleCard({ schedule, defaultSchedule, onSave, onOpenExamOverrides, isSaving }: StudentScheduleCardProps) {
+export default function StudentScheduleCard({ schedule, defaultSchedule, onSave, onReset, onOpenExamOverrides, isSaving }: StudentScheduleCardProps) {
   const [startDate, setStartDate] = useState(schedule.startDate || '');
   const [activeDays, setActiveDays] = useState(schedule.activeDays || '');
   const [lessonsPerWeek, setLessonsPerWeek] = useState(schedule.lessonsPerWeek || '3');
   const [daysToKeep, setDaysToKeep] = useState(schedule.daysToKeep || '');
   const [expiryDate, setExpiryDate] = useState(schedule.expiryDate || '');
   const [isChanged, setIsChanged] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Sync state if props change (e.g. after successful save)
   useEffect(() => {
@@ -75,13 +82,25 @@ export default function StudentScheduleCard({ schedule, defaultSchedule, onSave,
     setIsChanged(true);
   };
 
-  const handleResetCurrentCard = () => {
+  const handleResetCurrentCard = async () => {
+    setShowResetConfirm(false);
     setStartDate('');
     setActiveDays('');
     setLessonsPerWeek('3');
     setDaysToKeep('');
     setExpiryDate('');
-    setIsChanged(true);
+    setIsChanged(false);
+
+    try {
+      setIsResetting(true);
+      if (onReset) {
+        await onReset(schedule.studentId);
+      } else {
+        await onSave(schedule.studentId, '', '', '3', '', '');
+      }
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -290,19 +309,53 @@ export default function StudentScheduleCard({ schedule, defaultSchedule, onSave,
             <span>{isDefaultConfig ? 'الجدولة الخاصة لتمارين الكل (الكلمات/التوصيل/الرسم)' : 'تخصيص الامتحانات والدروس للطالب'}</span>
           </button>
         )}
+        {/* Reset Confirmation Prompt inside card */}
+        {showResetConfirm && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 text-right">
+            <p className="text-xs font-bold text-rose-800 leading-tight">
+              {isDefaultConfig 
+                ? 'هل تريد بالتأكيد تفريغ وحذف الإعدادات الافتراضية؟' 
+                : `هل تريد بالتأكيد حذف الجدولة المخصصة للطالب (${schedule.studentName})؟`}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetCurrentCard}
+                disabled={isResetting}
+                className="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-xs"
+              >
+                {isResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>نعم، حذف وتفريغ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition"
+              >
+                تراجع
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleResetCurrentCard}
-            className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 transition border border-rose-100"
-            title="تفريغ وإزالة كافة التواريخ والتخصيصات لهذه البطاقة"
+            disabled={isSaving || isResetting}
+            onClick={() => setShowResetConfirm((prev) => !prev)}
+            className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 transition border border-rose-100"
+            title="حذف الجدولة المخصصة وإعادة ضبط البطاقة وحفظ التعديل في Google Sheets"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>تفريغ التواريخ</span>
+            {isResetting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+            <span>{isResetting ? 'جاري الحذف...' : 'حذف وتفريغ'}</span>
           </button>
           <button
             type="button"
-            disabled={isSaving || (!isChanged && startDate === schedule.startDate && activeDays === schedule.activeDays && lessonsPerWeek === schedule.lessonsPerWeek && daysToKeep === (schedule.daysToKeep || '') && expiryDate === (schedule.expiryDate || ''))}
+            disabled={isSaving || isResetting || (!isChanged && startDate === schedule.startDate && activeDays === schedule.activeDays && lessonsPerWeek === schedule.lessonsPerWeek && daysToKeep === (schedule.daysToKeep || '') && expiryDate === (schedule.expiryDate || ''))}
             onClick={handleSave}
             className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition ${
               isSaving

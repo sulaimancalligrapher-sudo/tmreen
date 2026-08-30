@@ -91,10 +91,16 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  const [lessons, setLessons] = useState<LessonsData>({
-    questionsLessons: [],
-    matchesLessons: [],
-    drawingLessons: []
+  const [lessons, setLessons] = useState<LessonsData>(() => {
+    try {
+      const cached = localStorage.getItem('admin_lessons_cached');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return {
+      questionsLessons: [],
+      matchesLessons: [],
+      drawingLessons: []
+    };
   });
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [lessonsError, setLessonsError] = useState('');
@@ -135,7 +141,13 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
   const [studentSearchInModal, setStudentSearchInModal] = useState('');
 
   // Student scheduling state
-  const [studentSchedules, setStudentSchedules] = useState<StudentSchedule[]>([]);
+  const [studentSchedules, setStudentSchedules] = useState<StudentSchedule[]>(() => {
+    try {
+      const cached = localStorage.getItem('all_schedules_cached');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return [];
+  });
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
@@ -712,11 +724,15 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
       setLessonsError('');
       const data = await callGasApi<any>('getLessonsForAdmin', {}, { timeoutMs: 60000 });
       if (data && data.success) {
-        setLessons({
+        const fetchedLessons = {
           questionsLessons: data.questionsLessons || [],
           matchesLessons: data.matchesLessons || [],
           drawingLessons: data.drawingLessons || []
-        });
+        };
+        setLessons(fetchedLessons);
+        try {
+          localStorage.setItem('admin_lessons_cached', JSON.stringify(fetchedLessons));
+        } catch (e) {}
       } else {
         setLessonsError(data.message || 'فشل تحميل قائمة التمارين.');
       }
@@ -731,7 +747,12 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
     try {
       setLoadingStudents(true);
       const data = await callGasApi<StudentSchedule[]>('getAllStudentsSchedule');
-      setStudentSchedules(data || []);
+      if (Array.isArray(data) && data.length > 0) {
+        setStudentSchedules(data);
+        try {
+          localStorage.setItem('all_schedules_cached', JSON.stringify(data));
+        } catch (e) {}
+      }
     } catch (err: any) {
       console.error('Failed to fetch student schedules:', err);
     } finally {
@@ -3825,6 +3846,9 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                   onSave={async (studentId, startDate, activeDays, lessonsPerWeek, daysToKeep, expiryDate) => {
                     await handleUpdateStudentSchedule(studentId, startDate, activeDays, lessonsPerWeek, daysToKeep, expiryDate);
                   }}
+                  onReset={async (studentId) => {
+                    await handleUpdateStudentSchedule(studentId, '', '', '3', '', '');
+                  }}
                   onOpenExamOverrides={handleOpenExamOverridesModal}
                   isSaving={savingStudentId === 'DEFAULT_STUDENT'}
                 />
@@ -3877,6 +3901,11 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
                     // Update state of local item so change is reflected immediately
                     setStudentSchedules(prev => prev.map(s => s.studentId === id ? { ...s, startDate, activeDays, lessonsPerWeek, daysToKeep, expiryDate } : s));
                     setSelectedStudentForDetails(prev => prev ? { ...prev, startDate, activeDays, lessonsPerWeek, daysToKeep, expiryDate } : null);
+                  }}
+                  onReset={async (id) => {
+                    await handleUpdateStudentSchedule(id, '', '', '3', '', '');
+                    setStudentSchedules(prev => prev.map(s => s.studentId === id ? { ...s, startDate: '', activeDays: '', lessonsPerWeek: '3', daysToKeep: '', expiryDate: '' } : s));
+                    setSelectedStudentForDetails(prev => prev ? { ...prev, startDate: '', activeDays: '', lessonsPerWeek: '3', daysToKeep: '', expiryDate: '' } : null);
                   }}
                   onOpenExamOverrides={(sch) => {
                     handleOpenExamOverridesModal(sch);

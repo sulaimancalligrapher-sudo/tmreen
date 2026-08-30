@@ -380,6 +380,1091 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Login as Student',
       th: 'เข้าสู่ระบบนักเรียน',
     },
+    fillStudentNameAndId: {
+      ar: 'يرجى إدخال اسم ورقم الطالب أولاً!',
+      en: 'Please enter student name and ID first!',
+      th: 'กรุณากรอกชื่อและรหัสนักเรียนก่อน!',
+    },
+    fillAdminCredentials: {
+      ar: 'يرجى إدخال اسم مستخدم الإدارة وكلمة المرور!',
+      en: 'Please enter admin username and password!',
+      th: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านผู้ดูแล!',
+    },
+    loginFailedCheckData: {
+      ar: 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.',
+      en: 'Login failed. Please check your credentials.',
+      th: 'การเข้าสู่ระบบล้มเหลว โปรดตรวจสอบข้อมูลของคุณ',
+    },
+    adminLoginInvalid: {
+      ar: 'اسم المستخدم أو كلمة المرور غير صحيحة للإدارة.',
+      en: 'Invalid admin username or password.',
+      th: 'ชื่อผู้ใช้หรือรหัสผ่านผู้ดูแลไม่ถูกต้อง',
+    },
+    serverSheetError: {
+      ar: 'خطأ في خادم الشيت:',
+      en: 'Sheet server error:',
+      th: 'ข้อผิดพลาดของเซิร์ฟเวอร์ Sheet:',
+    },
+    editGasServerUrl: {
+      ar: 'تعديل رابط خادم الشيت',
+      en: 'Edit Sheet Server URL',
+      th: 'แก้ไข URL เซิร์ฟเวอร์ Sheet',
+    },
+    resetDefaultUrl: {
+      ar: 'إعادة الضبط للافتراضي',
+      en: 'Reset to default',
+      th: 'รีเซ็ตเป็นค่าเริ่มต้น',
+    },
+    gasServerUrlSetup: {
+      ar: 'إعداد رابط خادم Google Apps Script',
+      en: 'Google Apps Script Server URL Setup',
+      th: 'ตั้งค่า URL เซิร์ฟเวอร์ Google Apps Script',
+    },
+    gasServerUrlDesc: {
+      ar: 'إذا أظهر الخادم خطأ 404، يرجى لصق رابط الـ Web App الجديد المنسوخ من مشروع Google Apps Script الخاص بك:',
+      en: 'If the server shows 404 error, please paste the new Web App URL copied from your Google Apps Script project:',
+      th: 'หากเซิร์ฟเวอร์แสดงข้อผิดพลาด 404 โปรดวาง URL ของ Web App ใหม่ที่คัดลอกมาจากโปรเจกต์ Google Apps Script ของคุณ:',
+    },
+    enterWebAppUrlFirst: {
+      ar: 'يرجى إدخال رابط الـ Web App الخاص بك أولاً!',
+      en: 'Please enter your Web App URL first!',
+      th: 'โปรดป้อน URL ของ Web App ของคุณก่อน!',
+    },
+    testConnectionSuccess: {
+      ar: 'تم اختبار الاتصال بالخادم بنجاح! الرابط يعمل بامتياز.',
+      en: 'Server connection tested successfully! URL works perfectly.',
+      th: 'ทดสอบการเชื่อมต่อเซิร์ฟเวอร์สำเร็จ! URL ทำงานได้อย่างสมบูรณ์',
+    },
+    testConnectionFailed: {
+      ar: 'فشل الاتصال بهذا الرابط:',
+      en: 'Connection failed to this URL:',
+      th: 'การเชื่อมต่อไปยัง URL นี้ล้มเหลว:',
+    },
+    saveAndTestConnection: {
+      ar: 'حفظ واختبار الاتصال',
+      en: 'Save & Test Connection',
+      th: 'บันทึกและทดสอบการเชื่อมต่อ',
+    },
+    defaultLabel: {
+      ar: 'الافتراضي',
+      en: 'Default',
+      th: 'ค่าเริ่มต้น',
+    },
+    qrFormatMismatch: {
+      ar: 'رمز QR لا يطابق صيغة الطالب (اسم|رقم)',
+      en: 'QR code does not match student format (Name|ID)',
+      th: 'รหัส QR ไม่ตรงกับรูปแบบนักเรียน (ชื่อ|รหัส)',
+    },
+    cameraAccessError: {
+      ar: 'تعذر الوصول للكاميرا. يرجى التأكد من إعطاء الإذن أو تجربة رفع صورة QR.',
+      en: 'Unable to access camera. Please check permissions or upload a QR image.',
+      th: 'ไม่สามารถเข้าถึงกล้องได้ โปรดตรวจสอบการอนุญาตหรืออัปโหลดรูปภาพ QR',
+    },
+    noQrFoundInImage: {
+      ar: 'لم يتم العثور على كود QR واضح في الصورة المرفوقة. يرجى اختيار صورة أوضح.',
+      en: 'No clear QR code found in attached image. Please choose a clearer image.',
+      th: 'ไม่พบคิวอาร์โค้ดที่ชัดเจนในภาพที่แนบมา โปรดเลือกภาพที่ชัดเจนขึ้น',
+    },
+    qrReadSuccessPrefix: {
+      ar: 'تمت قراءة البيانات بنجاح:',
+      en: 'Data read successfully:',
+      th: 'อ่านข้อมูลสำเร็จ:',
+    },
+  },
+
+  attendance: {
+    earlyEntryBlockedBadge: {
+      ar: 'نظام منع الدخول قبل الموعد مُفعّل',
+      en: 'Early Entry Prevention Active',
+      th: 'ระบบป้องกันการเข้าก่อนเวลาเปิดใช้งาน',
+    },
+    earlyEntryBlockedTitle: {
+      ar: '🔒 موعد الحصة لم يبدأ بعد!',
+      en: '🔒 Class time has not started yet!',
+      th: '🔒 เวลาเรียนยังไม่เริ่มต้น!',
+    },
+    earlyEntryBlockedDesc: {
+      ar: 'موعد بداية حصة اليوم هو الساعة {time}. يرجى الانتظار، وسيتم فتح التمارين تلقائياً عند حلول الموعد.',
+      en: "Today's class start time is {time}. Please wait, exercises will unlock automatically when class starts.",
+      th: 'เวลาเริ่มชั้นเรียนวันนี้คือ {time} โปรดรอ แบบฝึกหัดจะปลดล็อกโดยอัตโนมัติเมื่อถึงเวลา',
+    },
+    timeRemainingToClassStart: {
+      ar: 'متبقي على فتح الحصة:',
+      en: 'Time until class opens:',
+      th: 'เวลาที่เหลือก่อนเปิดชั้นเรียน:',
+    },
+    forceLoginActiveBadge: {
+      ar: 'نظام تسجيل الحضور الإجباري مفعّل',
+      en: 'Mandatory Attendance System Active',
+      th: 'เปิดใช้งานระบบการลงชื่อเข้าเรียนภาคบังคับ',
+    },
+    forceLoginTitle: {
+      ar: '⏱️ يلزم تسجيل حضور الحصة لبدء التمارين والدروس',
+      en: '⏱️ Punch-in required to start exercises and lessons',
+      th: '⏱️ ต้องลงชื่อเข้าเรียนเพื่อเริ่มทำแบบฝึกหัดและบทเรียน',
+    },
+    forceLoginDesc: {
+      ar: 'اضغط على زر تسجيل الحضور أدناه لتسجيل تواجدك في كشف الحضور وبدء الحصة المقررة لك اليوم وحل التمارين.',
+      en: "Click the punch-in button below to mark your presence on the attendance sheet and begin today's scheduled class.",
+      th: 'คลิกปุ่มลงชื่อเข้าเรียนด้านล่างเพื่อบันทึกการเข้าเรียนและเริ่มชั้นเรียนที่กำหนดในวันนี้',
+    },
+    punchInBtn: {
+      ar: '🟢 تسجيل حضور ودخول الحصة الآن',
+      en: '🟢 Punch In for Class Now',
+      th: '🟢 ลงชื่อเข้าชั้นเรียนตอนนี้',
+    },
+    punchInSuccess: {
+      ar: '🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.',
+      en: '🎉 Attendance recorded successfully! You can now solve exercises and follow lessons.',
+      th: '🎉 บันทึกการเข้าเรียนสำเร็จแล้ว! คุณสามารถทำแบบฝึกหัดและเรียนบทเรียนได้แล้ว',
+    },
+    punchInLocalSuccess: {
+      ar: '✅ تم تسجيل الحضور محلياً بنجاح.',
+      en: '✅ Attendance recorded locally.',
+      th: '✅ บันทึกการเข้าเรียนในเครื่องสำเร็จ',
+    },
+    punchInRecorded: {
+      ar: '✅ تم تسجيل حضور ودخول الحصة',
+      en: '✅ Class punch-in recorded',
+      th: '✅ บันทึกการลงชื่อเข้าเรียนเรียบร้อยแล้ว',
+    },
+    sessionActive: {
+      ar: '🟢 الجلسة الحالية نشطة',
+      en: '🟢 Current session is active',
+      th: '🟢 เซสชันปัจจุบันกำลังทำงาน',
+    },
+    loginTimeLabel: {
+      ar: 'توقيت الدخول:',
+      en: 'Punch-in time:',
+      th: 'เวลาที่เข้าสู่ระบบ:',
+    },
+    customTimeBadge: {
+      ar: '⭐ موعدك الخاص:',
+      en: '⭐ Your Custom Time:',
+      th: '⭐ เวลาพิเศษของคุณ:',
+    },
+    attendanceLinkedNotice: {
+      ar: 'حضورك مسجل ومربوط في كشف المعلم ولوحة المتابعة الحية.',
+      en: 'Your attendance is logged in teacher records and live monitoring.',
+      th: 'การเข้าเรียนของคุณได้รับการบันทึกในบันทึกของครูและระบบติดตามสด',
+    },
+    sessionRemainingTime: {
+      ar: 'الوقت المتبقي للجلسة:',
+      en: 'Session remaining time:',
+      th: 'เวลาที่เหลือของเซสชัน:',
+    },
+    sessionExpired: {
+      ar: 'انتهى وقت الحصة المحدد',
+      en: 'Scheduled class time has expired',
+      th: 'หมดเวลาชั้นเรียนที่กำหนดแล้ว',
+    },
+    sessionDurationExpired: {
+      ar: 'انتهت مدة الجلسة',
+      en: 'Session duration expired',
+      th: 'หมดเวลาของเซสชันแล้ว',
+    },
+    timerStartsOnLogin: {
+      ar: 'يبدأ العداد فور تسجيل الدخول',
+      en: 'Timer starts upon punch-in',
+      th: 'ตัวจับเวลาจะเริ่มเมื่อลงชื่อเข้าเรียน',
+    },
+    openSessionException: {
+      ar: 'مفتوح (استثناء)',
+      en: 'Open (Exception)',
+      th: 'เปิดใช้งาน (ข้อยกเว้น)',
+    },
+    earlyEntryWarning: {
+      ar: '🔒 موعد الحصة لم يبدأ بعد! تبدأ الحصة الساعة {time}',
+      en: '🔒 Class time has not started yet! Class starts at {time}',
+      th: '🔒 เวลาเรียนยังไม่เริ่ม! ชั้นเรียนจะเริ่มเวลา {time}',
+    },
+    classTimeExpiredWarning: {
+      ar: '⚠️ انتهى الوقت المخصص للحصة المقررة اليوم.',
+      en: "⚠️ Time allocated for today's scheduled class has ended.",
+      th: '⚠️ หมดเวลาสำหรับชั้นเรียนที่กำหนดในวันนี้แล้ว',
+    },
+    mustPunchInFirstBtn: {
+      ar: 'سجل الحضور أولاً لبدء التمارين 🔓',
+      en: 'Punch in first to unlock exercises 🔓',
+      th: 'ลงชื่อเข้าเรียนก่อนเพื่อปลดล็อกแบบฝึกหัด 🔓',
+    },
+    classStartsAt: {
+      ar: 'تبدأ الحصة الساعة {time}',
+      en: 'Class starts at {time}',
+      th: 'ชั้นเรียนเริ่มเวลา {time}',
+    },
+    classTimeExpired: {
+      ar: 'انتهى وقت الحصة المقررة',
+      en: 'Scheduled class time expired',
+      th: 'หมดเวลาชั้นเรียนที่กำหนดแล้ว',
+    },
+  },
+
+  monitoring: {
+    liveMonitoringTitle: {
+      ar: 'لوحة المتابعة المباشرة أونلاين',
+      en: 'Live Online Monitoring Dashboard',
+      th: 'แดชบอร์ดการติดตามออนไลน์แบบสด',
+    },
+    liveMonitoringDesc: {
+      ar: 'متابعة دخول وخروج الطلاب وإنجاز الدروس في الوقت الفعلي',
+      en: 'Track student logins, logouts, and lesson completions in real time',
+      th: 'ติดตามการเข้าสู่ระบบ การออกจากระบบ และความคืบหน้าของบทเรียนแบบเรียลไทม์',
+    },
+    liveBadge: {
+      ar: 'حي مباشر',
+      en: 'Live',
+      th: 'สด',
+    },
+    refreshNow: {
+      ar: 'تحديث الآن',
+      en: 'Refresh Now',
+      th: 'รีเฟรชตอนนี้',
+    },
+    adminDashboardBtn: {
+      ar: 'لوحة الإدارة',
+      en: 'Admin Panel',
+      th: 'แผงผู้ดูแล',
+    },
+    homeBtn: {
+      ar: 'الرئيسية',
+      en: 'Home',
+      th: 'หน้าหลัก',
+    },
+    liveTab: {
+      ar: 'لوحة المتابعة الحية',
+      en: 'Live Monitoring',
+      th: 'การติดตามสด',
+    },
+    settingsTab: {
+      ar: 'إعدادات المتابعة والوقت',
+      en: 'Monitoring & Time Settings',
+      th: 'การตั้งค่าการติดตามและเวลา',
+    },
+    telegramTab: {
+      ar: 'إعدادات وتنبيهات تليجرام (Telegram)',
+      en: 'Telegram Settings',
+      th: 'การตั้งค่า Telegram',
+    },
+    autoRefreshLabel: {
+      ar: 'تحديث تلقائي (كل 15 ثانية)',
+      en: 'Auto refresh (every 15s)',
+      th: 'รีเฟรชอัตโนมัติ (ทุก 15 วินาที)',
+    },
+    lastRefreshLabel: {
+      ar: 'آخر تحديث:',
+      en: 'Last updated:',
+      th: 'อัปเดตล่าสุด:',
+    },
+    fetchingMonitoringData: {
+      ar: 'جاري جلب بيانات المتابعة الحية...',
+      en: 'Fetching live monitoring data...',
+      th: 'กำลังดึงข้อมูลการติดตามสด...',
+    },
+    fetchingMonitoringDesc: {
+      ar: 'يتم قراءة جدول التخصيص وسجلات الحضور وإنجاز التمارين من الشيت سريعا',
+      en: 'Reading schedule table, attendance logs, and exercise progress from sheet',
+      th: 'กำลังอ่านตารางกำหนดเวลา บันทึกการเข้าเรียน และความคืบหน้าแบบฝึกหัดจากชีต',
+    },
+    activeNowMetric: {
+      ar: '🟢 المتواجدون أونلاين الآن',
+      en: '🟢 Active Online Now',
+      th: '🟢 ใช้งานออนไลน์อยู่ในขณะนี้',
+    },
+    activeStudentsUnit: {
+      ar: 'طلاب نشطون',
+      en: 'Active students',
+      th: 'นักเรียนที่ใช้งานอยู่',
+    },
+    activeStudentsDesc: {
+      ar: 'متواجدون حالياً يتصفحون ويحلون التمارين',
+      en: 'Currently online browsing and solving exercises',
+      th: 'กำลังออนไลน์ เรียกดูและทำแบบฝึกหัด',
+    },
+    loggedOutMetric: {
+      ar: '⚪ غادروا المنصة اليوم',
+      en: '⚪ Left Platform Today',
+      th: '⚪ ออกจากแพลตฟอร์มวันนี้',
+    },
+    loggedOutUnit: {
+      ar: 'سجلوا خروجهم',
+      en: 'Logged out',
+      th: 'ออกจากระบบแล้ว',
+    },
+    loggedOutDesc: {
+      ar: 'حضروا وسجلوا خروجهم بعد أداء الحصة',
+      en: 'Attended and logged out after class',
+      th: 'เข้าร่วมและออกจากระบบหลังเลิกเรียน',
+    },
+    completedMetric: {
+      ar: '✅ أتموا دروس اليوم بنجاح',
+      en: "✅ Completed Today's Lessons",
+      th: '✅ ทำบทเรียนวันนี้เสร็จสมบูรณ์',
+    },
+    completedUnit: {
+      ar: 'طلاب مكتملون',
+      en: 'Completed students',
+      th: 'นักเรียนที่ทำเสร็จแล้ว',
+    },
+    completedDesc: {
+      ar: 'أنهوا حل تمارين وواجبات الحصة المقررة اليوم',
+      en: 'Finished solving all exercises and assignments scheduled today',
+      th: 'ทำแบบฝึกหัดและการบ้านทั้งหมดที่กำหนดในวันนี้เสร็จสิ้น',
+    },
+    absentMetric: {
+      ar: '⚠️ غائبون / لم يدخلوا بعد',
+      en: '⚠️ Absent / Not Logged In Yet',
+      th: '⚠️ ขาดเรียน / ยังไม่ได้เข้าสู่ระบบ',
+    },
+    absentUnit: {
+      ar: 'طلاب غائبون',
+      en: 'Absent students',
+      th: 'นักเรียนที่ขาดเรียน',
+    },
+    absentDesc: {
+      ar: 'عندهم حصة دراسية مخصصة اليوم وحضورهم معلق',
+      en: 'Have a scheduled class today with attendance pending',
+      th: 'มีชั้นเรียนตามกำหนดในวันนี้แต่ยังไม่ได้ลงชื่อเข้าเรียน',
+    },
+    activeListTitle: {
+      ar: '🟢 قائمة المتواجدين أونلاين الآن',
+      en: '🟢 Online Students List',
+      th: '🟢 รายชื่อนักเรียนที่ออนไลน์อยู่ในขณะนี้',
+    },
+    noActiveStudents: {
+      ar: 'لا يوجد طلاب متواجدون أونلاين حالياً في هذه اللحظة.',
+      en: 'No students currently online at the moment.',
+      th: 'ขณะนี้ไม่มีนักเรียนออนไลน์',
+    },
+    loginLabel: {
+      ar: 'دخول:',
+      en: 'Login:',
+      th: 'เข้าสู่ระบบ:',
+    },
+    lastActiveLabel: {
+      ar: 'آخر نشاط:',
+      en: 'Last active:',
+      th: 'กิจกรรมล่าสุด:',
+    },
+    completedLessonsProgress: {
+      ar: 'أنجز: {done} / {total}',
+      en: 'Completed: {done} / {total}',
+      th: 'ทำเสร็จแล้ว: {done} / {total}',
+    },
+    editCustomScheduleBtn: {
+      ar: 'تعديل التوقيت',
+      en: 'Edit Schedule',
+      th: 'แก้ไขเวลา',
+    },
+    setCustomScheduleBtn: {
+      ar: 'تخصيص توقيت',
+      en: 'Customize Time',
+      th: 'กำหนดเวลาเฉพาะ',
+    },
+    loggedOutListTitle: {
+      ar: '⚪ قائمة الذين غادروا المنصة وسجلوا خروجهم',
+      en: '⚪ Logged Out Students List',
+      th: '⚪ รายชื่อนักเรียนที่ออกจากระบบแล้ว',
+    },
+    noLoggedOutStudents: {
+      ar: 'لم يسجل أي طالب خروجه حتى الآن اليوم.',
+      en: 'No student has logged out yet today.',
+      th: 'ยังไม่มีนักเรียนออกจากระบบในวันนี้',
+    },
+    completedListTitle: {
+      ar: '✅ قائمة الذين أتموا دروس اليوم بالكامل',
+      en: '✅ Completed Students List',
+      th: '✅ รายชื่อนักเรียนที่ทำบทเรียนครบถ้วน',
+    },
+    noCompletedStudents: {
+      ar: 'لم يكمل أي طالب دروس اليوم حتى الآن.',
+      en: 'No student has completed today\'s lessons yet.',
+      th: 'ยังไม่มีนักเรียนคนใดทำบทเรียนวันนี้เสร็จ',
+    },
+    completedAllExercises: {
+      ar: 'أتم جميع التمارين المقررة ({count} دروس)',
+      en: 'Completed all scheduled exercises ({count} lessons)',
+      th: 'ทำแบบฝึกหัดที่กำหนดทั้งหมดเสร็จแล้ว ({count} บทเรียน)',
+    },
+    completed100Pct: {
+      ar: 'مكتمل 100% ✨',
+      en: '100% Completed ✨',
+      th: 'เสร็จสมบูรณ์ 100% ✨',
+    },
+    absentListTitle: {
+      ar: '⚠️ قائمة الغائبين / المعلقين اليوم',
+      en: '⚠️ Absent / Pending Students List',
+      th: '⚠️ รายชื่อนักเรียนที่ขาดเรียน / รอดำเนินการ',
+    },
+    allStudentsAttendedMsg: {
+      ar: '🎉 ممتاز! جميع الطلاب المقرر عليهم دراسة اليوم حضروا أو أتموا دروسهم.',
+      en: '🎉 Excellent! All students scheduled for today have attended or completed their lessons.',
+      th: '🎉 ยอดเยี่ยมมาก! นักเรียนทุกคนที่มีกำหนดเรียนในวันนี้ได้เข้าร่วมหรือทำบทเรียนเสร็จแล้ว',
+    },
+    requiredLessonsToday: {
+      ar: 'مطلوب منه اليوم {count} دروس',
+      en: 'Required today: {count} lessons',
+      th: 'จำเป็นต้องเรียนวันนี้: {count} บทเรียน',
+    },
+    absentPendingBadge: {
+      ar: 'معلق / غائب ⚠️',
+      en: 'Pending / Absent ⚠️',
+      th: 'รอดำเนินการ / ขาดเรียน ⚠️',
+    },
+  },
+
+  attendanceSettings: {
+    generalSettingsTitle: {
+      ar: '🏛️ الإعدادات العامة لجميع الطلاب (الخطة الافتراضية للشعبة)',
+      en: '🏛️ General Settings for All Students (Default Class Plan)',
+      th: '🏛️ การตั้งค่าทั่วไปสำหรับนักเรียนทุกคน (แผนชั้นเรียนเริ่มต้น)',
+    },
+    generalSettingsSubtitle: {
+      ar: 'تطبق هذه الخطة تلقائياً على كافة الطلاب ما لم يتم تخصيص وقت فردي لطالب محدد',
+      en: 'Applied automatically to all students unless individual custom time is configured',
+      th: 'มีผลกับนักเรียนทุกคนโดยอัตโนมัติเว้นแต่จะมีการกำหนดเวลาเฉพาะสำหรับนักเรียนแต่ละคน',
+    },
+    generalStartTimeLabel: {
+      ar: '⏰ توقيت بداية الحصة العام:',
+      en: '⏰ General Class Start Time:',
+      th: '⏰ เวลาเริ่มชั้นเรียนทั่วไป:',
+    },
+    generalStartTimeDesc: {
+      ar: 'وقت انطلاق الحصة الرسمي المعتمد للشعبة (مثال: 19:00 يعادل 7:00 مساءً)',
+      en: 'Official start time approved for the section (e.g. 19:00 equals 7:00 PM)',
+      th: 'เวลาเริ่มต้นอย่างเป็นทางการสำหรับชั้นเรียน (เช่น 19:00 คือ 19:00 น.)',
+    },
+    exceptionStudentsLabel: {
+      ar: '👥 قائمة السماح بالدخول الاستثنائي (أسماء/أرقام الطلاب):',
+      en: '👥 Exception Allowed Students (Names/IDs):',
+      th: '👥 รายชื่อนักเรียนที่ได้รับข้อยกเว้น (ชื่อ/รหัส):',
+    },
+    exceptionStudentsPlaceholder: {
+      ar: 'مثال: أحمد علي, 102, 105',
+      en: 'e.g.: Ahmed Ali, 102, 105',
+      th: 'เช่น: อะห์มัด อาลี, 102, 105',
+    },
+    exceptionStudentsDesc: {
+      ar: 'فصل الأسماء أو الأرقام بفواصل لإعطاء هؤلاء الطلاب إمكانية الدخول المفتوح دون قيود',
+      en: 'Separate names or IDs with commas to grant unrestricted access',
+      th: 'คั่นชื่อหรือรหัสด้วยเครื่องหมายจุลภาคเพื่อให้เข้าถึงได้โดยไม่มีข้อจำกัด',
+    },
+    durationCalculationTitle: {
+      ar: 'طريقة احتساب مدة الحصة العامة (اختر نوعاً واحداً للتفعيل):',
+      en: 'Class Duration Calculation Method (Choose one to activate):',
+      th: 'วิธีการคำนวณระยะเวลาชั้นเรียน (เลือกหนึ่งอย่างเพื่อเปิดใช้งาน):',
+    },
+    durationCalculationSubtitle: {
+      ar: 'يتم تفعيل خيار واحد فقط لضبط العداد التنازلي ونهاية الجلسة لجميع الطلاب',
+      en: 'Only one option is active to control countdown and session end for all students',
+      th: 'เปิดใช้งานเพียงตัวเลือกเดียวเพื่อควบคุมการนับถอยหลังและสิ้นสุดเซสชันสำหรับนักเรียนทุกคน',
+    },
+    fromStartTimeOpt: {
+      ar: '1️⃣ من بداية توقيت الحصة العام ({time})',
+      en: '1️⃣ From General Class Start Time ({time})',
+      th: '1️⃣ จากเวลาเริ่มต้นชั้นเรียนทั่วไป ({time})',
+    },
+    fromStudentLoginOpt: {
+      ar: '2️⃣ من لحظة تسجيل دخول الطالب الفعلي',
+      en: '2️⃣ From Actual Student Punch-In Time',
+      th: '2️⃣ จากเวลาที่นักเรียนลงชื่อเข้าเรียนจริง',
+    },
+    activeNowBadge: {
+      ar: 'مُفعّل الآن',
+      en: 'Active Now',
+      th: 'เปิดใช้งานแล้ว',
+    },
+    durationInMinutes: {
+      ar: 'مدة الحصة بالدقائق:',
+      en: 'Class duration in minutes:',
+      th: 'ระยะเวลาชั้นเรียนเป็นนาที:',
+    },
+    fromStartTimeHelp: {
+      ar: 'تنتهي الحصة للجميع عند حلول: وقت البدء + هذه المدة',
+      en: 'Class ends for everyone at: Start time + this duration',
+      th: 'ชั้นเรียนจะสิ้นสุดสำหรับทุกคนที่: เวลาเริ่มต้น + ระยะเวลานี้',
+    },
+    fromStudentLoginHelp: {
+      ar: 'يبدأ العداد الفردي لكل طالب فور تسجيل دخوله للحصة وتستمر معه هذه المدة',
+      en: 'Individual timer starts for each student upon login and lasts for this duration',
+      th: 'ตัวจับเวลาส่วนบุคคลจะเริ่มสำหรับนักเรียนแต่ละคนเมื่อเข้าสู่ระบบและคงอยู่ตามระยะเวลานี้',
+    },
+    forceLoginToggleTitle: {
+      ar: 'إجبار تسجيل الدخول للحصة:',
+      en: 'Require Class Punch-In:',
+      th: 'บังคับให้ลงชื่อเข้าเรียน:',
+    },
+    forceLoginToggleDesc: {
+      ar: 'يلزم الطالب بالضغط على "تسجيل دخول الحصة" أولاً لفتح التمارين',
+      en: 'Requires student to click "Punch In" first to unlock exercises',
+      th: 'กำหนดให้นักเรียนต้องคลิก "ลงชื่อเข้าเรียน" ก่อนเพื่อปลดล็อกแบบฝึกหัด',
+    },
+    preventEarlyEntryToggleTitle: {
+      ar: 'منع الدخول قبل الوقت المحدد:',
+      en: 'Prevent Early Entry Before Start Time:',
+      th: 'ป้องกันการเข้าก่อนเวลาที่กำหนด:',
+    },
+    preventEarlyEntryToggleDesc: {
+      ar: 'قفل التمارين من بداية اليوم حتى موعد البدء العام ({time})',
+      en: 'Lock exercises until general start time ({time})',
+      th: 'ล็อกแบบฝึกหัดจนกว่าจะถึงเวลาเริ่มต้นทั่วไป ({time})',
+    },
+    timeRestrictedToggleTitle: {
+      ar: 'التقيد بالوقت وقفل التمارين:',
+      en: 'Time Restriction & Lock Exercises:',
+      th: 'จำกัดเวลาและล็อกแบบฝึกหัด:',
+    },
+    timeRestrictedToggleDesc: {
+      ar: 'عند انتهاء مدة الحصة، تقفل أزرار بدء الأنشطة والتمارين فقط',
+      en: 'When session time expires, exercise start buttons are locked',
+      th: 'เมื่อหมดเวลาเซสชัน ปุ่มเริ่มทำแบบฝึกหัดจะถูกล็อก',
+    },
+    saveGeneralSettingsBtn: {
+      ar: 'حفظ الإعدادات العامة للشعبة',
+      en: 'Save General Settings',
+      th: 'บันทึกการตั้งค่าทั่วไป',
+    },
+  },
+
+  studentOverrides: {
+    studentOverridesTitle: {
+      ar: '🎯 تخصيص مواعيد وإعدادات الطلاب الفردية (Student Overrides)',
+      en: '🎯 Individual Student Custom Schedule & Overrides',
+      th: '🎯 การกำหนดเวลาและการตั้งค่าเฉพาะสำหรับนักเรียนรายบุคคล',
+    },
+    studentOverridesSubtitle: {
+      ar: 'تحديد توقيت أو مدة أو قواعد استثنائية لطالب محدد في ورقة StudentSchedule دون التأثير على بقية زملائه',
+      en: 'Configure custom time, duration, or rules for a specific student without affecting classmates',
+      th: 'กำหนดเวลา ระยะเวลา หรือกฎพิเศษสำหรับนักเรียนเฉพาะคนโดยไม่ส่งผลกระทบต่อเพื่อนร่วมชั้น',
+    },
+    customizedStudentsCount: {
+      ar: 'طلاب مخصصين',
+      en: 'Customized Students',
+      th: 'นักเรียนที่กำหนดเวลาเฉพาะ',
+    },
+    editStudentOverride: {
+      ar: 'تعديل تخصيص الطالب المحدد',
+      en: 'Edit Selected Student Override',
+      th: 'แก้ไขการกำหนดเวลาของนักเรียนที่เลือก',
+    },
+    quickAddOverride: {
+      ar: 'شريط الإضافة / التخصيص السريع لطالب:',
+      en: 'Quick Add / Student Override Bar:',
+      th: 'แถบเพิ่ม / กำหนดเวลานักเรียนด่วน:',
+    },
+    cancelEditBtn: {
+      ar: 'إلغاء التعديل والعودة للإضافة',
+      en: 'Cancel Edit & Return to Add',
+      th: 'ยกเลิกการแก้ไขและกลับสู่การเพิ่ม',
+    },
+    selectStudentLabel: {
+      ar: 'الطالب:',
+      en: 'Student:',
+      th: 'นักเรียน:',
+    },
+    selectStudentPlaceholder: {
+      ar: '-- اختر الطالب --',
+      en: '-- Select Student --',
+      th: '-- เลือกนักเรียน --',
+    },
+    customStartTimeLabel: {
+      ar: '⏰ وقت البدء الخاص:',
+      en: '⏰ Custom Start Time:',
+      th: '⏰ เวลาเริ่มต้นเฉพาะ:',
+    },
+    customDurationLabel: {
+      ar: '⏳ مدة الحصة (دقيقة):',
+      en: '⏳ Class Duration (minutes):',
+      th: '⏳ ระยะเวลาชั้นเรียน (นาที):',
+    },
+    customDurationTypeLabel: {
+      ar: '⚙️ نوع الاحتساب:',
+      en: '⚙️ Calculation Type:',
+      th: '⚙️ ประเภทการคำนวณ:',
+    },
+    fromLoginOption: {
+      ar: 'من لحظة تسجيل الدخول',
+      en: 'From Punch-in Moment',
+      th: 'จากช่วงเวลาที่ลงชื่อเข้าเรียน',
+    },
+    fromStartOption: {
+      ar: 'من وقت البدء المحدد',
+      en: 'From Specific Start Time',
+      th: 'จากเวลาเริ่มต้นที่ระบุ',
+    },
+    preventEarlyEntryLabel: {
+      ar: 'منع الدخول قبل الموعد:',
+      en: 'Prevent Early Entry:',
+      th: 'ป้องกันการเข้าก่อนเวลา:',
+    },
+    forceLoginLabel: {
+      ar: 'إجباري تسجيل الدخول:',
+      en: 'Mandatory Punch-in:',
+      th: 'บังคับลงชื่อเข้าเรียน:',
+    },
+    enabled: {
+      ar: 'مُفعّل',
+      en: 'Enabled',
+      th: 'เปิดใช้งาน',
+    },
+    disabled: {
+      ar: 'معطل',
+      en: 'Disabled',
+      th: 'ปิดใช้งาน',
+    },
+    optional: {
+      ar: 'اختياري',
+      en: 'Optional',
+      th: 'ทางเลือก',
+    },
+    updateStudentOverrideBtn: {
+      ar: 'تحديث التخصيص للطالب',
+      en: 'Update Student Override',
+      th: 'อัปเดตการกำหนดเวลาของนักเรียน',
+    },
+    saveStudentOverrideBtn: {
+      ar: '➕ حفظ تخصيص الطالب',
+      en: '➕ Save Student Override',
+      th: '➕ บันทึกการกำหนดเวลานักเรียน',
+    },
+    currentOverridesList: {
+      ar: 'قائمة الطلاب الذين لديهم مواعيد مخصصة حالياً:',
+      en: 'Currently Customized Students List:',
+      th: 'รายชื่อนักเรียนที่มีการกำหนดเวลาเฉพาะในปัจจุบัน:',
+    },
+    searchStudentPlaceholder: {
+      ar: 'بحث بالاسم أو الرقم...',
+      en: 'Search by name or ID...',
+      th: 'ค้นหาตามชื่อหรือรหัส...',
+    },
+    allStudentsFollowGeneralPlan: {
+      ar: 'جميع الطلاب يتبعون حالياً الخطة العامة الموحدة للشعبة',
+      en: 'All students currently follow the unified class plan',
+      th: 'นักเรียนทุกคนในปัจจุบันปฏิบัติตามแผนรวมของชั้นเรียน',
+    },
+    noCustomOverridesDesc: {
+      ar: 'لم يتم تعيين وقت استثنائي لأي طالب حتى الآن. إذا كان هناك طالب يحتاج موعداً أو مدة خاصة، يمكنك اختياره وتعيينه من الشريط أعلاه.',
+      en: 'No custom times set yet. If a student requires a custom schedule, you can select and configure them above.',
+      th: 'ยังไม่มีการตั้งเวลาพิเศษสำหรับนักเรียนคนใด หากมีนักเรียนที่ต้องการเวลาพิเศษ คุณสามารถเลือกและกำหนดได้จากแถบด้านบน',
+    },
+    noSearchResults: {
+      ar: 'لا يوجد نتائج مطابقة للبحث',
+      en: 'No results matching search',
+      th: 'ไม่พบผลลัพธ์ที่ตรงกับการค้นหา',
+    },
+    colStudent: {
+      ar: 'الطالب',
+      en: 'Student',
+      th: 'นักเรียน',
+    },
+    colCustomStartTime: {
+      ar: '⏰ وقت البدء الخاص',
+      en: '⏰ Custom Start Time',
+      th: '⏰ เวลาเริ่มต้นเฉพาะ',
+    },
+    colCustomDuration: {
+      ar: '⏳ مدة الجلسة ونوعها',
+      en: '⏳ Session Duration & Type',
+      th: '⏳ ระยะเวลาและประเภทเซสชัน',
+    },
+    colPreventEarlyEntry: {
+      ar: '🛡️ منع الدخول المبكر',
+      en: '🛡️ Prevent Early Entry',
+      th: '🛡️ ป้องกันการเข้าก่อนเวลา',
+    },
+    colForceLogin: {
+      ar: '🔒 إجباري الدخول',
+      en: '🔒 Mandatory Punch-in',
+      th: '🔒 บังคับลงชื่อเข้าเรียน',
+    },
+    colActions: {
+      ar: 'الإجراءات',
+      en: 'Actions',
+      th: 'การดำเนินการ',
+    },
+    confirmDeleteOverride: {
+      ar: 'هل أنت متأكد من إلغاء التخصيص للطالب وإعادته لاتباع الإعدادات العامة للشعبة؟',
+      en: 'Are you sure you want to reset custom settings for this student back to general defaults?',
+      th: 'คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการกำหนดเวลาเฉพาะสำหรับนักเรียนคนนี้และกลับไปใช้การตั้งค่าทั่วไป?',
+    },
+    overrideDeletedSuccess: {
+      ar: '✅ تم إلغاء تخصيص الطالب وإعادته للإعدادات العامة بنجاح.',
+      en: '✅ Custom schedule for student removed successfully.',
+      th: '✅ ยกเลิกการกำหนดเวลาเฉพาะสำหรับนักเรียนสำเร็จแล้ว',
+    },
+    overrideSavedSuccess: {
+      ar: '✅ تم حفظ التخصيص الفردي للطالب بنجاح!',
+      en: '✅ Custom schedule for student saved successfully!',
+      th: '✅ บันทึกการกำหนดเวลาเฉพาะสำหรับนักเรียนสำเร็จแล้ว!',
+    },
+    editingStudentMsg: {
+      ar: '✏️ جاري تعديل تخصيص الطالب:',
+      en: '✏️ Editing override for:',
+      th: '✏️ กำลังแก้ไขการกำหนดเวลาสำหรับ:',
+    },
+    editOverrideTitle: {
+      ar: 'تعديل هذا التخصيص',
+      en: 'Edit this override',
+      th: 'แก้ไขการกำหนดเวลานี้',
+    },
+    deleteOverrideTitle: {
+      ar: 'إلغاء التخصيص والعودة للخطة العامة',
+      en: 'Delete override and return to general plan',
+      th: 'ลบการกำหนดเวลาและกลับสู่แผนทั่วไป',
+    },
+  },
+
+  telegram: {
+    telegramSettingsTitle: {
+      ar: 'منظومة ومركز إشعارات وتنبيهات تليجرام (Telegram Communication Hub)',
+      en: 'Telegram Communication & Notification Hub',
+      th: 'ศูนย์กลางการแจ้งเตือนและการสื่อสาร Telegram',
+    },
+    telegramSettingsSubtitle: {
+      ar: 'إدارة شاملة لربط الطلاب والمعلمين والإدارة، إرسال الرسائل المباشرة، محرر القوالب ثلاثي اللغات، وصيغ الاستعلامات التفاعلية',
+      en: 'Comprehensive management for connecting students, teachers & admins, direct messaging, trilingual templates, and interactive bot commands',
+      th: 'การจัดการที่ครอบคลุมสำหรับการเชื่อมต่อนักเรียน ครู และผู้ดูแล ระบบส่งข้อความ เทมเพลต 3 ภาษา และคำสั่งบอทโต้ตอบ',
+    },
+    subTabSettings: {
+      ar: '⚙️ إعدادات البوت والقناة الإدارية',
+      en: '⚙️ Bot & Admin Channel Setup',
+      th: '⚙️ ตั้งค่าบอทและช่องผู้ดูแล',
+    },
+    subTabDirectory: {
+      ar: '👥 دليل ربط المستخدمين (معلمين وطلاب)',
+      en: '👥 User Directory (Teachers & Students)',
+      th: '👥 รายชื่อผู้ใช้ (ครูและนักเรียน)',
+    },
+    subTabDirectMessage: {
+      ar: '✉️ مركز إرسال الرسائل والوسائط',
+      en: '✉️ Direct Messaging & Media Center',
+      th: '✉️ ศูนย์ส่งข้อความและสื่อ',
+    },
+    subTabTemplates: {
+      ar: '📝 محرر القوالب متعدد اللغات',
+      en: '📝 Multi-Language Templates Hub',
+      th: '📝 ศูนย์เทมเพลตหลายภาษา',
+    },
+    subTabCommands: {
+      ar: '💬 صيغ وقواعد الاستعلامات التفاعلية',
+      en: '💬 Interactive Bot Commands',
+      th: '💬 คำสั่งและการโต้ตอบของบอท',
+    },
+    botTokenLabel: {
+      ar: 'رمز البوت الخاص (Telegram Bot Token):',
+      en: 'Telegram Bot Token:',
+      th: 'โทเค็นบอท Telegram:',
+    },
+    botTokenPlaceholder: {
+      ar: 'مثال: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ',
+      en: 'e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ',
+      th: 'เช่น 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ',
+    },
+    botTokenDesc: {
+      ar: 'رمز API المحصل من @BotFather على تليجرام',
+      en: 'API Token obtained from @BotFather on Telegram',
+      th: 'โทเค็น API ที่ได้จาก @BotFather บน Telegram',
+    },
+    testBotTokenBtn: {
+      ar: 'فحص واختبار رمز البوت',
+      en: 'Test Bot Token',
+      th: 'ทดสอบโทเค็นบอท',
+    },
+    testingBot: {
+      ar: 'جاري فحص البوت...',
+      en: 'Testing bot...',
+      th: 'กำลังทดสอบบอท...',
+    },
+    botConnectedSuccess: {
+      ar: 'تم الاتصال بالبوت بنجاح: @{username}',
+      en: 'Bot connected successfully: @{username}',
+      th: 'เชื่อมต่อบอทสำเร็จ: @{username}',
+    },
+    chatIdLabel: {
+      ar: 'معرف القناة / المجموعة الإدارية (Admin Telegram Chat ID):',
+      en: 'Admin Channel / Group Chat ID:',
+      th: 'รหัสแชทช่อง/กลุ่มผู้ดูแล:',
+    },
+    chatIdPlaceholder: {
+      ar: 'مثال: 1001234567890- أو MyChannel@',
+      en: 'e.g. -1001234567890 or @MyChannel',
+      th: 'เช่น -1001234567890 หรือ @MyChannel',
+    },
+    chatIdDesc: {
+      ar: 'معرّف الشات المطلوب إرسال إشعارات الإدارة العامة وتقارير الشعبة إليه',
+      en: 'Chat ID to receive admin alerts, section summaries, and monitoring reports',
+      th: 'รหัสแชทสำหรับรับการแจ้งเตือนของผู้ดูแล สรุปผลชั้นเรียน และรายงานการติดตาม',
+    },
+    sendTestAdminMsgBtn: {
+      ar: 'إرسال رسالة تجريبية للقناة',
+      en: 'Send Test Admin Message',
+      th: 'ส่งข้อความทดสอบไปยังช่อง',
+    },
+    enableTelegramLabel: {
+      ar: 'تفعيل إشعارات تليجرام التلقائية:',
+      en: 'Enable Automatic Telegram Notifications:',
+      th: 'เปิดใช้งานการแจ้งเตือน Telegram อัตโนมัติ:',
+    },
+    enableTelegramDesc: {
+      ar: 'إرسال الإشعارات تلقائياً للتليجرام عند الدخول أو الإنجاز أو التنبيه',
+      en: 'Send notifications automatically to Telegram on punch-in, completion, or alerts',
+      th: 'ส่งการแจ้งเตือนไปยัง Telegram โดยอัตโนมัติเมื่อลงชื่อเข้าเรียน ทำเสร็จ หรือแจ้งเตือน',
+    },
+    // Teachers Directory
+    teachersSectionTitle: {
+      ar: '👨‍🏫 دليل الأساتذة والمعلمين (Teachers Directory)',
+      en: '👨‍🏫 Teachers Directory',
+      th: '👨‍🏫 รายชื่อครูและอาจารย์',
+    },
+    addTeacherBtn: {
+      ar: '➕ إضافة معلم جديد',
+      en: '➕ Add New Teacher',
+      th: '➕ เพิ่มครูใหม่',
+    },
+    teacherName: {
+      ar: 'اسم المعلم:',
+      en: 'Teacher Name:',
+      th: 'ชื่อครู:',
+    },
+    teacherRole: {
+      ar: 'الدور / المادة:',
+      en: 'Role / Subject:',
+      th: 'บทบาท / วิชา:',
+    },
+    teacherChatId: {
+      ar: 'معرف تيليجرام (Telegram ID):',
+      en: 'Telegram Chat ID:',
+      th: 'รหัสแชท Telegram:',
+    },
+    teacherPhone: {
+      ar: 'رقم الهاتف (اختياري):',
+      en: 'Phone (optional):',
+      th: 'เบอร์โทรศัพท์ (ถ้ามี):',
+    },
+    // Students Directory
+    studentsSectionTitle: {
+      ar: '🎓 دليل ربط الطلاب وأولياء الأمور (Students Directory)',
+      en: '🎓 Students & Guardians Directory',
+      th: '🎓 รายชื่อนักเรียนและผู้ปกครอง',
+    },
+    studentChatIdCol: {
+      ar: 'معرف تيليجرام الخاص للطالب',
+      en: 'Student Telegram Chat ID',
+      th: 'รหัสแชท Telegram ของนักเรียน',
+    },
+    preferredLangCol: {
+      ar: 'لغة الإشعارات المفضلة',
+      en: 'Preferred Notification Language',
+      th: 'ภาษาการแจ้งเตือนที่ต้องการ',
+    },
+    sendTestToStudent: {
+      ar: 'إرسال تجريبي للطالب',
+      en: 'Send Test to Student',
+      th: 'ส่งข้อความทดสอบให้นักเรียน',
+    },
+    // Direct Messaging Center
+    directMessageTitle: {
+      ar: '✉️ مركز إرسال الرسائل المباشرة والوسائط للطلاب والأساتذة',
+      en: '✉️ Direct Messaging & Media Dispatch Center',
+      th: '✉️ ศูนย์ส่งข้อความโดยตรงและสื่อสำหรับนักเรียนและครู',
+    },
+    recipientLabel: {
+      ar: 'المستلم المستهدف:',
+      en: 'Target Recipient:',
+      th: 'ผู้รับเป้าหมาย:',
+    },
+    recipientAdminChannel: {
+      ar: '🏛️ القناة / المجموعة الإدارية العامة',
+      en: '🏛️ General Admin Channel / Group',
+      th: '🏛️ ช่อง/กลุ่มทั่วไปของผู้ดูแล',
+    },
+    recipientAllStudents: {
+      ar: '👥 جميع الطلاب المسجلين (تعميم جماعي)',
+      en: '👥 All Registered Students (Broadcast)',
+      th: '👥 นักเรียนที่ลงทะเบียนทุกคน (ประกาศทั่วไป)',
+    },
+    recipientAllTeachers: {
+      ar: '👨‍🏫 جميع الأساتذة والمعلمين',
+      en: '👨‍🏫 All Teachers',
+      th: '👨‍🏫 ครูและอาจารย์ทุกคน',
+    },
+    recipientSpecificStudent: {
+      ar: '🎓 طالب محدد...',
+      en: '🎓 Specific Student...',
+      th: '🎓 นักเรียนเฉพาะคน...',
+    },
+    recipientSpecificTeacher: {
+      ar: '👨‍🏫 معلم محدد...',
+      en: '👨‍🏫 Specific Teacher...',
+      th: '👨‍🏫 ครูเฉพาะคน...',
+    },
+    messageContentLabel: {
+      ar: 'نص الرسالة:',
+      en: 'Message Content:',
+      th: 'เนื้อหาข้อความ:',
+    },
+    messageContentPlaceholder: {
+      ar: 'اكتب نص الرسالة هنا... يمكنك استخدام التنسيقات والروابط التفاعلية',
+      en: 'Type message here... You can use formatting and interactive links',
+      th: 'พิมพ์ข้อความที่นี่... คุณสามารถใช้การจัดรูปแบบและลิงก์แบบโต้ตอบได้',
+    },
+    mediaTypeLabel: {
+      ar: 'نوع المرفق (اختياري):',
+      en: 'Attachment Type (optional):',
+      th: 'ประเภทไฟล์แนบ (ถ้ามี):',
+    },
+    mediaTypeNone: {
+      ar: 'بدون مرفق (نص فقط)',
+      en: 'No Attachment (Text Only)',
+      th: 'ไม่มีไฟล์แนบ (ข้อความเท่านั้น)',
+    },
+    mediaTypePhoto: {
+      ar: '🖼️ صورة (Photo)',
+      en: '🖼️ Photo',
+      th: '🖼️ รูปภาพ',
+    },
+    mediaTypeVideo: {
+      ar: '🎬 فيديو (Video)',
+      en: '🎬 Video',
+      th: '🎬 วิดีโอ',
+    },
+    mediaTypeAudio: {
+      ar: '🎙️ مقطع صوتي (Audio)',
+      en: '🎙️ Audio',
+      th: '🎙️ ไฟล์เสียง',
+    },
+    mediaTypeDocument: {
+      ar: '📄 مستند / ملف PDF (Document)',
+      en: '📄 Document / PDF',
+      th: '📄 เอกสาร / PDF',
+    },
+    mediaUrlLabel: {
+      ar: 'رابط الوسائط المرفقة (URL):',
+      en: 'Media Attachment URL:',
+      th: 'URL ไฟล์แนบสื่อ:',
+    },
+    mediaUrlPlaceholder: {
+      ar: 'مثال: https://example.com/image.jpg أو رابط من Google Drive',
+      en: 'e.g. https://example.com/image.jpg or Google Drive link',
+      th: 'เช่น https://example.com/image.jpg หรือลิงก์ Google Drive',
+    },
+    sendDirectMessageBtn: {
+      ar: '🚀 إرسال الرسالة الآن عبر تليجرام',
+      en: '🚀 Send Message Now via Telegram',
+      th: '🚀 ส่งข้อความทันทีผ่าน Telegram',
+    },
+    sendingMessage: {
+      ar: 'جاري الإرسال...',
+      en: 'Sending...',
+      th: 'กำลังส่ง...',
+    },
+    messageSentSuccess: {
+      ar: '✅ تم إرسال الرسالة بنجاح عبر تليجرام!',
+      en: '✅ Message sent successfully via Telegram!',
+      th: '✅ ส่งข้อความผ่าน Telegram สำเร็จแล้ว!',
+    },
+    // Templates Hub
+    templatesTitle: {
+      ar: '📝 محرر قوالب الرسائل الستة متعدد اللغات',
+      en: '📝 Trilingual Templates Hub (6 Message Types)',
+      th: '📝 ศูนย์เทมเพลต 3 ภาษา (6 ประเภทข้อความ)',
+    },
+    templatesHelp: {
+      ar: 'يمكنك استخدام المتغيرات التلقائية: {{اسم_الطالب}}، {{رقم_الطالب}}، {{الوقت}}، {{الدرس}}، {{الدرجة}}، {{النجوم}}، {{الايام}}، {{المعلم}}',
+      en: 'Available variables: {{اسم_الطالب}}, {{رقم_الطالب}}, {{الوقت}}, {{الدرس}}, {{الدرجة}}, {{النجوم}}, {{الايام}}, {{المعلم}}',
+      th: 'ตัวแปรที่ใช้ได้: {{اسم_الطالب}}, {{رقم_الطالب}}, {{الوقت}}, {{الدرس}}, {{الدرجة}}, {{النجوم}}, {{الايام}}, {{المعلم}}',
+    },
+    langSelectAr: {
+      ar: '🇸🇦 اللغة العربية',
+      en: '🇸🇦 Arabic',
+      th: '🇸🇦 ภาษาอาหรับ',
+    },
+    langSelectEn: {
+      ar: '🇬🇧 English',
+      en: '🇬🇧 English',
+      th: '🇬🇧 ภาษาอังกฤษ',
+    },
+    langSelectTh: {
+      ar: '🇹🇭 ภาษาไทย (Thai)',
+      en: '🇹🇭 ภาษาไทย (Thai)',
+      th: '🇹🇭 ภาษาไทย (Thai)',
+    },
+    templateWelcome: {
+      ar: '👋 1. رسالة الترحيب وبداية التسجيل:',
+      en: '👋 1. Welcome & Onboarding Message:',
+      th: '👋 1. ข้อความต้อนรับและการลงทะเบียน:',
+    },
+    templatePreClass: {
+      ar: '⏰ 2. رسالة التذكير قبل موعد الحصة:',
+      en: '⏰ 2. Pre-class Reminder Message:',
+      th: '⏰ 2. ข้อความเตือนความจำก่อนเริ่มชั้นเรียน:',
+    },
+    templateLogin: {
+      ar: '🟢 3. رسالة إشعار تسجيل الحضور والدخول:',
+      en: '🟢 3. Punch-in & Attendance Message:',
+      th: '🟢 3. ข้อความแจ้งเตือนการลงชื่อเข้าเรียน:',
+    },
+    templateAbsent: {
+      ar: '⚠️ 4. رسالة إنذار التأخر أو الغياب:',
+      en: '⚠️ 4. Delay & Absence Alert Message:',
+      th: '⚠️ 4. ข้อความแจ้งเตือนมาสายหรือขาดเรียน:',
+    },
+    templateComplete: {
+      ar: '🎉 5. رسالة إكمال الدروس بنجاح:',
+      en: '🎉 5. Lesson Completion Message:',
+      th: '🎉 5. ข้อความแจ้งบทเรียนเสร็จสมบูรณ์:',
+    },
+    templateEvaluation: {
+      ar: '⭐ 6. رسالة بطاقة التقييم وتأكيد الإجابات (من ConsolidatedEvaluations):',
+      en: '⭐ 6. Evaluation Card & Score Confirmation (from ConsolidatedEvaluations):',
+      th: '⭐ 6. บัตรประเมินและยืนยันคะแนน (จาก ConsolidatedEvaluations):',
+    },
+    templateAdminAlert: {
+      ar: '📢 7. رسالة التعاميم والإعلانات الإدارية:',
+      en: '📢 7. Admin Announcements & Broadcasts:',
+      th: '📢 7. ประกาศและแถลงการณ์จากฝ่ายบริหาร:',
+    },
+    templateScheduleReminder: {
+      ar: '📅 8. رسالة جدول الحصص والدروس المعتمدة:',
+      en: '📅 8. Class Schedule & Assigned Lessons:',
+      th: '📅 8. ตารางเรียนและบทเรียนที่กำหนด:',
+    },
+    templateTeacherAlert: {
+      ar: '👨‍🏫 9. إشعار المعلم عند دخول أو تسليم الطالب:',
+      en: '👨‍🏫 9. Teacher Notification on Student Action:',
+      th: '👨‍🏫 9. แจ้งเตือนครูเมื่อนักเรียนเข้าสู่ระบบหรือส่งงาน:',
+    },
+    // Bot Commands
+    botCommandsTitle: {
+      ar: '💬 صيغ وقواعد الاستعلامات التفاعلية للبوت (Bot Commands)',
+      en: '💬 Interactive Bot Commands & Query Rules',
+      th: '💬 คำสั่งบอทโต้ตอบและกฎการสอบถาม',
+    },
+    botCommandsSubtitle: {
+      ar: 'تحديد ردود البوت التلقائية عندما يرسل الطالب أمراً مثل /schedule أو /results أو /remaining باللغات الثلاث',
+      en: 'Configure automatic responses when student queries /schedule, /results, or /remaining in 3 languages',
+      th: 'กำหนดการตอบกลับอัตโนมัติเมื่อนักเรียนส่งคำสั่ง เช่น /schedule, /results หรือ /remaining ใน 3 ภาษา',
+    },
+    cmdScheduleLabel: {
+      ar: '📅 أمر استعلام جدول الحصص (/schedule):',
+      en: '📅 Schedule Query Command (/schedule):',
+      th: '📅 คำสั่งสอบถามตารางเรียน (/schedule):',
+    },
+    cmdResultsLabel: {
+      ar: '⭐ أمر استعلام النتائج والدرجات (/results):',
+      en: '⭐ Results & Grades Query (/results):',
+      th: '⭐ คำสั่งสอบถามผลการเรียนและคะแนน (/results):',
+    },
+    cmdRemainingLabel: {
+      ar: '📚 أمر استعلام الدروس المتبقية (/remaining):',
+      en: '📚 Remaining Lessons Query (/remaining):',
+      th: '📚 คำสั่งสอบถามบทเรียนที่เหลือ (/remaining):',
+    },
+    saveTelegramSettingsBtn: {
+      ar: '💾 حفظ كافة إعدادات وبوت وتوزيعات تليجرام',
+      en: '💾 Save All Telegram Hub Settings & Directory',
+      th: '💾 บันทึกการตั้งค่า Telegram Hub และรายชื่อทั้งหมด',
+    },
   },
 
   home: {

@@ -5,7 +5,7 @@
 
 // Default Google Apps Script Web App URL
 // You can set this variable directly or set VITE_GAS_API_URL in Vercel environment variables
-export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbwlWNEDP7-YynnAT508j62b-xAQPo3rizhA_wic7FxLnbMhlt5IshKhUZ0yplgjzuXppQ/exec";
+export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbyLOTOtZPyOvBazKd-Zx7KKbtVQk4XcNxH8_ocDQh94fqQA68P_6pg7KdaJ99cCdQwK1g/exec";
 
 // Retrieve Google Apps Script Web App URL (LocalStorage > Environment Variable > Hardcoded Default)
 export function getApiUrl(): string {
@@ -45,31 +45,40 @@ interface CacheEntry {
   data: any;
 }
 const apiCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 30000; // 30 seconds cache for GET-like actions
+const CACHE_TTL_MS = 20000; // 20 seconds cache for GET-like actions
 
-// Queue to limit concurrency to Google Apps Script (Max 4 simultaneous requests)
+// Queue to limit concurrency to Google Apps Script (Max 6 simultaneous requests)
 let activeRequestsCount = 0;
-const MAX_CONCURRENT_REQUESTS = 4;
-const requestQueue: (() => void)[] = [];
+const MAX_CONCURRENT_REQUESTS = 6;
+interface QueueItem {
+  resolve: () => void;
+  priority: boolean;
+}
+const requestQueue: QueueItem[] = [];
 
-async function acquireSlot(): Promise<void> {
+async function acquireSlot(priority = false): Promise<void> {
   if (activeRequestsCount < MAX_CONCURRENT_REQUESTS) {
     activeRequestsCount++;
     return;
   }
   return new Promise<void>((resolve) => {
-    requestQueue.push(() => {
-      activeRequestsCount++;
-      resolve();
-    });
+    if (priority) {
+      // Priority requests (like Admin login or user interactions) jump to the front of the queue
+      requestQueue.unshift({ resolve, priority: true });
+    } else {
+      requestQueue.push({ resolve, priority: false });
+    }
   });
 }
 
 function releaseSlot(): void {
-  activeRequestsCount--;
+  activeRequestsCount = Math.max(0, activeRequestsCount - 1);
   if (requestQueue.length > 0) {
     const next = requestQueue.shift();
-    if (next) next();
+    if (next) {
+      activeRequestsCount++;
+      next.resolve();
+    }
   }
 }
 
@@ -79,7 +88,7 @@ function releaseSlot(): void {
 export async function callGasApi<T>(
   action: string,
   payload: Record<string, any> = {},
-  options: { bypassCache?: boolean; retries?: number; timeoutMs?: number } = {}
+  options: { bypassCache?: boolean; retries?: number; timeoutMs?: number; priority?: boolean } = {}
 ): Promise<T> {
   const url = getApiUrl();
   if (!url) {
@@ -87,8 +96,10 @@ export async function callGasApi<T>(
   }
 
   const bypassCache = options.bypassCache ?? false;
-  const maxRetries = options.retries ?? 1;
-  const timeoutMs = options.timeoutMs ?? 45000; // 45 seconds default timeout for GAS execution
+  const isAuthAction = action === 'loginAdmin' || action === 'loginUser';
+  const isPriority = options.priority ?? isAuthAction;
+  const maxRetries = options.retries ?? (isAuthAction ? 2 : 1);
+  const timeoutMs = options.timeoutMs ?? (isAuthAction ? 30000 : 45000);
 
   // Actions that can be safely cached for short duration
   const isReadOnlyAction = [
@@ -109,7 +120,8 @@ export async function callGasApi<T>(
     'getPdfSettings',
     'getStudentFullReportData',
     'getStudentResults',
-    'getLessonDetails'
+    'getLessonDetails',
+    'getLiveMonitoringData'
   ].includes(action);
 
   const cacheKey = `${action}:${JSON.stringify(payload)}`;
@@ -121,7 +133,7 @@ export async function callGasApi<T>(
     }
   }
 
-  await acquireSlot();
+  await acquireSlot(isPriority);
 
   try {
     let lastError: Error | null = null;

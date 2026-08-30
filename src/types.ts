@@ -191,3 +191,159 @@ export interface PdfSettings {
   certificates: CertificateConfig[];
 }
 
+export interface TeacherContact {
+  id: string;
+  name: string;
+  role: string;
+  telegramChatId: string;
+  phone?: string;
+  enabled: boolean;
+  notes?: string;
+}
+
+export interface TelegramLanguageTemplates {
+  welcome: string;
+  welcomePrompt?: string;
+  idVerifiedPrompt?: string;
+  regSuccess?: string;
+  linkedStudentPrompt?: string;
+  securityLinkedAlert?: string;
+  deviceProtectionAlert?: string;
+  studentNotFound?: string;
+  login: string;
+  earlyEntryAllowed?: string;
+  earlyEntryBlocked?: string;
+  preClass: string;
+  absent: string;
+  earlyExit?: string;
+  regularExit?: string;
+  finalAbsent?: string;
+  complete: string;
+  evaluation: string;
+  evaluationDetail?: string;
+  remainingLessons?: string;
+  adminAlert: string;
+  scheduleReminder: string;
+  teacherAlert: string;
+}
+
+export interface TelegramBotCommandConfig {
+  id?: string;
+  command: string; // e.g. "/menu", "/completed", "/remaining", "/schedule", "/teacher", "/info", "/lang"
+  buttonTextAr?: string;
+  buttonTextEn?: string;
+  buttonTextTh?: string;
+  description: string;
+  keywords?: string;
+  responseAr: string;
+  responseEn: string;
+  responseTh: string;
+  supportedVars?: { tag: string; label: string }[];
+  enabled: boolean;
+}
+
+export interface AttendanceSettings {
+  startTime: string; // وقت بداية الحصة (e.g. "19:00")
+  durationType: 'from_start' | 'from_login'; // نوع احتساب مدة الحصة
+  sessionDurationFromStart: number; // مدة الحصة من وقت البدء بالدقائق (e.g. 120)
+  sessionDurationFromLogin: number; // مدة الحصة من وقت دخول الطالب بالدقائق (e.g. 90)
+  forceLogin: boolean; // إجبار الدخول (نعم / لا)
+  timeRestricted: boolean; // التقيد بالوقت (نعم / لا)
+  preventEarlyEntry?: boolean; // منع الدخول قبل الوقت المحدد (نعم / لا)
+  allowedExceptionStudents: string[]; // قائمة أسماء/أرقام الطلاب المسموح لهم بالدخول الاستثنائي
+  
+  // Telegram Settings
+  telegramToken: string;
+  telegramBotUsername?: string; // اسم مستخدم البوت (Bot Username بدون @)
+  telegramChatId: string; // Admin / General Channel ID (Legacy or default fallback)
+  telegramAdminUserId?: string; // معرّف الإداري الشخصي الخاص (Private User ID)
+  telegramGroups?: { id: string; name: string; chatId: string; type: 'teachers' | 'students' | 'general'; description?: string }[];
+  telegramChannels?: { id: string; name: string; chatId: string; accessType: 'public' | 'private'; description?: string }[];
+  telegramEnabled: boolean;
+  telegramTemplatePreClass: string;
+  telegramTemplateLogin: string;
+  telegramTemplateComplete: string;
+  telegramTemplateAbsent: string;
+  
+  // Telegram Automated Timing & Repetition Rules
+  telegramPreClassReminderMinutes?: number; // وقت التذكير قبل الحصة (دقائق: 10, 15, 30, 60)
+  telegramLateAlertDelayMinutes?: number; // مهلة إنذار التأخر الأول (دقائق: 5, 10, 15)
+  telegramLateAlertRepeatEnabled?: boolean; // تفعيل تكرار إنذار التأخر
+  telegramLateAlertRepeatIntervalMinutes?: number; // الفاصل الزمني لتكرار الإنذار (دقائق: 10, 15, 20, 30)
+  telegramLateAlertMaxCount?: number; // أقصى عدد لمرات التكرار (1, 2, 3)
+  telegramFinalAbsentTiming?: 'end_of_session' | 'end_of_day'; // توقيت إشعار الغياب النهائي
+  telegramNotifyTeacherDirectly?: boolean; // إشعار المعلم المسؤول في تيليجرام الخاص به
+  telegramTeacherDigestEnabled?: boolean; // تفعيل تقارير المعلم المجمّعة الذكية (بدلاً من رسائل فردية متناثرة)
+  telegramTeacherPreClassDigest?: boolean; // تقرير ما قبل الحصة المجمّع بقائمة المشتركين
+  telegramTeacherMidClassDigest?: boolean; // تقرير الحضور والغياب اللحظي أثناء الحصة بعد مهلة التأخر
+  telegramTeacherPostSessionDigest?: boolean; // التقرير الختامي الشامل للحصة وإجمالي الحضور والغياب
+  
+  // Enhanced Multi-Recipient & Multi-Language Telegram Hub
+  teachers?: TeacherContact[];
+  templatesAr?: Partial<TelegramLanguageTemplates>;
+  templatesEn?: Partial<TelegramLanguageTemplates>;
+  templatesTh?: Partial<TelegramLanguageTemplates>;
+  botCommands?: TelegramBotCommandConfig[];
+}
+
+export interface StudentSchedule {
+  studentId: string;
+  studentName: string;
+  startDate: string;
+  activeDays: string;
+  lessonsPerWeek: string;
+  daysToKeep?: string;
+  expiryDate?: string;
+  examOverrides?: string;
+  customStartTime?: string;
+  customSessionDuration?: number;
+  customDurationType?: 'from_start' | 'from_login';
+  customPreventEarlyEntry?: boolean;
+  customForceLogin?: boolean;
+  
+  // Telegram Specific
+  telegramChatId?: string;
+  preferredLanguage?: 'ar' | 'en' | 'th';
+  guardianPhone?: string;
+  assignedTeacherId?: string;
+}
+
+export interface StudentCustomTimeSetting {
+  studentId: string;
+  studentName?: string;
+  customStartTime?: string; // e.g. "16:30"
+  customSessionDuration?: number; // e.g. 60
+  customDurationType?: 'from_start' | 'from_login';
+  customPreventEarlyEntry?: boolean;
+  customForceLogin?: boolean;
+}
+
+export interface LiveStudentStatus {
+  studentId: string;
+  studentName: string;
+  status: 'active' | 'completed' | 'absent' | 'idle' | 'logged_out';
+  loginTime?: string;
+  lastActiveTime?: string;
+  completedLessonsCount: number;
+  totalRequiredLessons: number;
+  completedTopics: string[];
+  pendingTopics: string[];
+  notes?: string;
+  customTime?: {
+    startTime?: string;
+    sessionDuration?: number;
+    durationType?: 'from_start' | 'from_login';
+    preventEarlyEntry?: boolean;
+    forceLogin?: boolean;
+  };
+}
+
+export interface LiveMonitoringData {
+  settings: AttendanceSettings;
+  activeStudents: LiveStudentStatus[];
+  loggedOutStudents?: LiveStudentStatus[];
+  completedStudents: LiveStudentStatus[];
+  absentStudents: LiveStudentStatus[];
+  lastRefreshed: string;
+}
+

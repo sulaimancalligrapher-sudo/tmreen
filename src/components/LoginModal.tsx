@@ -56,7 +56,7 @@ export default function LoginModal({
   const handleSaveAndTestUrl = async (urlToSave?: string) => {
     const target = (urlToSave !== undefined ? urlToSave : customGasUrl).trim();
     if (!target) {
-      setUrlStatusMsg({ type: 'error', text: 'يرجى أدخال رابط الـ Web App الخاص بك أولاً!' });
+      setUrlStatusMsg({ type: 'error', text: t('login.enterWebAppUrlFirst', 'يرجى إدخال رابط الـ Web App الخاص بك أولاً!') });
       return;
     }
     setTestingUrl(true);
@@ -64,14 +64,14 @@ export default function LoginModal({
     try {
       setApiUrl(target);
       await callGasApi('getData', {}, { bypassCache: true, timeoutMs: 15000 });
-      setUrlStatusMsg({ type: 'success', text: 'تم اختبار الاتصال بالخادم بنجاح! الرابط يعمل بامتياز.' });
+      setUrlStatusMsg({ type: 'success', text: t('login.testConnectionSuccess', 'تم اختبار الاتصال بالخادم بنجاح! الرابط يعمل بامتياز.') });
       setError('');
       setTimeout(() => {
         setShowUrlEditor(false);
         setUrlStatusMsg(null);
       }, 1500);
     } catch (err: any) {
-      setUrlStatusMsg({ type: 'error', text: `فشل الاتصال بهذا الرابط: ${err.message}` });
+      setUrlStatusMsg({ type: 'error', text: `${t('login.testConnectionFailed', 'فشل الاتصال بهذا الرابط:')} ${err.message}` });
     } finally {
       setTestingUrl(false);
     }
@@ -153,7 +153,7 @@ export default function LoginModal({
     if (name && id) {
       setStudentName(name);
       setStudentId(id);
-      setQrScanSuccessMsg(`تمت قراءة البيانات بنجاح: ${name} (${id})`);
+      setQrScanSuccessMsg(`${t('login.qrReadSuccessPrefix', 'تمت قراءة البيانات بنجاح:')} ${name} (${id})`);
       
       stopCamera();
 
@@ -162,7 +162,7 @@ export default function LoginModal({
         setQrScanSuccessMsg('');
       }, 1200);
     } else {
-      setQrScanErrorMsg(`رمز QR يحتوي على: "${text}" لكنه لم يطابق صيغة الطالب (اسم|رقم).`);
+      setQrScanErrorMsg(`${t('login.qrFormatMismatch', 'رمز QR لا يطابق صيغة الطالب (اسم|رقم)')}: "${text}"`);
     }
   };
 
@@ -188,7 +188,7 @@ export default function LoginModal({
     } catch (err: any) {
       console.error('Failed to start camera:', err);
       setIsScanningCamera(false);
-      setQrScanErrorMsg('تعذر الوصول للكاميرا. يرجى التأكد من إعطاء الإذن أو تجربة رفع صورة QR.');
+      setQrScanErrorMsg(t('login.cameraAccessError', 'تعذر الوصول للكاميرا. يرجى التأكد من إعطاء الإذن أو تجربة رفع صورة QR.'));
     }
   };
 
@@ -218,7 +218,7 @@ export default function LoginModal({
       handleDecodedQr(decodedText);
     } catch (err) {
       console.error('Error scanning file:', err);
-      setQrScanErrorMsg('لم يتم العثور على كود QR واضح في الصورة المرفوقة. يرجى اختيار صورة أوضح.');
+      setQrScanErrorMsg(t('login.noQrFoundInImage', 'لم يتم العثور على كود QR واضح في الصورة المرفوقة. يرجى اختيار صورة أوضح.'));
     }
   };
 
@@ -270,14 +270,14 @@ export default function LoginModal({
 
     if (loginMode === 'student') {
       if (!studentName.trim() || !studentId.trim()) {
-        setError('يرجى إدخال اسم ورقم الطالب أولاً!');
+        setError(t('login.fillStudentNameAndId', 'يرجى إدخال اسم ورقم الطالب أولاً!'));
         return;
       }
 
       setLoading(true);
       const deviceId = generateDeviceId();
 
-      // Get user geolocation if available quickly (800ms max timeout)
+      // Fast non-blocking geolocation check (200ms max)
       let lat: number | null = null;
       let lng: number | null = null;
 
@@ -285,14 +285,14 @@ export default function LoginModal({
         try {
           const position = await Promise.race([
             new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 800, maximumAge: 60000 });
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 200, maximumAge: 300000 });
             }),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Geo timeout')), 800))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Geo timeout')), 200))
           ]);
           lat = position.coords.latitude;
           lng = position.coords.longitude;
         } catch (geoErr) {
-          console.warn('Geolocation fast-check skipped or denied.', geoErr);
+          // Non-blocking geo check
         }
       }
 
@@ -314,17 +314,17 @@ export default function LoginModal({
           localStorage.setItem('studentId', response.id);
           onLoginSuccess(student);
         } else {
-          setError(response.message || 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.');
+          setError(response.message || t('login.loginFailedCheckData', 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.'));
         }
       } catch (err: any) {
-        setError(`خطأ في خادم الشيت: ${err.message}`);
+        setError(`${t('login.serverSheetError', 'خطأ في خادم الشيت:')} ${err.message}`);
       } finally {
         setLoading(false);
       }
     } else {
       // Admin Login
       if (!adminUsername.trim() || !adminPassword.trim()) {
-        setError('يرجى إدخال اسم مستخدم الإدارة وكلمة المرور!');
+        setError(t('login.fillAdminCredentials', 'يرجى إدخال اسم مستخدم الإدارة وكلمة المرور!'));
         return;
       }
 
@@ -347,10 +347,10 @@ export default function LoginModal({
           sessionStorage.setItem('adminRole', response.role);
           onLoginSuccess(student);
         } else {
-          setError(response.message || 'اسم المستخدم أو كلمة المرور غير صحيحة للإدارة.');
+          setError(response.message || t('login.adminLoginInvalid', 'اسم المستخدم أو كلمة المرور غير صحيحة للإدارة.'));
         }
       } catch (err: any) {
-        setError(`خطأ في خادم الشيت: ${err.message}`);
+        setError(`${t('login.serverSheetError', 'خطأ في خادم الشيت:')} ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -516,31 +516,33 @@ export default function LoginModal({
             >
               <div className="flex gap-2 items-start">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
-                <span className="leading-relaxed">{error}</span>
+                <span className="leading-relaxed font-bold">{error}</span>
               </div>
-              <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowUrlEditor(true)}
-                  className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
-                >
-                  <Settings className="w-3.5 h-3.5 text-amber-600" />
-                  <span>تعديل رابط خادم الشيت</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetUrlDefault}
-                  className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
-                >
-                  إعادة الضبط للافتراضي
-                </button>
-              </div>
+              {loginMode === 'admin' && (
+                <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlEditor(true)}
+                    className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{t('login.editGasServerUrl', 'تعديل رابط خادم الشيت')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetUrlDefault}
+                    className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
+                  >
+                    {t('login.resetDefaultUrl', 'إعادة الضبط للافتراضي')}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 
-          {/* GAS Server URL Drawer */}
+          {/* GAS Server URL Drawer (Admin Only) */}
           <AnimatePresence>
-            {showUrlEditor && (
+            {showUrlEditor && loginMode === 'admin' && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -550,7 +552,7 @@ export default function LoginModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-amber-400 font-bold">
                     <Link2 className="w-4 h-4" />
-                    <span>إعداد رابط خادم Google Apps Script</span>
+                    <span>{t('login.gasServerUrlSetup', 'إعداد رابط خادم Google Apps Script')}</span>
                   </div>
                   <button
                     type="button"
@@ -562,7 +564,7 @@ export default function LoginModal({
                 </div>
 
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  إذا أظهر الخادم خطأ 404، يرجى لصق رابط الـ Web App الجديد المنسوخ من مشروع Google Apps Script الخاص بك:
+                  {t('login.gasServerUrlDesc', 'إذا أظهر الخادم خطأ 404، يرجى لصق رابط الـ Web App الجديد المنسوخ من مشروع Google Apps Script الخاص بك:')}
                 </p>
 
                 <div className="space-y-1">
@@ -592,17 +594,17 @@ export default function LoginModal({
                     className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
                   >
                     {testingUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    <span>حفظ واختبار الاتصال</span>
+                    <span>{t('login.saveAndTestConnection', 'حفظ واختبار الاتصال')}</span>
                   </button>
                   <button
                     type="button"
                     disabled={testingUrl}
                     onClick={handleResetUrlDefault}
                     className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1"
-                    title="إعادة الضبط للرابط الافتراضي"
+                    title={t('login.resetDefaultUrl', 'إعادة الضبط للرابط الافتراضي')}
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>الافتراضي</span>
+                    <span>{t('login.defaultLabel', 'الافتراضي')}</span>
                   </button>
                 </div>
               </motion.div>

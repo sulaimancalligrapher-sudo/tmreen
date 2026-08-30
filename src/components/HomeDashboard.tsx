@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
-import { Student, HomeContentItem, ExerciseType, GeneralData } from '../types';
+import { Student, HomeContentItem, ExerciseType, GeneralData, AttendanceSettings } from '../types';
 import {
   Sparkles,
   Compass,
@@ -28,9 +28,27 @@ import {
   Tv,
   Bell,
   FileText,
+  Clock,
+  Lock,
+  Unlock,
+  CheckCircle2,
+  AlertCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../context/LanguageContext';
+import {
+  sendTelegramMessage,
+  interpolateTelegramTemplate,
+  DEFAULT_TELEGRAM_TEMPLATES_AR,
+  DEFAULT_TELEGRAM_TEMPLATES_EN,
+  DEFAULT_TELEGRAM_TEMPLATES_TH,
+} from '../utils/telegram';
+import {
+  dispatchAttendanceTelegramNotification,
+  resolveStudentTelegramChatId,
+  registerStudentActivePresence,
+} from '../utils/telegramScheduler';
 
 interface HomeDashboardProps {
   student: Student;
@@ -388,6 +406,559 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const [activeEnlargedImage, setActiveEnlargedImage] = useState<{ url: string; title: string } | null>(null);
   const [activeWebLessonFrame, setActiveWebLessonFrame] = useState<{ url: string; title: string } | null>(null);
 
+  // ----------------------------------------
+  // ⏱️ Attendance & Session Restriction State
+  // ----------------------------------------
+  const [attendanceSettings, setAttendanceSettings] = useState<AttendanceSettings | null>(() => {
+    try {
+      const cached = localStorage.getItem('attendance_settings_cached');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+
+  const [studentCustomSchedule, setStudentCustomSchedule] = useState<{
+    customStartTime?: string;
+    customSessionDuration?: number;
+    customDurationType?: 'from_start' | 'from_login';
+    customPreventEarlyEntry?: boolean;
+    customForceLogin?: boolean;
+  } | null>(() => {
+    try {
+      const sId = student.id || (student as any).studentId || '';
+      const sName = student.name || (student as any).studentName || '';
+      const cached =
+        (sId ? localStorage.getItem(`student_custom_sched_${sId}`) : null) ||
+        (sName ? localStorage.getItem(`student_custom_sched_${sName}`) : null) ||
+        localStorage.getItem(`student_custom_sched_${student.id || student.name}`);
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState<boolean>(false);
+
+  const getTodayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  };
+
+  const punchStorageKey = `punchin_${student.id || student.name}_${getTodayKey()}`;
+
+  const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(punchStorageKey) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const [punchTime, setPunchTime] = useState<string>(() => {
+    try {
+      return localStorage.getItem(`${punchStorageKey}_time`) || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
+  const [punchLoading, setPunchLoading] = useState<boolean>(false);
+  const [sessionRemainingStr, setSessionRemainingStr] = useState<string>('');
+  const [isTimeExpired, setIsTimeExpired] = useState<boolean>(false);
+  const [isBeforeStartTime, setIsBeforeStartTime] = useState<boolean>(false);
+  const [timeUntilStartStr, setTimeUntilStartStr] = useState<string>('');
+  const [punchMessage, setPunchMessage] = useState<string>('');
+  const hasNotifiedEntryRef = useRef<boolean>(false);
+
+  const formatDisplayTime = (t?: string): string => {
+    if (!t) return '';
+    const s = String(t).trim();
+    const timeMatch = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (timeMatch) {
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2];
+      const period = hours >= 12 ? 'م' : 'ص';
+      const h12 = hours % 12 === 0 ? 12 : hours % 12;
+      const hStr = h12 < 10 ? `0${h12}` : `${h12}`;
+      return `${hStr}:${minutes} ${period}`;
+    }
+    return s;
+  };
+
+  // Fetch Attendance Settings & Individual Student Custom Schedule on mount in Parallel
+  useEffect(() => {
+    let isMounted = true;
+    const loadSettings = async () => {
+      const sId = student.id || (student as any).studentId || '';
+      const sName = student.name || (student as any).studentName || '';
+      const queryId = sId || sName;
+
+      try {
+        const [res, schedRes] = await Promise.all([
+          callGasApi<any>('getAttendanceSettings').catch(() => null),
+          queryId ? callGasApi<any>('getStudentSchedule', { studentId: queryId }).catch(() => null) : Promise.resolve(null),
+        ]);
+
+        if (!isMounted) return;
+
+        const rawSettings = res?.settings || res?.data || res;
+        if (rawSettings && typeof rawSettings === 'object' && (rawSettings.startTime !== undefined || rawSettings.preventEarlyEntry !== undefined || rawSettings.forceLogin !== undefined)) {
+          setAttendanceSettings(rawSettings);
+          try {
+            localStorage.setItem('attendance_settings_cached', JSON.stringify(rawSettings));
+          } catch (e) {}
+        }
+
+        const rawSched = schedRes?.data || schedRes;
+        if (
+          rawSched &&
+          typeof rawSched === 'object' &&
+          (rawSched.customStartTime ||
+           rawSched.customSessionDuration !== undefined ||
+           rawSched.customDurationType !== undefined ||
+           rawSched.customPreventEarlyEntry !== undefined ||
+           rawSched.customForceLogin !== undefined)
+        ) {
+          setStudentCustomSchedule(rawSched);
+          try {
+            if (sId) localStorage.setItem(`student_custom_sched_${sId}`, JSON.stringify(rawSched));
+            if (sName) localStorage.setItem(`student_custom_sched_${sName}`, JSON.stringify(rawSched));
+          } catch (e) {}
+        } else {
+          setStudentCustomSchedule(null);
+          try {
+            if (sId) localStorage.removeItem(`student_custom_sched_${sId}`);
+            if (sName) localStorage.removeItem(`student_custom_sched_${sName}`);
+          } catch (e) {}
+        }
+      } catch (e) {
+      } finally {
+        if (isMounted) {
+          setIsSettingsLoaded(true);
+        }
+      }
+    };
+    loadSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, [student.id, student.name, (student as any).studentId, (student as any).studentName]);
+
+  // 1-Second Timer for Live Countdown & Expiration
+  useEffect(() => {
+    if (!attendanceSettings) return;
+
+    const checkTimer = () => {
+      // Check if student is an exception
+      const isException =
+        Array.isArray(attendanceSettings.allowedExceptionStudents) &&
+        attendanceSettings.allowedExceptionStudents.some(
+          (s) =>
+            s.trim() === (student.id || '').trim() ||
+            s.trim() === (student.name || '').trim()
+        );
+
+      if (isException) {
+        setIsBeforeStartTime(false);
+        setIsTimeExpired(false);
+        setSessionRemainingStr('مفتوح (استثناء)');
+        return;
+      }
+
+      const now = new Date();
+
+      // Resolve effective settings for this student (custom override vs general defaults)
+      const effectiveStartTime = studentCustomSchedule?.customStartTime || attendanceSettings.startTime || '19:00';
+      const effectivePreventEarlyEntry = studentCustomSchedule?.customPreventEarlyEntry !== undefined
+        ? studentCustomSchedule.customPreventEarlyEntry
+        : Boolean(attendanceSettings.preventEarlyEntry);
+
+      // Check and trigger Pre-Class Reminder if in reminder window
+      const preClassMins = Number(attendanceSettings.telegramPreClassReminderMinutes) || 15;
+      const [psh, psm] = effectiveStartTime.split(':').map(Number);
+      const sessionStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), psh || 0, psm || 0, 0);
+      const preClassTriggerTime = sessionStartDate.getTime() - preClassMins * 60000;
+      const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+      const preClassKey = `tg_preclass_sent_${student.id || student.name}_${todayKey}_${effectiveStartTime}_${preClassMins}`;
+
+      if (
+        now.getTime() >= preClassTriggerTime &&
+        now.getTime() < sessionStartDate.getTime() &&
+        !isPunchedIn &&
+        localStorage.getItem(preClassKey) !== 'true'
+      ) {
+        localStorage.setItem(preClassKey, 'true');
+        notifyStudentTelegram('preClass', {
+          دقائق_التذكير: preClassMins,
+          classTime: effectiveStartTime,
+          startTime: effectiveStartTime,
+          time: effectiveStartTime,
+          الوقت: effectiveStartTime,
+          وقت_الحصة: effectiveStartTime,
+        });
+      }
+
+      // Check if early entry before start time
+      const [sh, sm] = effectiveStartTime.split(':').map(Number);
+      const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
+      const isEarly = now.getTime() < startToday.getTime();
+
+      if (isEarly) {
+        setIsBeforeStartTime(true);
+        if (effectivePreventEarlyEntry) {
+          setIsTimeExpired(false);
+          const diffBefore = startToday.getTime() - now.getTime();
+          const bHrs = Math.floor(diffBefore / 3600000);
+          const bMins = Math.floor((diffBefore % 3600000) / 60000);
+          const bSecs = Math.floor((diffBefore % 60000) / 1000);
+          const timeStr = `${bHrs > 0 ? bHrs + 'س ' : ''}${bMins}د ${bSecs}ث`;
+          setTimeUntilStartStr(timeStr);
+          setSessionRemainingStr(`متبقي على بدء الحصة: ${timeStr}`);
+          return;
+        } else {
+          setTimeUntilStartStr('');
+        }
+      } else {
+        setIsBeforeStartTime(false);
+        setTimeUntilStartStr('');
+      }
+
+      const durationType = studentCustomSchedule?.customDurationType || attendanceSettings.durationType || 'from_start';
+
+      // 1️⃣ Type 1: Session Duration from Start Time
+      if (durationType === 'from_start') {
+        const [sh, sm] = effectiveStartTime.split(':').map(Number);
+        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 19, sm || 0, 0);
+        const durationMinutes = (studentCustomSchedule?.customSessionDuration && durationType === studentCustomSchedule?.customDurationType)
+          ? studentCustomSchedule.customSessionDuration
+          : (Number(attendanceSettings.sessionDurationFromStart) || 120);
+        const endToday = new Date(startToday.getTime() + durationMinutes * 60000);
+
+        const diff = endToday.getTime() - now.getTime();
+        if (diff <= 0) {
+          if (attendanceSettings.timeRestricted) {
+            setIsTimeExpired(true);
+          }
+          setSessionRemainingStr('انتهى وقت الحصة المحدد');
+        } else {
+          setIsTimeExpired(false);
+          const hrs = Math.floor(diff / 3600000);
+          const mins = Math.floor((diff % 3600000) / 60000);
+          const secs = Math.floor((diff % 60000) / 1000);
+          setSessionRemainingStr(`${hrs > 0 ? hrs + 'س ' : ''}${mins}د ${secs}ث`);
+        }
+      } else if (durationType === 'from_login') {
+        // 2️⃣ Type 2: Session Duration from Student Login
+        if (isPunchedIn && punchTime) {
+          const durationMinutes = (studentCustomSchedule?.customSessionDuration && durationType === studentCustomSchedule?.customDurationType)
+            ? studentCustomSchedule.customSessionDuration
+            : (Number(attendanceSettings.sessionDurationFromLogin) || 90);
+          const [ph, pm] = punchTime.split(':').map(Number);
+          const punchDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), ph || now.getHours(), pm || now.getMinutes(), 0);
+          const endLogin = new Date(punchDate.getTime() + durationMinutes * 60000);
+
+          const diff = endLogin.getTime() - now.getTime();
+          if (diff <= 0) {
+            if (attendanceSettings.timeRestricted) {
+              setIsTimeExpired(true);
+            }
+            setSessionRemainingStr('انتهت مدة الجلسة');
+          } else {
+            setIsTimeExpired(false);
+            const hrs = Math.floor(diff / 3600000);
+            const mins = Math.floor((diff % 3600000) / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            setSessionRemainingStr(`${hrs > 0 ? hrs + 'س ' : ''}${mins}د ${secs}ث`);
+          }
+        } else {
+          setIsTimeExpired(false);
+          setSessionRemainingStr('يبدأ العداد فور تسجيل الدخول');
+        }
+      } else {
+        setIsTimeExpired(false);
+      }
+    };
+
+    checkTimer();
+    const interval = setInterval(checkTimer, 1000);
+    return () => clearInterval(interval);
+  }, [attendanceSettings, studentCustomSchedule, isPunchedIn, punchTime, student]);
+
+  const effectiveForceLogin = studentCustomSchedule?.customForceLogin !== undefined
+    ? studentCustomSchedule.customForceLogin
+    : Boolean(attendanceSettings?.forceLogin);
+
+  const effectivePreventEarlyEntry = studentCustomSchedule?.customPreventEarlyEntry !== undefined
+    ? studentCustomSchedule.customPreventEarlyEntry
+    : Boolean(attendanceSettings?.preventEarlyEntry);
+
+  const effectiveStartTime = studentCustomSchedule?.customStartTime || attendanceSettings?.startTime || '19:00';
+
+  const isEarlyEntryBlocked = Boolean(effectivePreventEarlyEntry && isBeforeStartTime);
+  const isForceLoginBlocked = Boolean(effectiveForceLogin && !isPunchedIn);
+  const isTimeRestrictedBlocked = Boolean(attendanceSettings?.timeRestricted && isTimeExpired);
+  const isActionBlocked = isEarlyEntryBlocked || isForceLoginBlocked || isTimeRestrictedBlocked;
+
+  // Helper to send student telegram notification
+  const notifyStudentTelegram = async (
+    templateKey: keyof typeof DEFAULT_TELEGRAM_TEMPLATES_AR,
+    extraVars?: Record<string, string | number>
+  ) => {
+    if (!attendanceSettings) return;
+    try {
+      const resolved = resolveStudentTelegramChatId(
+        student.id,
+        student.name,
+        studentCustomSchedule?.telegramChatId || (student as any).telegramChatId
+      );
+
+      const nowTimeStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const isScheduledEvent = templateKey === 'preClass' || templateKey === 'earlyEntryAllowed' || templateKey === 'earlyEntryBlocked' || templateKey === 'absent' || templateKey === 'finalAbsent';
+      const defaultTime = isScheduledEvent ? (effectiveStartTime || '19:00') : nowTimeStr;
+
+      await dispatchAttendanceTelegramNotification({
+        eventType: templateKey,
+        student: {
+          id: student.id,
+          name: student.name,
+          telegramChatId: resolved.chatId,
+          preferredLanguage: resolved.lang || studentCustomSchedule?.preferredLanguage || 'ar',
+          assignedTeacherId: (studentCustomSchedule as any)?.assignedTeacherId || (student as any).assignedTeacherId,
+        },
+        settings: attendanceSettings,
+        customSchedule: studentCustomSchedule,
+        extraVars: {
+          classTime: effectiveStartTime || '19:00',
+          startTime: effectiveStartTime || '19:00',
+          time: defaultTime,
+          الوقت: defaultTime,
+          وقت_الحصة: effectiveStartTime || '19:00',
+          وقت_البدء: effectiveStartTime || '19:00',
+          actualTime: nowTimeStr,
+          الوقت_الفعلي: nowTimeStr,
+          ...(extraVars || {}),
+        },
+      });
+    } catch (e) {
+      console.warn('Telegram student notification error:', e);
+    }
+  };
+
+  // Reset dispatch ref when memory is cleared for testing
+  useEffect(() => {
+    const handleMemoryReset = () => {
+      hasNotifiedEntryRef.current = false;
+    };
+    window.addEventListener('telegram_memory_cleared', handleMemoryReset);
+    return () => window.removeEventListener('telegram_memory_cleared', handleMemoryReset);
+  }, []);
+
+  // Automatic Notification & Presence Registration when Student lands on Dashboard
+  useEffect(() => {
+    if (!attendanceSettings || !student) return;
+
+    const sId = student.id || student.name || 'student';
+    const sName = student.name || student.id || 'student';
+    const todayKey = getTodayKey();
+    const todayIsoStr = new Date().toISOString().split('T')[0];
+    const nowTimeStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    try {
+      registerStudentActivePresence(String(sId), String(sName), nowTimeStr);
+      if (!effectiveForceLogin) {
+        localStorage.setItem(punchStorageKey, 'true');
+        localStorage.setItem(`punchin_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`punchin_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
+      }
+    } catch (e) {}
+
+    // Only dispatch automatic landing alert if NOT requiring manual punch-in (or if early entry blocked)
+    const now = new Date();
+    const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
+    const isEarly = now.getTime() < startToday.getTime();
+
+    if (isEarly && effectivePreventEarlyEntry) {
+      const blockedKey = `tg_blocked_${sId}_${todayIsoStr}`;
+      if (!sessionStorage.getItem(blockedKey)) {
+        sessionStorage.setItem(blockedKey, 'true');
+        notifyStudentTelegram('earlyEntryBlocked');
+      }
+      return;
+    }
+
+    // If manual punch in is required, do NOT send login confirmation until student actually clicks Punch In
+    if (effectiveForceLogin && !isPunchedIn) {
+      return;
+    }
+
+    const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
+    const legacyLoginKey = `tg_entry_notified_${sId}_${todayIsoStr}`;
+    if (!hasNotifiedEntryRef.current && !sessionStorage.getItem(loginNotifiedKey) && !localStorage.getItem(loginNotifiedKey)) {
+      hasNotifiedEntryRef.current = true;
+      sessionStorage.setItem(loginNotifiedKey, 'true');
+      localStorage.setItem(loginNotifiedKey, 'true');
+      localStorage.setItem(legacyLoginKey, 'true');
+
+      if (isEarly && !effectivePreventEarlyEntry) {
+        notifyStudentTelegram('earlyEntryAllowed', {
+          time: effectiveStartTime || '19:00',
+          classTime: effectiveStartTime || '19:00',
+          startTime: effectiveStartTime || '19:00',
+          الوقت: effectiveStartTime || '19:00',
+          وقت_الحصة: effectiveStartTime || '19:00',
+          actualTime: nowTimeStr,
+          الوقت_الفعلي: nowTimeStr,
+        });
+      } else {
+        notifyStudentTelegram('login', {
+          time: nowTimeStr,
+          الوقت: nowTimeStr,
+          classTime: effectiveStartTime || '19:00',
+          وقت_الحصة: effectiveStartTime || '19:00',
+          actualTime: nowTimeStr,
+          الوقت_الفعلي: nowTimeStr,
+        });
+      }
+    }
+  }, [attendanceSettings, isSettingsLoaded, effectiveStartTime, effectivePreventEarlyEntry, effectiveForceLogin, isPunchedIn]);
+
+  // Handle Student Session Punch-In
+  const handlePunchIn = async () => {
+    setPunchLoading(true);
+    setPunchMessage('');
+    const nowTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const sId = student.id || student.name || 'student';
+    const sName = student.name || student.id || 'student';
+    const todayKey = getTodayKey();
+    const todayIsoStr = new Date().toISOString().split('T')[0];
+
+    try {
+      await callGasApi<{ success: boolean; message: string }>('logStudentPresence', {
+        studentId: student.id,
+        studentName: student.name,
+        actionType: 'punch_in',
+      });
+      setIsPunchedIn(true);
+      setPunchTime(nowTime);
+      try {
+        registerStudentActivePresence(String(sId), String(sName), nowTime);
+        localStorage.setItem(punchStorageKey, 'true');
+        localStorage.setItem(`${punchStorageKey}_time`, nowTime);
+        localStorage.setItem(`punchin_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`punchin_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
+      } catch (e) {}
+      setPunchMessage('🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.');
+
+      // Send automated Telegram notification only once per session
+      const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
+      const legacyLoginKey = `tg_entry_notified_${sId}_${todayIsoStr}`;
+      if (!hasNotifiedEntryRef.current && !sessionStorage.getItem(loginNotifiedKey) && !localStorage.getItem(loginNotifiedKey)) {
+        hasNotifiedEntryRef.current = true;
+        sessionStorage.setItem(loginNotifiedKey, 'true');
+        localStorage.setItem(loginNotifiedKey, 'true');
+        localStorage.setItem(legacyLoginKey, 'true');
+        
+        const now = new Date();
+        const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
+        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
+        const isEarly = now.getTime() < startToday.getTime();
+
+        if (isEarly && !effectivePreventEarlyEntry) {
+          notifyStudentTelegram('earlyEntryAllowed', {
+            time: effectiveStartTime || '19:00',
+            classTime: effectiveStartTime || '19:00',
+            startTime: effectiveStartTime || '19:00',
+            الوقت: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTime,
+            الوقت_الفعلي: nowTime,
+          });
+        } else {
+          notifyStudentTelegram('login', {
+            time: nowTime,
+            الوقت: nowTime,
+            classTime: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTime,
+            الوقت_الفعلي: nowTime,
+          });
+        }
+      }
+    } catch (e: any) {
+      // Fallback local punch in
+      setIsPunchedIn(true);
+      setPunchTime(nowTime);
+      try {
+        registerStudentActivePresence(String(sId), String(sName), nowTime);
+        localStorage.setItem(punchStorageKey, 'true');
+        localStorage.setItem(`${punchStorageKey}_time`, nowTime);
+        localStorage.setItem(`punchin_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`punchin_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
+      } catch (err) {}
+      setPunchMessage('✅ تم تسجيل الحضور محلياً بنجاح.');
+
+      // Send automated Telegram notification fallback once
+      const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
+      const legacyLoginKey = `tg_entry_notified_${sId}_${todayIsoStr}`;
+      if (!hasNotifiedEntryRef.current && !sessionStorage.getItem(loginNotifiedKey) && !localStorage.getItem(loginNotifiedKey)) {
+        hasNotifiedEntryRef.current = true;
+        sessionStorage.setItem(loginNotifiedKey, 'true');
+        localStorage.setItem(loginNotifiedKey, 'true');
+        localStorage.setItem(legacyLoginKey, 'true');
+        
+        const now = new Date();
+        const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
+        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
+        const isEarly = now.getTime() < startToday.getTime();
+
+        if (isEarly && !effectivePreventEarlyEntry) {
+          notifyStudentTelegram('earlyEntryAllowed', {
+            time: effectiveStartTime || '19:00',
+            classTime: effectiveStartTime || '19:00',
+            startTime: effectiveStartTime || '19:00',
+            الوقت: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTime,
+            الوقت_الفعلي: nowTime,
+          });
+        } else {
+          notifyStudentTelegram('login', {
+            time: nowTime,
+            الوقت: nowTime,
+            classTime: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTime,
+            الوقت_الفعلي: nowTime,
+          });
+        }
+      }
+    } finally {
+      setPunchLoading(false);
+    }
+  };
+
+  // Automated notification for blocked early entry
+  useEffect(() => {
+    if (isEarlyEntryBlocked && student?.id) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const blockedKey = `tg_blocked_${student.id}_${todayStr}`;
+      if (!sessionStorage.getItem(blockedKey)) {
+        sessionStorage.setItem(blockedKey, 'true');
+        notifyStudentTelegram('earlyEntryBlocked', {
+          classTime: effectiveStartTime || '19:00',
+        });
+      }
+    }
+  }, [isEarlyEntryBlocked, student?.id, effectiveStartTime]);
+
   useEffect(() => {
     const fetchHomeContent = async () => {
       try {
@@ -619,6 +1190,136 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
 
   return (
     <div className="space-y-8 text-right" dir="rtl">
+      {/* 🔒 EARLY ENTRY BLOCKED BANNER */}
+      {isEarlyEntryBlocked && (
+        <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-rose-950 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden border-2 border-rose-500/60">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center md:text-right">
+              <div className="inline-flex items-center gap-2 bg-rose-500/20 px-3.5 py-1 rounded-full text-xs font-black backdrop-blur border border-rose-500/40 text-rose-300">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <span>نظام منع الدخول قبل الموعد مُفعّل</span>
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-white">
+                🔒 موعد الحصة لم يبدأ بعد!
+              </h2>
+              <p className="text-slate-300 text-xs md:text-sm font-medium max-w-xl leading-relaxed">
+                مرحباً بك يا <strong>{student.name}</strong>! موعد بداية حصة اليوم هو الساعة <strong className="text-amber-400 font-mono text-base">{effectiveStartTime}</strong> ({formatDisplayTime(effectiveStartTime)}).
+                يرجى الانتظار، وسيتم فتح التمارين تلقائياً عند حلول الموعد.
+              </p>
+            </div>
+
+            <div className="bg-slate-900/90 border border-rose-500/40 px-6 py-4 rounded-2xl flex items-center gap-3 shrink-0 shadow-inner">
+              <Clock className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
+              <div className="text-right">
+                <span className="text-[11px] text-slate-400 font-bold block">متبقي على فتح الحصة:</span>
+                <span className="text-lg md:text-xl font-black font-mono text-amber-400 block tracking-wide">
+                  {timeUntilStartStr}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⏱️ ATTENDANCE SESSION & FORCE LOGIN CONTROLS */}
+      {!isEarlyEntryBlocked && isForceLoginBlocked && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative overflow-hidden border-2 border-amber-300">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center md:text-right">
+              <div className="inline-flex items-center gap-2 bg-white/20 px-3.5 py-1 rounded-full text-xs font-black backdrop-blur border border-white/20">
+                <Lock className="w-4 h-4 text-amber-200" />
+                <span>نظام تسجيل الحضور الإجباري مفعّل</span>
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-white">
+                ⏱️ يلزم تسجيل حضور الحصة لبدء التمارين والدروس
+              </h2>
+              <p className="text-amber-100 text-xs md:text-sm font-medium max-w-xl leading-relaxed">
+                مرحباً بك يا <strong>{student.name}</strong>! اضغط على زر تسجيل الحضور أدناه لتسجيل تواجدك في كشف الحضور وبدء الحصة المقررة لك اليوم وحل التمارين.
+              </p>
+            </div>
+
+            <button
+              onClick={handlePunchIn}
+              disabled={punchLoading}
+              className="bg-white hover:bg-amber-50 text-slate-950 font-black px-8 py-4 rounded-2xl text-base shadow-2xl transition transform hover:scale-105 active:scale-95 flex items-center gap-3 shrink-0 cursor-pointer border-2 border-amber-300"
+            >
+              {punchLoading ? (
+                <div className="w-5 h-5 border-3 border-slate-950 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping" />
+              )}
+              <span>🟢 تسجيل حضور ودخول الحصة الآن</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 ACTIVE SESSION STATUS & LIVE COUNTDOWN TIMER */}
+      {(!effectiveForceLogin || isPunchedIn) && (punchTime || sessionRemainingStr) && (
+        <div className="bg-slate-900 text-white rounded-2xl p-4 md:p-5 border border-slate-800 shadow-lg flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="bg-emerald-500/20 text-emerald-400 p-2.5 rounded-xl border border-emerald-500/30 shrink-0">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs md:text-sm font-black text-emerald-400">
+                  {isPunchedIn ? '✅ تم تسجيل حضور ودخول الحصة' : '🟢 الجلسة الحالية نشطة'}
+                </span>
+                {punchTime && (
+                  <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono border border-slate-700">
+                    توقيت الدخول: {punchTime}
+                  </span>
+                )}
+                {studentCustomSchedule?.customStartTime && (
+                  <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono border border-amber-500/30 flex items-center gap-1">
+                    <span>⭐ موعدك الخاص:</span>
+                    <span>{formatDisplayTime(studentCustomSchedule.customStartTime)}</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                حضورك مسجل ومربوط في كشف المعلم ولوحة المتابعة الحية.
+              </p>
+            </div>
+          </div>
+
+          {sessionRemainingStr && (
+            <div className="bg-slate-800/90 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-3">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold block">الوقت المتبقي للجلسة:</span>
+                <span
+                  className={`text-sm font-black font-mono block ${
+                    isTimeExpired ? 'text-rose-400' : 'text-amber-400'
+                  }`}
+                >
+                  {sessionRemainingStr}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alert / Punch Notification */}
+      {punchMessage && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-5 py-3.5 rounded-2xl flex items-center justify-between text-xs md:text-sm font-bold shadow-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{punchMessage}</span>
+          </div>
+          <button
+            onClick={() => setPunchMessage('')}
+            className="text-emerald-700 hover:text-emerald-950 text-xs bg-emerald-100 px-2.5 py-1 rounded-lg"
+          >
+            إغلاق
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-1">
@@ -754,11 +1455,52 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           </div>
 
           <button
-            onClick={() => setShowExerciseModal(true)}
-            className="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-8 py-4 rounded-2xl text-sm transition transform hover:scale-102 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 shrink-0"
+            onClick={() => {
+              if (isEarlyEntryBlocked) {
+                setPunchMessage(`🔒 موعد الحصة لم يبدأ بعد! تبدأ الحصة الساعة ${formatDisplayTime(effectiveStartTime)} (${effectiveStartTime})`);
+                return;
+              }
+              if (isForceLoginBlocked) {
+                handlePunchIn();
+                return;
+              }
+              if (isTimeRestrictedBlocked) {
+                setPunchMessage('⚠️ انتهى الوقت المخصص للحصة المقررة اليوم.');
+                return;
+              }
+              setShowExerciseModal(true);
+            }}
+            className={`w-full md:w-auto font-black px-8 py-4 rounded-2xl text-sm transition transform hover:scale-102 flex items-center justify-center gap-2 shadow-lg shrink-0 ${
+              isEarlyEntryBlocked
+                ? 'bg-rose-900/80 text-rose-200 border border-rose-500/50 cursor-not-allowed shadow-rose-900/20'
+                : isForceLoginBlocked
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-500/20 animate-bounce-subtle'
+                : isTimeRestrictedBlocked
+                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/10'
+            }`}
           >
-            {t('home.startActivitiesBtn', 'استعراض وبدء الأنشطة والتمارين')}
-            <MoveLeft className="w-4 h-4" />
+            {isEarlyEntryBlocked ? (
+              <>
+                <Lock className="w-4 h-4 text-rose-300" />
+                <span>تبدأ الحصة الساعة {formatDisplayTime(effectiveStartTime)} ({effectiveStartTime})</span>
+              </>
+            ) : isForceLoginBlocked ? (
+              <>
+                <Lock className="w-4 h-4 text-slate-950" />
+                <span>سجل الحضور أولاً لبدء التمارين 🔓</span>
+              </>
+            ) : isTimeRestrictedBlocked ? (
+              <>
+                <Lock className="w-4 h-4 text-slate-400" />
+                <span>انتهى وقت الحصة المقررة</span>
+              </>
+            ) : (
+              <>
+                {t('home.startActivitiesBtn', 'استعراض وبدء الأنشطة والتمارين')}
+                <MoveLeft className="w-4 h-4" />
+              </>
+            )}
           </button>
         </div>
       </div>
