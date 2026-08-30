@@ -297,7 +297,15 @@ export default function LoginModal({
       }
 
       try {
-        const response = await callGasApi<{ success: boolean; name: string; id: string; message?: string }>(
+        const response = await callGasApi<{
+          success: boolean;
+          name: string;
+          id: string;
+          telegramChatId?: string;
+          preferredLanguage?: string;
+          schedule?: any;
+          message?: string;
+        }>(
           'loginUser',
           {
             studentName: studentName.trim(),
@@ -309,9 +317,32 @@ export default function LoginModal({
         );
 
         if (response.success) {
-          const student: Student = { name: response.name, id: response.id, isAdmin: false };
+          const student: Student = {
+            name: response.name,
+            id: response.id,
+            isAdmin: false,
+            telegramChatId: response.telegramChatId,
+            preferredLanguage: response.preferredLanguage || 'ar',
+          } as any;
           localStorage.setItem('studentName', response.name);
           localStorage.setItem('studentId', response.id);
+
+          if (response.telegramChatId) {
+            localStorage.setItem(`student_telegram_${response.id}`, JSON.stringify({
+              telegramChatId: response.telegramChatId,
+              preferredLanguage: response.preferredLanguage || 'ar'
+            }));
+            localStorage.setItem(`student_telegram_${response.name}`, JSON.stringify({
+              telegramChatId: response.telegramChatId,
+              preferredLanguage: response.preferredLanguage || 'ar'
+            }));
+          }
+
+          if (response.schedule) {
+            localStorage.setItem(`student_custom_sched_${response.id}`, JSON.stringify(response.schedule));
+            localStorage.setItem(`student_custom_sched_${response.name}`, JSON.stringify(response.schedule));
+          }
+
           onLoginSuccess(student);
         } else {
           setError(response.message || t('login.loginFailedCheckData', 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.'));

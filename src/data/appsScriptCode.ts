@@ -266,7 +266,24 @@ function loginUser(studentName, studentId, deviceId, lat, lng) {
     }
     
     SpreadsheetApp.flush();
-    return { success: true, name: studentName, id: studentId };
+    var tgInfo = { telegramChatId: '', preferredLanguage: 'ar' };
+    try {
+      tgInfo = getStudentTelegramFromDedicatedSheet(ss, studentId, studentName) || tgInfo;
+    } catch (tgErr) {}
+    
+    var studentSched = null;
+    try {
+      studentSched = getStudentSchedule(studentId);
+    } catch (schedErr) {}
+    
+    return {
+      success: true,
+      name: studentName,
+      id: studentId,
+      telegramChatId: tgInfo.telegramChatId || (studentSched && studentSched.telegramChatId) || '',
+      preferredLanguage: tgInfo.preferredLanguage || (studentSched && studentSched.preferredLanguage) || 'ar',
+      schedule: studentSched || null
+    };
   } catch (e) {
     return { success: false, message: 'حدث خطأ في عملية تسجيل الدخول: ' + e.toString() };
   }
@@ -5502,6 +5519,9 @@ function processScheduledTelegramNotifications() {
   var nowMinutes = now.getHours() * 60 + now.getMinutes();
   var preClassMins = Number(settings.telegramPreClassReminderMinutes) || 15;
   var lateDelayMins = Number(settings.telegramLateAlertDelayMinutes) || 10;
+  var lateRepeatEnabled = settings.telegramLateAlertRepeatEnabled !== false;
+  var lateRepeatInterval = Number(settings.telegramLateAlertRepeatIntervalMinutes) || 15;
+  var lateMaxCount = Number(settings.telegramLateAlertMaxCount) || 2;
   var cache = CacheService.getScriptCache();
   var sentCount = 0;
 
@@ -5517,8 +5537,10 @@ function processScheduledTelegramNotifications() {
     var startMinutes = (parseInt(parts[0], 10) || 19) * 60 + (parseInt(parts[1], 10) || 0);
 
     var hasAttended = Boolean(activeIds[sId]);
-    var preKey = 'tg_gas_pre_' + sId + '_' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd');
-    var lateKey = 'tg_gas_late_' + sId + '_' + Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd');
+    var todayDateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd');
+    var preKey = 'tg_gas_pre_' + sId + '_' + todayDateStr;
+    var lateCountKey = 'tg_gas_late_cnt_' + sId + '_' + todayDateStr;
+    var lateTimeKey = 'tg_gas_late_tm_' + sId + '_' + todayDateStr;
 
     // 1. Pre-Class Reminder
     if (nowMinutes >= (startMinutes - preClassMins) && nowMinutes < startMinutes && !hasAttended) {
@@ -5533,11 +5555,25 @@ function processScheduledTelegramNotifications() {
 
     // 2. Late Alert
     if (nowMinutes >= (startMinutes + lateDelayMins) && !hasAttended) {
-      if (!cache.get(lateKey)) {
+      var currentLateCount = parseInt(cache.get(lateCountKey), 10) || 0;
+      var lastLateMinutes = parseInt(cache.get(lateTimeKey), 10) || 0;
+      var maxTotalLateSends = lateRepeatEnabled ? (1 + lateMaxCount) : 1;
+
+      var shouldSendLateGas = false;
+      if (currentLateCount === 0) {
+        shouldSendLateGas = true;
+      } else if (lateRepeatEnabled && currentLateCount < maxTotalLateSends) {
+        if ((nowMinutes - lastLateMinutes) >= lateRepeatInterval) {
+          shouldSendLateGas = true;
+        }
+      }
+
+      if (shouldSendLateGas) {
         var lateMsg = (settings.templatesAr && settings.templatesAr.absent) || '⚠️ تنبيه تأخر عن الحصة:\\nتنبيه: حان موعد حصة الطالب ' + sName + ' اليوم الساعة ' + startTimeStr + ' ولم يسجل دخوله بعد.';
         lateMsg = lateMsg.split('{{اسم_الطالب}}').join(sName).split('{{الوقت}}').join(startTimeStr);
         sendTelegramDirectMessageGas(token, targetChatId, lateMsg);
-        cache.put(lateKey, 'true', 21600);
+        cache.put(lateCountKey, String(currentLateCount + 1), 21600);
+        cache.put(lateTimeKey, String(nowMinutes), 21600);
         sentCount++;
       }
     }

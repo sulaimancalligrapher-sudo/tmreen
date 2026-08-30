@@ -1179,14 +1179,34 @@ export async function checkAndDispatchAutomatedAlerts(
   const preClassMins = Number(settings.telegramPreClassReminderMinutes) || 15;
   const lateDelayMins = Number(settings.telegramLateAlertDelayMinutes) || 10;
   const repeatEnabled = settings.telegramLateAlertRepeatEnabled !== false;
-  const repeatIntervalMins = Number(settings.telegramLateAlertRepeatIntervalMinutes) || 15;
-  const maxRepeatCount = Number(settings.telegramLateAlertMaxCount) || 2;
+  const repeatIntervalMins = Math.max(1, Number(settings.telegramLateAlertRepeatIntervalMinutes) || 15);
+  const maxRepeatCount = Math.max(1, Number(settings.telegramLateAlertMaxCount) || 2);
   const finalAbsentTiming = settings.telegramFinalAbsentTiming || 'end_of_session';
   const isDigestEnabled = settings.telegramTeacherDigestEnabled !== false;
 
-  const activeSchedules = (schedules && schedules.length > 0 ? schedules : []).filter((s) =>
+  // Deduplicate active student schedules to prevent multiple dispatches for the same student
+  const rawList = (schedules && schedules.length > 0 ? schedules : []).filter((s) =>
     isRealStudentRecord(s.studentId || (s as any).id, s.studentName || (s as any).name)
   );
+
+  const activeSchedules: any[] = [];
+  const seenStudentIdentifiers = new Set<string>();
+
+  for (const s of rawList) {
+    const sId = String(s.studentId || (s as any).id || '').trim();
+    const sName = String(s.studentName || (s as any).name || '').trim();
+    if (!isRealStudentRecord(sId, sName)) continue;
+
+    const normId = normalizeStudentIdForMatching(sId);
+    const normName = normalizeArabicText(sName);
+    const primaryKey = normId || normName || sId;
+    if (seenStudentIdentifiers.has(primaryKey)) continue;
+    seenStudentIdentifiers.add(primaryKey);
+    if (normName) seenStudentIdentifiers.add(normName);
+    if (normId) seenStudentIdentifiers.add(normId);
+
+    activeSchedules.push(s);
+  }
 
   if (activeSchedules.length === 0) {
     return {
@@ -1296,24 +1316,34 @@ export async function checkAndDispatchAutomatedAlerts(
 
     // 2️⃣ STUDENT LATE ALERT
     const firstLateTriggerTime = startTotalMinutes + lateDelayMins;
-    const lateSentCountKey = `tg_late_count_${studentId}_${todayIsoKey}_${classStartTimeStr}`;
-    const lastLateTimeKey = `tg_late_last_time_${studentId}_${todayIsoKey}_${classStartTimeStr}`;
+    const normKey = normalizeStudentIdForMatching(studentId) || normalizeArabicText(studentName) || String(studentId).trim();
+    const lateSentCountKey = `tg_late_count_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
+    const lastLateMsKey = `tg_late_last_ms_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
+    const lateCompletedKey = `tg_late_completed_${normKey}_${todayIsoKey}_${classStartTimeStr}`;
+
+    // Maximum total sends: 1 initial warning + maxRepeatCount repetitions
+    const maxTotalLateSends = repeatEnabled ? (1 + maxRepeatCount) : 1;
 
     if (nowTotalMinutes >= firstLateTriggerTime && nowTotalMinutes < endTotalMinutes && !hasPunchedIn) {
+      const isAlreadyCompleted = localStorage.getItem(lateCompletedKey) === 'true';
       const currentSentCount = Number(localStorage.getItem(lateSentCountKey)) || 0;
-      const lastSentTime = Number(localStorage.getItem(lastLateTimeKey)) || 0;
+      const lastSentMs = Number(localStorage.getItem(lastLateMsKey)) || 0;
+      const nowMs = Date.now();
+      const intervalMs = repeatIntervalMins * 60 * 1000;
 
       let shouldSendLate = false;
-      if (options?.skipLocks || currentSentCount === 0) {
-        shouldSendLate = true;
-      } else if (repeatEnabled && currentSentCount < maxRepeatCount) {
-        if (nowTotalMinutes - lastSentTime >= repeatIntervalMins) {
+      if (!isAlreadyCompleted) {
+        if (options?.skipLocks || currentSentCount === 0) {
           shouldSendLate = true;
+        } else if (repeatEnabled && currentSentCount < maxTotalLateSends) {
+          if (nowMs - lastSentMs >= intervalMs) {
+            shouldSendLate = true;
+          }
         }
       }
 
       if (shouldSendLate) {
-        const lateLockKey = `tg_late_lock_${studentId}_${todayIsoKey}_${classStartTimeStr}_${currentSentCount}`;
+        const lateLockKey = `tg_late_lock_${normKey}_${todayIsoKey}_${classStartTimeStr}_${currentSentCount}`;
         const lockAcquired = options?.skipLocks || acquireAtomicDispatchLock(lateLockKey);
 
         if (lockAcquired) {
@@ -1339,13 +1369,31 @@ export async function checkAndDispatchAutomatedAlerts(
           releaseAtomicDispatchLock(lateLockKey, isSuccess);
 
           if (isSuccess) {
+            const nextCount = currentSentCount + 1;
             if (!options?.skipLocks) {
-              localStorage.setItem(lateSentCountKey, String(currentSentCount + 1));
-              localStorage.setItem(lastLateTimeKey, String(nowTotalMinutes));
+              const keysToSet = [
+                `tg_late_count_${normKey}_${todayIsoKey}_${classStartTimeStr}`,
+                `tg_late_count_${studentId}_${todayIsoKey}_${classStartTimeStr}`,
+                studentName ? `tg_late_count_${studentName}_${todayIsoKey}_${classStartTimeStr}` : '',
+              ].filter(Boolean);
+
+              const msKeysToSet = [
+                `tg_late_last_ms_${normKey}_${todayIsoKey}_${classStartTimeStr}`,
+                `tg_late_last_ms_${studentId}_${todayIsoKey}_${classStartTimeStr}`,
+                studentName ? `tg_late_last_ms_${studentName}_${todayIsoKey}_${classStartTimeStr}` : '',
+              ].filter(Boolean);
+
+              keysToSet.forEach((k) => localStorage.setItem(k, String(nextCount)));
+              msKeysToSet.forEach((k) => localStorage.setItem(k, String(nowMs)));
+
+              if (nextCount >= maxTotalLateSends) {
+                localStorage.setItem(lateCompletedKey, 'true');
+                localStorage.setItem(`tg_late_completed_${studentId}_${todayIsoKey}_${classStartTimeStr}`, 'true');
+              }
             }
             dispatchedCount++;
-            actionTaken = `🚨 تم إرسال تنبيه التأخر (تأخر ${minutesLate} دقيقة)`;
-            logs.push(`[تنبيه تأخر] تم إرسال تنبيه تأخر (${minutesLate} دقيقة) للطالب ${studentName} (#${studentId})`);
+            actionTaken = `🚨 تم إرسال تنبيه التأخر (${nextCount}/${maxTotalLateSends}) (تأخر ${minutesLate} دقيقة)`;
+            logs.push(`[تنبيه تأخر] تم إرسال تنبيه تأخر (#${nextCount}/${maxTotalLateSends} - ${minutesLate} دقيقة) للطالب ${studentName} (#${studentId})`);
           }
         }
       }

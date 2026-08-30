@@ -36,6 +36,8 @@ import {
   isRealStudentRecord,
   registerStudentActivePresence,
   clearStudentActivePresence,
+  normalizeStudentIdForMatching,
+  normalizeArabicText,
 } from './utils/telegramScheduler';
 
 // Icons
@@ -233,7 +235,37 @@ export default function App() {
 
         // Collect all available student schedules (filtering out default templates or admin records)
         const schedules: any[] = [];
-        const seenIds = new Set<string>();
+        const seenKeys = new Set<string>();
+
+        const addStudentScheduleIfNew = (item: any) => {
+          const sId = String(item.studentId || item.id || '').trim();
+          const sName = String(item.studentName || item.name || '').trim();
+          if (!sId || !isRealStudentRecord(sId, sName)) return;
+
+          const normId = normalizeStudentIdForMatching(sId);
+          const normName = normalizeArabicText(sName);
+          const primaryKey = normId || normName || sId;
+
+          if (seenKeys.has(primaryKey) || (normName && seenKeys.has(normName)) || (normId && seenKeys.has(normId))) {
+            return;
+          }
+
+          seenKeys.add(primaryKey);
+          if (normId) seenKeys.add(normId);
+          if (normName) seenKeys.add(normName);
+
+          const directChatInfo = resolveStudentTelegramChatId(sId, sName, item.telegramChatId);
+
+          schedules.push({
+            studentId: sId,
+            studentName: sName || 'المشترك',
+            customStartTime: item.customStartTime || settings.startTime || '19:00',
+            customSessionDuration: item.customSessionDuration || settings.sessionDurationFromStart || 120,
+            telegramChatId: directChatInfo.chatId || item.telegramChatId,
+            preferredLanguage: directChatInfo.lang || item.preferredLanguage || 'ar',
+            assignedTeacherId: item.assignedTeacherId,
+          });
+        };
 
         // 1. Check all_schedules_cached
         try {
@@ -242,20 +274,7 @@ export default function App() {
             const parsedList = JSON.parse(cachedSchedulesRaw);
             if (Array.isArray(parsedList)) {
               for (const item of parsedList) {
-                const sId = item.studentId || item.id;
-                const sName = item.studentName || item.name || '';
-                if (sId && isRealStudentRecord(sId, sName) && !seenIds.has(sId)) {
-                  seenIds.add(sId);
-                  schedules.push({
-                    studentId: sId,
-                    studentName: sName || 'المشترك',
-                    customStartTime: item.customStartTime || settings.startTime || '19:00',
-                    customSessionDuration: item.customSessionDuration || settings.sessionDurationFromStart || 120,
-                    telegramChatId: item.telegramChatId,
-                    preferredLanguage: item.preferredLanguage || 'ar',
-                    assignedTeacherId: item.assignedTeacherId,
-                  });
-                }
+                addStudentScheduleIfNew(item);
               }
             }
           }
@@ -269,20 +288,10 @@ export default function App() {
               const val = localStorage.getItem(key);
               if (val) {
                 const parsed = JSON.parse(val);
-                const sId = parsed.studentId || key.replace('student_custom_sched_', '');
-                const sName = parsed.studentName || '';
-                if (sId && isRealStudentRecord(sId, sName) && !seenIds.has(sId)) {
-                  seenIds.add(sId);
-                  schedules.push({
-                    studentId: sId,
-                    studentName: sName || 'المشترك',
-                    customStartTime: parsed.customStartTime || settings.startTime || '19:00',
-                    customSessionDuration: parsed.customSessionDuration || settings.sessionDurationFromStart || 120,
-                    telegramChatId: parsed.telegramChatId,
-                    preferredLanguage: parsed.preferredLanguage || 'ar',
-                    assignedTeacherId: parsed.assignedTeacherId,
-                  });
-                }
+                addStudentScheduleIfNew({
+                  ...parsed,
+                  studentId: parsed.studentId || key.replace('student_custom_sched_', ''),
+                });
               }
             } catch (e) {}
           }
@@ -294,20 +303,17 @@ export default function App() {
           const sName = student.name;
           if (sId && isRealStudentRecord(sId, sName)) {
             registerStudentActivePresence(String(sId), String(sName));
-            if (!seenIds.has(sId)) {
-              seenIds.add(sId);
-              const rawSched = localStorage.getItem(`student_custom_sched_${sId}`) || localStorage.getItem(`student_custom_sched_${sName}`);
-              const parsed = rawSched ? JSON.parse(rawSched) : {};
-              schedules.push({
-                studentId: sId,
-                studentName: sName,
-                customStartTime: parsed.customStartTime || settings.startTime || '19:00',
-                customSessionDuration: parsed.customSessionDuration || settings.sessionDurationFromStart || 120,
-                telegramChatId: parsed.telegramChatId || (student as any).telegramChatId,
-                preferredLanguage: parsed.preferredLanguage || 'ar',
-                assignedTeacherId: parsed.assignedTeacherId || (student as any).assignedTeacherId,
-              });
-            }
+            const rawSched = localStorage.getItem(`student_custom_sched_${sId}`) || localStorage.getItem(`student_custom_sched_${sName}`);
+            const parsed = rawSched ? JSON.parse(rawSched) : {};
+            addStudentScheduleIfNew({
+              studentId: sId,
+              studentName: sName,
+              customStartTime: parsed.customStartTime || settings.startTime || '19:00',
+              customSessionDuration: parsed.customSessionDuration || settings.sessionDurationFromStart || 120,
+              telegramChatId: parsed.telegramChatId || (student as any).telegramChatId,
+              preferredLanguage: parsed.preferredLanguage || (student as any).preferredLanguage || 'ar',
+              assignedTeacherId: parsed.assignedTeacherId || (student as any).assignedTeacherId,
+            });
           }
         }
 

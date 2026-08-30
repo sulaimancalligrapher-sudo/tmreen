@@ -708,26 +708,27 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     templateKey: keyof typeof DEFAULT_TELEGRAM_TEMPLATES_AR,
     extraVars?: Record<string, string | number>
   ) => {
-    if (!attendanceSettings) return;
+    if (!attendanceSettings) return { sentToStudent: false, sentToTeacher: false, sentToAdmin: false };
     try {
+      const directStudentChatId = (student as any)?.telegramChatId || studentCustomSchedule?.telegramChatId;
       const resolved = resolveStudentTelegramChatId(
         student.id,
         student.name,
-        studentCustomSchedule?.telegramChatId || (student as any).telegramChatId
+        directStudentChatId
       );
 
       const nowTimeStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
       const isScheduledEvent = templateKey === 'preClass' || templateKey === 'earlyEntryAllowed' || templateKey === 'earlyEntryBlocked' || templateKey === 'absent' || templateKey === 'finalAbsent';
       const defaultTime = isScheduledEvent ? (effectiveStartTime || '19:00') : nowTimeStr;
 
-      await dispatchAttendanceTelegramNotification({
+      return await dispatchAttendanceTelegramNotification({
         eventType: templateKey,
         student: {
           id: student.id,
           name: student.name,
-          telegramChatId: resolved.chatId,
-          preferredLanguage: resolved.lang || studentCustomSchedule?.preferredLanguage || 'ar',
-          assignedTeacherId: (studentCustomSchedule as any)?.assignedTeacherId || (student as any).assignedTeacherId,
+          telegramChatId: resolved.chatId || directStudentChatId,
+          preferredLanguage: resolved.lang || studentCustomSchedule?.preferredLanguage || (student as any)?.preferredLanguage || 'ar',
+          assignedTeacherId: (studentCustomSchedule as any)?.assignedTeacherId || (student as any)?.assignedTeacherId,
         },
         settings: attendanceSettings,
         customSchedule: studentCustomSchedule,
@@ -745,6 +746,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       });
     } catch (e) {
       console.warn('Telegram student notification error:', e);
+      return { sentToStudent: false, sentToTeacher: false, sentToAdmin: false };
     }
   };
 
@@ -759,7 +761,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
 
   // Automatic Notification & Presence Registration when Student lands on Dashboard
   useEffect(() => {
-    if (!attendanceSettings || !student) return;
+    if (!attendanceSettings || !student || !isSettingsLoaded) return;
 
     const sId = student.id || student.name || 'student';
     const sName = student.name || student.id || 'student';
@@ -802,32 +804,43 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     const legacyLoginKey = `tg_entry_notified_${sId}_${todayIsoStr}`;
     if (!hasNotifiedEntryRef.current && !sessionStorage.getItem(loginNotifiedKey) && !localStorage.getItem(loginNotifiedKey)) {
       hasNotifiedEntryRef.current = true;
-      sessionStorage.setItem(loginNotifiedKey, 'true');
-      localStorage.setItem(loginNotifiedKey, 'true');
-      localStorage.setItem(legacyLoginKey, 'true');
 
-      if (isEarly && !effectivePreventEarlyEntry) {
-        notifyStudentTelegram('earlyEntryAllowed', {
-          time: effectiveStartTime || '19:00',
-          classTime: effectiveStartTime || '19:00',
-          startTime: effectiveStartTime || '19:00',
-          الوقت: effectiveStartTime || '19:00',
-          وقت_الحصة: effectiveStartTime || '19:00',
-          actualTime: nowTimeStr,
-          الوقت_الفعلي: nowTimeStr,
-        });
-      } else {
-        notifyStudentTelegram('login', {
-          time: nowTimeStr,
-          الوقت: nowTimeStr,
-          classTime: effectiveStartTime || '19:00',
-          وقت_الحصة: effectiveStartTime || '19:00',
-          actualTime: nowTimeStr,
-          الوقت_الفعلي: nowTimeStr,
-        });
-      }
+      const triggerLoginNotification = async () => {
+        let sendRes: any = null;
+        if (isEarly && !effectivePreventEarlyEntry) {
+          sendRes = await notifyStudentTelegram('earlyEntryAllowed', {
+            time: effectiveStartTime || '19:00',
+            classTime: effectiveStartTime || '19:00',
+            startTime: effectiveStartTime || '19:00',
+            الوقت: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTimeStr,
+            الوقت_الفعلي: nowTimeStr,
+          });
+        } else {
+          sendRes = await notifyStudentTelegram('login', {
+            time: nowTimeStr,
+            الوقت: nowTimeStr,
+            classTime: effectiveStartTime || '19:00',
+            وقت_الحصة: effectiveStartTime || '19:00',
+            actualTime: nowTimeStr,
+            الوقت_الفعلي: nowTimeStr,
+          });
+        }
+
+        if (sendRes?.sentToStudent || sendRes?.sentToTeacher || sendRes?.sentToAdmin) {
+          sessionStorage.setItem(loginNotifiedKey, 'true');
+          localStorage.setItem(loginNotifiedKey, 'true');
+          localStorage.setItem(legacyLoginKey, 'true');
+        } else {
+          // If not sent because chat ID wasn't resolved yet, allow re-try on next state update
+          hasNotifiedEntryRef.current = false;
+        }
+      };
+
+      triggerLoginNotification();
     }
-  }, [attendanceSettings, isSettingsLoaded, effectiveStartTime, effectivePreventEarlyEntry, effectiveForceLogin, isPunchedIn]);
+  }, [attendanceSettings, isSettingsLoaded, effectiveStartTime, effectivePreventEarlyEntry, effectiveForceLogin, isPunchedIn, studentCustomSchedule]);
 
   // Handle Student Session Punch-In
   const handlePunchIn = async () => {
