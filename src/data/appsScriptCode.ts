@@ -5510,9 +5510,15 @@ function processScheduledTelegramNotifications() {
   var liveData = getLiveMonitoringData();
   var activeIds = {};
   if (liveData && liveData.data) {
-    (liveData.data.activeStudents || []).forEach(function(s) { activeIds[s.studentId] = true; });
-    (liveData.data.completedStudents || []).forEach(function(s) { activeIds[s.studentId] = true; });
-    (liveData.data.loggedOutStudents || []).forEach(function(s) { activeIds[s.studentId] = true; });
+    (liveData.data.activeStudents || []).forEach(function(s) { 
+      if (s.studentId) activeIds[s.studentId.toString().trim().toLowerCase()] = true; 
+    });
+    (liveData.data.completedStudents || []).forEach(function(s) { 
+      if (s.studentId) activeIds[s.studentId.toString().trim().toLowerCase()] = true; 
+    });
+    (liveData.data.loggedOutStudents || []).forEach(function(s) { 
+      if (s.studentId) activeIds[s.studentId.toString().trim().toLowerCase()] = true; 
+    });
   }
 
   var now = new Date();
@@ -5522,39 +5528,67 @@ function processScheduledTelegramNotifications() {
   var lateRepeatEnabled = settings.telegramLateAlertRepeatEnabled !== false;
   var lateRepeatInterval = Number(settings.telegramLateAlertRepeatIntervalMinutes) || 15;
   var lateMaxCount = Number(settings.telegramLateAlertMaxCount) || 2;
+  var finalAbsentTiming = settings.telegramFinalAbsentTiming || 'end_of_session';
   var cache = CacheService.getScriptCache();
   var sentCount = 0;
 
   for (var i = 0; i < schedules.length; i++) {
     var s = schedules[i];
-    var sId = s.studentId;
-    var sName = s.studentName || 'الطالب';
+    var sId = s.studentId ? s.studentId.toString().trim() : '';
+    var sName = s.studentName ? s.studentName.toString().trim() : 'المشترك';
+    if (!sId || sId === 'DEFAULT_STUDENT' || sId === 'dummy' || sId === 'admin' || sId === 'admin_preview') continue;
+
     var targetChatId = s.telegramChatId || settings.telegramChatId;
     if (!targetChatId) continue;
 
     var startTimeStr = s.customStartTime || settings.startTime || '19:00';
     var parts = startTimeStr.split(':');
     var startMinutes = (parseInt(parts[0], 10) || 19) * 60 + (parseInt(parts[1], 10) || 0);
+    var durationMins = Number(s.customSessionDuration) || Number(settings.sessionDurationFromStart) || 120;
+    var endMinutes = startMinutes + durationMins;
 
-    var hasAttended = Boolean(activeIds[sId]);
+    var hasAttended = Boolean(activeIds[sId.toLowerCase()] || (sName && activeIds[sName.toLowerCase()]));
     var todayDateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyyMMdd');
-    var preKey = 'tg_gas_pre_' + sId + '_' + todayDateStr;
-    var lateCountKey = 'tg_gas_late_cnt_' + sId + '_' + todayDateStr;
-    var lateTimeKey = 'tg_gas_late_tm_' + sId + '_' + todayDateStr;
+    var preKey = 'tg_gas_pre_' + sId + '_' + todayDateStr + '_' + startTimeStr;
+    var lateCountKey = 'tg_gas_late_cnt_' + sId + '_' + todayDateStr + '_' + startTimeStr;
+    var lateTimeKey = 'tg_gas_late_tm_' + sId + '_' + todayDateStr + '_' + startTimeStr;
+    var finalAbsentKey = 'tg_gas_abs_cnt_' + sId + '_' + todayDateStr + '_' + startTimeStr;
 
-    // 1. Pre-Class Reminder
+    var lang = s.preferredLanguage || 'ar';
+
+    var interpolate = function(tpl) {
+      if (!tpl) return '';
+      return tpl
+        .split('{{اسم_الطالب}}').join(sName)
+        .split('{{student_name}}').join(sName)
+        .split('{{studentName}}').join(sName)
+        .split('{{رقم_الطالب}}').join(sId)
+        .split('{{student_id}}').join(sId)
+        .split('{{studentId}}').join(sId)
+        .split('{{الوقت}}').join(startTimeStr)
+        .split('{{وقت_الحصة}}').join(startTimeStr)
+        .split('{{time}}').join(startTimeStr)
+        .split('{{classTime}}').join(startTimeStr)
+        .split('{{startTime}}').join(startTimeStr);
+    };
+
+    // 1. Pre-Class Reminder (قبل دخول الوقت)
     if (nowMinutes >= (startMinutes - preClassMins) && nowMinutes < startMinutes && !hasAttended) {
       if (!cache.get(preKey)) {
-        var preMsg = (settings.templatesAr && settings.templatesAr.preClass) || '⏰ تذكير بموعد الحصة:\\nمرحباً ' + sName + '، تبدأ حصتك اليوم الساعة ' + startTimeStr + '.\\nيرجى الاستعداد والتواجد أمام المنصة 📚';
-        preMsg = preMsg.split('{{اسم_الطالب}}').join(sName).split('{{الوقت}}').join(startTimeStr);
+        var preTpl = '';
+        if (lang === 'en') preTpl = (settings.templatesEn && settings.templatesEn.preClass) || '⏰ Upcoming Class Reminder:\\nHello {{student_name}}, your class starts today at {{time}}.\\nPlease be ready on time to join your session 📚';
+        else if (lang === 'th') preTpl = (settings.templatesTh && settings.templatesTh.preClass) || '⏰ แจ้งเตือนก่อนเริ่มคาบเรียน:\\nสวัสดีคุณ {{student_name}} คาบเรียนของคุณจะเริ่มเวลา {{time}}\\nกรุณาเตรียมตัวเข้าสู่ระบบตรงเวลา 📚';
+        else preTpl = (settings.templatesAr && settings.templatesAr.preClass) || '⏰ تذكير بموعد الحصة:\\nمرحباً بك يا {{اسم_الطالب}}، تبدأ حصتك اليوم الساعة {{الوقت}}.\\nيرجى الاستعداد والتواجد في الموعد لمتابعة دروسك المقررة 📚';
+
+        var preMsg = interpolate(preTpl);
         sendTelegramDirectMessageGas(token, targetChatId, preMsg);
         cache.put(preKey, 'true', 21600);
         sentCount++;
       }
     }
 
-    // 2. Late Alert
-    if (nowMinutes >= (startMinutes + lateDelayMins) && !hasAttended) {
+    // 2. Late Alert (بعد دخول الوقت)
+    if (nowMinutes >= (startMinutes + lateDelayMins) && nowMinutes < endMinutes && !hasAttended) {
       var currentLateCount = parseInt(cache.get(lateCountKey), 10) || 0;
       var lastLateMinutes = parseInt(cache.get(lateTimeKey), 10) || 0;
       var maxTotalLateSends = lateRepeatEnabled ? (1 + lateMaxCount) : 1;
@@ -5569,11 +5603,31 @@ function processScheduledTelegramNotifications() {
       }
 
       if (shouldSendLateGas) {
-        var lateMsg = (settings.templatesAr && settings.templatesAr.absent) || '⚠️ تنبيه تأخر عن الحصة:\\nتنبيه: حان موعد حصة الطالب ' + sName + ' اليوم الساعة ' + startTimeStr + ' ولم يسجل دخوله بعد.';
-        lateMsg = lateMsg.split('{{اسم_الطالب}}').join(sName).split('{{الوقت}}').join(startTimeStr);
+        var lateTpl = '';
+        if (lang === 'en') lateTpl = (settings.templatesEn && settings.templatesEn.absent) || '⚠️ Class Delay Alert:\\nHello {{student_name}}, your class was scheduled today at {{time}} and login is not recorded yet.\\nPlease log in now to avoid being marked absent 🚨';
+        else if (lang === 'th') lateTpl = (settings.templatesTh && settings.templatesTh.absent) || '⚠️ แจ้งเตือนการเข้าเรียนล่าช้า:\\nสวัสดีคุณ {{student_name}} ถึงเวลาเรียนของคุณแล้ว ({{time}}) แต่ยังไม่ได้เข้าสู่ระบบ\\nกรุณาเข้าสู่ระบบทันทีเพื่อไม่ให้เสียสิทธิ์การเข้าเรียน 🚨';
+        else lateTpl = (settings.templatesAr && settings.templatesAr.absent) || '⚠️ تنبيه التأخر عن الحصة:\\nمرحباً يا {{اسم_الطالب}}، حان موعد حصتك اليوم الساعة {{الوقت}} ولم يتم تسجيل دخولك بعد.\\nيرجى الدخول للمنصة الآن لتجنب احتساب الغياب 🚨';
+
+        var lateMsg = interpolate(lateTpl);
         sendTelegramDirectMessageGas(token, targetChatId, lateMsg);
         cache.put(lateCountKey, String(currentLateCount + 1), 21600);
         cache.put(lateTimeKey, String(nowMinutes), 21600);
+        sentCount++;
+      }
+    }
+
+    // 3. Final Absent Notification (إشعار الغياب النهائي بعد انتهاء الحصة)
+    var isGasSessionEnded = finalAbsentTiming === 'end_of_session' ? (nowMinutes >= endMinutes) : (nowMinutes >= 23 * 60);
+    if (isGasSessionEnded && !hasAttended) {
+      if (!cache.get(finalAbsentKey)) {
+        var absTpl = '';
+        if (lang === 'en') absTpl = (settings.templatesEn && settings.templatesEn.finalAbsent) || '🚨 Absence Notice:\\nHello {{student_name}} (#{{student_id}}), absence has been recorded for the session scheduled today at {{time}}.\\nPlease reach out to the teacher or administration if you have an excuse 📞';
+        else if (lang === 'th') absTpl = (settings.templatesTh && settings.templatesTh.finalAbsent) || '🚨 บันทึกการขาดเรียน:\\nขอแจ้งให้ทราบว่าคุณ {{student_name}} (#{{student_id}}) ขาดเรียนในคาบเรียนวันนี้ เวลา: {{time}}\\nกรุณาติดต่อคุณครูหรือฝ่ายบริหารหากมีเหตุจำเป็น 📞';
+        else absTpl = (settings.templatesAr && settings.templatesAr.finalAbsent) || '🚨 إشعار عدم الحضور:\\nمرحباً يا {{اسم_الطالب}} (#{{رقم_الطالب}})، تم تسجيل عدم حضورك لحصة اليوم المقررة الساعة {{الوقت}}.\\nيرجى التواصل مع المعلم أو الإدارة في حال وجود عذر أو لإعادة الجدولة 📞';
+
+        var absMsg = interpolate(absTpl);
+        sendTelegramDirectMessageGas(token, targetChatId, absMsg);
+        cache.put(finalAbsentKey, 'true', 21600);
         sentCount++;
       }
     }

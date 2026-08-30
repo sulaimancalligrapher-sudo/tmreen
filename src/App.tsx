@@ -297,12 +297,11 @@ export default function App() {
           }
         }
 
-        // 3. If currently logged-in student exists, ensure their presence and record are evaluated
+        // 3. If currently logged-in student exists, ensure their schedule is evaluated
         if (student && !student.isAdmin) {
           const sId = student.id;
           const sName = student.name;
           if (sId && isRealStudentRecord(sId, sName)) {
-            registerStudentActivePresence(String(sId), String(sName));
             const rawSched = localStorage.getItem(`student_custom_sched_${sId}`) || localStorage.getItem(`student_custom_sched_${sName}`);
             const parsed = rawSched ? JSON.parse(rawSched) : {};
             addStudentScheduleIfNew({

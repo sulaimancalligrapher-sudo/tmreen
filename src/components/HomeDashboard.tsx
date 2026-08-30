@@ -769,18 +769,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     const todayIsoStr = new Date().toISOString().split('T')[0];
     const nowTimeStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
     
-    try {
-      registerStudentActivePresence(String(sId), String(sName), nowTimeStr);
-      if (!effectiveForceLogin) {
-        localStorage.setItem(punchStorageKey, 'true');
-        localStorage.setItem(`punchin_${sId}_${todayKey}`, 'true');
-        localStorage.setItem(`punchin_${sName}_${todayKey}`, 'true');
-        localStorage.setItem(`attendance_punch_in_${sId}_${todayKey}`, 'true');
-        localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
-      }
-    } catch (e) {}
-
-    // Only dispatch automatic landing alert if NOT requiring manual punch-in (or if early entry blocked)
+    // Only dispatch automatic landing alert & register presence if NOT requiring manual punch-in (or if early entry blocked)
     const now = new Date();
     const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
     const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
@@ -795,10 +784,21 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       return;
     }
 
-    // If manual punch in is required, do NOT send login confirmation until student actually clicks Punch In
+    // If manual punch in is required, do NOT mark present or send login confirmation until student actually clicks Punch In
     if (effectiveForceLogin && !isPunchedIn) {
       return;
     }
+
+    try {
+      registerStudentActivePresence(String(sId), String(sName), nowTimeStr);
+      if (!effectiveForceLogin) {
+        localStorage.setItem(punchStorageKey, 'true');
+        localStorage.setItem(`punchin_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`punchin_${sName}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sId}_${todayKey}`, 'true');
+        localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
+      }
+    } catch (e) {}
 
     const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
     const legacyLoginKey = `tg_entry_notified_${sId}_${todayIsoStr}`;

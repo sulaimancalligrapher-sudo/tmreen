@@ -428,24 +428,38 @@ export function isStudentPresentOrActiveToday(
   const now = new Date();
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  // 1. Check if currently logged in as this student on THIS client session in the browser
+  // 1. Check if student actually punched in / attended TODAY on this client or session
   try {
-    const currentLoggedId = localStorage.getItem('studentId') || sessionStorage.getItem('studentId');
-    const currentLoggedName = localStorage.getItem('studentName') || sessionStorage.getItem('studentName');
-    if (currentLoggedId && currentLoggedId !== 'admin' && currentLoggedId !== 'admin_preview') {
-      if (areStudentRecordsMatching({ id: sId, name: sName }, { id: currentLoggedId, name: currentLoggedName || '' })) {
+    const todayPunchInKeys = [
+      sId ? `punchin_${sId}_${todayIsoKey}` : '',
+      sName ? `punchin_${sName}_${todayIsoKey}` : '',
+      cleanId ? `punchin_${cleanId}_${todayIsoKey}` : '',
+      sId ? `student_present_${sId}_${todayIsoKey}` : '',
+      cleanId ? `student_present_${cleanId}_${todayIsoKey}` : '',
+      sId ? `attendance_punch_in_${sId}_${todayIsoKey}` : '',
+      cleanId ? `attendance_punch_in_${cleanId}_${todayIsoKey}` : '',
+    ].filter(Boolean);
+
+    for (const key of todayPunchInKeys) {
+      if (localStorage.getItem(key) === 'true' || sessionStorage.getItem(key) === 'true') {
         const time =
           sessionStorage.getItem(`tg_entry_time_${sId}`) ||
           sessionStorage.getItem(`tg_entry_time_${cleanId}`) ||
           localStorage.getItem(`punchin_time_${sId}_${todayIsoKey}`) ||
           localStorage.getItem(`punchin_time_${cleanId}_${todayIsoKey}`) ||
-          'متواجد الآن';
+          'مسجل اليوم';
         return { isPresent: true, entryTime: time };
       }
     }
+
+    // Check active session flag for today
+    const activeSessionKey = `student_active_session_${sId}`;
+    if (sessionStorage.getItem(activeSessionKey) === todayIsoKey) {
+      return { isPresent: true, entryTime: sessionStorage.getItem(`tg_entry_time_${sId}`) || 'متواجد الآن' };
+    }
   } catch (e) {}
 
-  // 2. Check live_active_students_cached (synced directly from Google Sheet AttendanceLogs)
+  // 2. Check live_active_students_cached (synced directly from Google Sheet AttendanceLogs for today)
   try {
     const liveActiveRaw = localStorage.getItem('live_active_students_cached');
     if (liveActiveRaw) {
@@ -460,7 +474,7 @@ export function isStudentPresentOrActiveToday(
     }
   } catch (e) {}
 
-  // 3. Check live_completed_students_cached (completed all required lessons)
+  // 3. Check live_completed_students_cached (completed all required lessons today)
   try {
     const liveCompletedRaw = localStorage.getItem('live_completed_students_cached');
     if (liveCompletedRaw) {
@@ -495,6 +509,7 @@ export function isStudentPresentOrActiveToday(
     const attendedKeys = [
       sId ? `student_attended_${sId}_${todayIsoKey}` : '',
       cleanId ? `student_attended_${cleanId}_${todayIsoKey}` : '',
+      sName ? `student_attended_${sName}_${todayIsoKey}` : '',
     ].filter(Boolean);
 
     for (const k of attendedKeys) {
@@ -552,6 +567,14 @@ export function resolveStudentTelegramChatId(
   const sName = String(studentName || '').trim();
   const cleanId = normalizeStudentIdForMatching(sId);
 
+  // Check if explicitly unlinked
+  if (
+    localStorage.getItem(`telegram_unlinked_${sId}`) === 'true' ||
+    (cleanId && localStorage.getItem(`telegram_unlinked_${cleanId}`) === 'true')
+  ) {
+    return { chatId: '', lang: 'ar' };
+  }
+
   try {
     const keysToTry = [
       sId ? `student_telegram_${sId}` : '',
@@ -567,13 +590,20 @@ export function resolveStudentTelegramChatId(
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.telegramChatId && parsed.telegramChatId.trim()) {
+          const cid = parsed.telegramChatId || parsed.chatId;
+          if (cid && String(cid).trim()) {
             return {
-              chatId: parsed.telegramChatId.trim(),
+              chatId: String(cid).trim(),
               lang: parsed.preferredLang || parsed.preferredLanguage || parsed.languagePreference || 'ar',
             };
           }
-        } catch (e) {}
+        } catch (e) {
+          // If raw is a plain chatId string
+          const trimmed = raw.trim();
+          if (trimmed && /^-?\d+$/.test(trimmed)) {
+            return { chatId: trimmed, lang: 'ar' };
+          }
+        }
       }
     }
 
@@ -592,9 +622,9 @@ export function resolveStudentTelegramChatId(
               (sName && itemCleanName === sName.toLowerCase().trim())
             );
           });
-          if (matched && matched.telegramChatId && matched.telegramChatId.trim()) {
+          if (matched && matched.telegramChatId && String(matched.telegramChatId).trim()) {
             return {
-              chatId: matched.telegramChatId.trim(),
+              chatId: String(matched.telegramChatId).trim(),
               lang: matched.preferredLanguage || matched.preferredLang || 'ar',
             };
           }
