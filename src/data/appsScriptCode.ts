@@ -5675,18 +5675,39 @@ function getStudentTelegramFromDedicatedSheet(ss, studentId, studentName) {
 }
 
 function getOrCreateTelegramUsersSheet(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getSheetByNameFlexible(ss, 'Telegram_Users');
+  var headers = ['اسم الطالب', 'رقم الطالب', 'Telegram Chat ID', 'اللغة الذي اختار الطالب', 'تاريخ الربط'];
+  
   if (!sheet) {
     sheet = ss.insertSheet('Telegram_Users');
-    var headers = ['اسم الطالب', 'رقم الطالب', 'Telegram Chat ID', 'اللغة الذي اختار الطالب', 'تاريخ الربط'];
     sheet.appendRow(headers);
+  } else {
+    var lastRow = sheet.getLastRow();
+    if (lastRow === 0) {
+      sheet.appendRow(headers);
+    } else {
+      var r1Data = sheet.getRange(1, 1, 1, Math.max(1, Math.min(5, sheet.getLastColumn() || 1))).getValues()[0];
+      var firstCell = r1Data[0] ? r1Data[0].toString().trim() : '';
+      var secondCell = r1Data[1] ? r1Data[1].toString().trim() : '';
+      
+      // If row 1 is not the header row (e.g. contains student data instead of titles)
+      if (firstCell !== 'اسم الطالب' && secondCell !== 'رقم الطالب') {
+        sheet.insertRowBefore(1);
+        sheet.getRange(1, 1, 1, 5).setValues([headers]);
+      }
+    }
+  }
+  
+  try {
     sheet.getRange(1, 1, 1, 5)
       .setFontWeight('bold')
       .setBackground('#1e293b')
       .setFontColor('#ffffff')
       .setHorizontalAlignment('center');
     sheet.setFrozenRows(1);
-  }
+  } catch (e) {}
+  
   return sheet;
 }
 
@@ -5718,9 +5739,11 @@ function recordTelegramUser(studentName, studentId, telegramChatId, preferredLan
   var lastRow = sheet.getLastRow();
   var foundRow = -1;
   
+  // Search strictly from row 2 onwards (Row 1 is headers)
   if (lastRow >= 2) {
     var data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
     for (var i = 0; i < data.length; i++) {
+      var rName = data[i][0] ? data[i][0].toString().trim() : '';
       var rId = data[i][1] ? data[i][1].toString().trim() : '';
       var rChatId = data[i][2] ? data[i][2].toString().trim() : '';
       
@@ -5731,15 +5754,15 @@ function recordTelegramUser(studentName, studentId, telegramChatId, preferredLan
         if (!linkDate && data[i][4]) {
           effDate = data[i][4] instanceof Date ? Utilities.formatDate(data[i][4], Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss') : data[i][4].toString();
         }
-        if (!studentName && data[i][0]) {
-          cleanName = data[i][0].toString();
+        if (!studentName && rName) {
+          cleanName = rName;
         }
         break;
       }
     }
   }
   
-  if (foundRow !== -1) {
+  if (foundRow >= 2) {
     sheet.getRange(foundRow, 1, 1, 5).setValues([[cleanName, cleanId, cleanChatId, effLang, effDate]]);
   } else {
     sheet.appendRow([cleanName, cleanId, cleanChatId, effLang, effDate]);
@@ -5801,7 +5824,7 @@ function syncAllTelegramUsers(usersList) {
     
     var targetRow = existingMap[sId] || (sChatId ? existingMap['chat_' + sChatId] : undefined);
     
-    if (targetRow) {
+    if (targetRow && targetRow >= 2) {
       sheet.getRange(targetRow, 1, 1, 5).setValues([[sName, sId, sChatId, sLang, sDate]]);
       updatedCount++;
     } else {
@@ -5833,9 +5856,14 @@ function getTelegramUsers() {
   var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
   var users = [];
   for (var i = 0; i < data.length; i++) {
+    var sName = data[i][0] ? data[i][0].toString().trim() : '';
+    var sId = data[i][1] ? data[i][1].toString().trim() : '';
+    if (sName === 'اسم الطالب' || sId === 'رقم الطالب') continue;
+    if (!sName && !sId) continue;
+
     users.push({
-      studentName: data[i][0] ? data[i][0].toString().trim() : '',
-      studentId: data[i][1] ? data[i][1].toString().trim() : '',
+      studentName: sName,
+      studentId: sId,
       telegramChatId: data[i][2] ? data[i][2].toString().trim() : '',
       preferredLanguage: data[i][3] ? data[i][3].toString().trim() : 'العربية (AR)',
       linkDate: data[i][4] ? (data[i][4] instanceof Date ? Utilities.formatDate(data[i][4], Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss') : data[i][4].toString().trim()) : ''

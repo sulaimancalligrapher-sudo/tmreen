@@ -144,8 +144,15 @@ export default function App() {
   };
 
   // Global Automated Background Telegram Scheduler Runner
+  // Strictly restricted to Admin / Supervisor sessions (or monitoring dashboards) to prevent individual student logins from triggering school-wide broadcasts
   useEffect(() => {
     if (!apiConfigured) return;
+
+    // Only run the central automated scheduler & Telegram Bot updates processor
+    // when an Admin/Supervisor is active (or on Admin/Monitoring screens).
+    // Individual students should NEVER run school-wide schedulers or bot pollers on their devices.
+    const isSupervisorOrAdmin = Boolean(student?.isAdmin || activeScreen === 'admin' || activeScreen === 'monitoring');
+    if (!isSupervisorOrAdmin) return;
 
     let lastSettingsFetchTime = 0;
 
@@ -358,7 +365,7 @@ export default function App() {
     runAutomatedScheduler();
     const interval = setInterval(runAutomatedScheduler, 4000); // Fast check every 4s for real-time responsiveness
     return () => clearInterval(interval);
-  }, [apiConfigured, student]);
+  }, [apiConfigured, student, activeScreen]);
 
   const handleLogout = () => {
     // Notify server of logout if student
