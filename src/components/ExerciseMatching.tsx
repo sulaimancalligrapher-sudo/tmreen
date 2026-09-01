@@ -231,6 +231,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   // Game state
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [selectedLeftId, setSelectedLeftId] = useState<string | null>(null);
   const [activeResults, setActiveResults] = useState<string>('');
   const [checked, setChecked] = useState(false);
   const [playingAudioSrc, setPlayingAudioSrc] = useState<string | null>(null);
@@ -254,6 +255,8 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const drawingRef = useRef(false);
   const dragStartId = useRef<string | null>(null);
   const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
   const [currentLinePos, setCurrentLinePos] = useState<{ x: number; y: number } | null>(null);
 
   const determineTypeFromUrl = (url: string): 'audio' | 'image' | 'text' | 'unknown' => {
@@ -515,7 +518,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     // Add window resize listener to keep lines aligned
     window.addEventListener('resize', drawConnections);
     return () => window.removeEventListener('resize', drawConnections);
-  }, [connections, activeQuestion, checked]);
+  }, [connections, activeQuestion, checked, selectedLeftId]);
 
   const drawConnections = () => {
     const canvas = canvasRef.current;
@@ -540,9 +543,9 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       ctx.beginPath();
       ctx.moveTo(dragStartPos.current.x, dragStartPos.current.y);
       ctx.lineTo(currentLinePos.x, currentLinePos.y);
-      ctx.strokeStyle = '#94a3b8'; // neutral slate
-      ctx.lineWidth = 3;
-      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = '#f59e0b'; // Amber connecting line
+      ctx.lineWidth = 3.5;
+      ctx.setLineDash([6, 6]);
       ctx.stroke();
       ctx.setLineDash([]); // clear dash
     }
@@ -588,12 +591,6 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
       if (!drawingRef.current || !dragStartPos.current) return;
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rectContainer = canvas.parentElement?.getBoundingClientRect();
-      if (!rectContainer) return;
-
       let clientX = 0;
       let clientY = 0;
 
@@ -601,10 +598,28 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
         if (e.touches.length === 0) return;
         clientX = e.touches[0].clientX;
         clientY = e.touches[0].clientY;
+        // CRITICAL FIX FOR TOUCHSCREENS: Prevent page scrolling/viewport panning while drawing lines!
+        if (e.cancelable) {
+          e.preventDefault();
+        }
       } else {
         clientX = e.clientX;
         clientY = e.clientY;
       }
+
+      if (pointerStartPosRef.current) {
+        const dx = Math.abs(clientX - pointerStartPosRef.current.x);
+        const dy = Math.abs(clientY - pointerStartPosRef.current.y);
+        if (dx > 8 || dy > 8) {
+          hasMovedRef.current = true;
+        }
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rectContainer = canvas.parentElement?.getBoundingClientRect();
+      if (!rectContainer) return;
 
       const curX = clientX - rectContainer.left;
       const curY = clientY - rectContainer.top;
@@ -645,20 +660,26 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
         }
       });
 
-      if (dragStartId.current && targetRightId) {
-        const lid = dragStartId.current;
-        const rid = targetRightId;
+      const lid = dragStartId.current;
 
+      if (lid && targetRightId) {
+        // Direct drag connection completed!
+        const rid = targetRightId;
         setConnections((prev) => {
-          // Discard any existing lines starting from this same left node
           const filtered = prev.filter((c) => c.leftId !== lid);
           return [...filtered, { leftId: lid, rightId: rid }];
         });
+        setSelectedLeftId(null);
         SoundEffects.playConnect(volume);
+      } else if (lid && !hasMovedRef.current) {
+        // User tapped on the left card without dragging -> Toggle selection for Tap-to-Connect
+        setSelectedLeftId((prev) => (prev === lid ? null : lid));
       }
 
       dragStartId.current = null;
       dragStartPos.current = null;
+      pointerStartPosRef.current = null;
+      hasMovedRef.current = false;
       setCurrentLinePos(null);
       drawConnections();
     };
@@ -678,8 +699,23 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   // Touch and Mouse Event Helpers to start connection
   const handleStartDraw = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>, leftId: string) => {
+    if (checked) return;
     // Avoid interfering with audio volume or audio play trigger buttons
     if ((e.target as HTMLElement).closest('.play-btn')) return;
+
+    let clientX = 0;
+    let clientY = 0;
+    if ('touches' in e) {
+      if (e.touches.length === 0) return;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    pointerStartPosRef.current = { x: clientX, y: clientY };
+    hasMovedRef.current = false;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -696,6 +732,27 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     dragStartId.current = leftId;
     dragStartPos.current = { x: startX, y: startY };
     setCurrentLinePos({ x: startX, y: startY });
+  };
+
+  // Tap-to-Connect: Handler when tapping a right card
+  const handleRightCardClick = (rightId: string) => {
+    if (checked) return;
+    if (selectedLeftId) {
+      setConnections((prev) => {
+        const filtered = prev.filter((c) => c.leftId !== selectedLeftId);
+        return [...filtered, { leftId: selectedLeftId, rightId }];
+      });
+      SoundEffects.playConnect(volume);
+      setSelectedLeftId(null);
+    }
+  };
+
+  // Tap-to-Connect: Handler when tapping a left card (desktop or click fallback)
+  const handleLeftCardClick = (leftId: string) => {
+    if (checked) return;
+    if (!hasMovedRef.current) {
+      setSelectedLeftId((prev) => (prev === leftId ? null : leftId));
+    }
   };
 
   const stripUrlHash = (url: string): string => {
@@ -916,11 +973,13 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   const handleUndoLastConnection = () => {
     if (connections.length > 0) {
       setConnections((prev) => prev.slice(0, -1));
+      setSelectedLeftId(null);
     }
   };
 
   const handleResetAnswers = () => {
     setConnections([]);
+    setSelectedLeftId(null);
     setActiveResults('');
     setChecked(false);
   };
@@ -941,6 +1000,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       setActiveLessonIndex(lessonIndex);
       setActiveQuestionIndex(0);
       setConnections([]);
+      setSelectedLeftId(null);
       setActiveResults('');
       setChecked(false);
       setLessonAnswers(new Array(10).fill(''));
@@ -955,6 +1015,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     if (activeQuestionIndex < activeLesson!.questions.length - 1) {
       setActiveQuestionIndex((prev) => prev + 1);
       setConnections([]);
+      setSelectedLeftId(null);
       setActiveResults('');
       setChecked(false);
     } else {
@@ -1154,8 +1215,9 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
   }
 
   const getLeftCardClassName = (id: string) => {
+    const isSelected = selectedLeftId === id;
     const isLeftConnected = connections.some((c) => c.leftId === id);
-    const baseClasses = "active:scale-105 border rounded-2xl p-2.5 md:p-4 cursor-pointer text-center font-bold text-sm md:text-lg shadow-sm hover:shadow-md transition duration-350 relative flex items-center justify-center min-h-[70px]";
+    const baseClasses = "active:scale-105 border rounded-2xl p-2.5 md:p-4 cursor-pointer text-center font-bold text-sm md:text-lg shadow-sm hover:shadow-md transition duration-300 relative flex items-center justify-center min-h-[70px] touch-none select-none";
     
     if (checked && activeLesson) {
       const connection = connections.find((c) => c.leftId === id);
@@ -1171,6 +1233,10 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
       }
     }
 
+    if (isSelected) {
+      return `${baseClasses} bg-amber-100 border-amber-500 text-amber-950 ring-4 ring-amber-400/50 shadow-md scale-[1.02] font-black`;
+    }
+
     if (isLeftConnected) {
       return `${baseClasses} bg-amber-50/95 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-amber-50/50`;
     }
@@ -1180,7 +1246,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
 
   const getRightCardClassName = (id: string) => {
     const isRightConnected = connections.some((c) => c.rightId === id);
-    const baseClasses = "border rounded-2xl p-2.5 md:p-4 text-center font-bold text-sm md:text-lg shadow-sm min-h-[70px] flex items-center justify-center relative transition duration-350";
+    const baseClasses = "border rounded-2xl p-2.5 md:p-4 text-center font-bold text-sm md:text-lg shadow-sm min-h-[70px] flex items-center justify-center relative transition duration-300 touch-none select-none";
 
     if (checked && activeLesson) {
       const connection = connections.find((c) => c.rightId === id);
@@ -1197,10 +1263,14 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
     }
 
     if (isRightConnected) {
-      return `${baseClasses} bg-amber-50/95 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-amber-50/50`;
+      return `${baseClasses} bg-amber-50/95 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-amber-50/50 cursor-pointer`;
     }
 
-    return `${baseClasses} bg-slate-50 border-slate-200/80 text-slate-800`;
+    if (selectedLeftId) {
+      return `${baseClasses} bg-slate-50 hover:bg-amber-50/70 border-slate-300 hover:border-amber-400 text-slate-800 cursor-pointer border-dashed active:scale-105`;
+    }
+
+    return `${baseClasses} bg-slate-50 border-slate-200/80 text-slate-800 cursor-pointer`;
   };
 
   // --- 2. RENDER ACTIVE LESSON GAMEPLAY VIEW ---
@@ -1265,15 +1335,32 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
           </div>
 
           {/* Interactive Line-matching canvas container */}
-          <div className="relative border border-slate-100 rounded-3xl bg-white shadow-md p-3 md:p-8 min-h-[400px] select-none">
+          <div className="relative border border-slate-100 rounded-3xl bg-white shadow-md p-3 md:p-8 min-h-[400px] select-none touch-pan-y">
+            {/* Active selection banner for touchscreen / tap-to-connect */}
+            {selectedLeftId && !checked && (
+              <div className="mb-4 p-2.5 px-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-2 animate-fadeIn text-xs text-amber-950 font-bold">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                  <span>{t('exercises.selectedItemNotice', '✨ تم تحديد البطاقة! انقر الآن على الكلمة المقابلة في العمود الثاني لتوصيلها 🔗')}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLeftId(null)}
+                  className="bg-white hover:bg-slate-50 text-slate-700 text-[11px] px-2.5 py-1 rounded-lg border border-amber-300 font-bold transition cursor-pointer shrink-0"
+                >
+                  {t('exercises.cancelSelectionBtn', 'إلغاء التحديد ✕')}
+                </button>
+              </div>
+            )}
+
             {/* Overlay line-drawing canvas */}
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-30" />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-30 touch-none" />
 
             {/* Layout Grid columns - Keep side-by-side on mobile */}
             <div className="grid grid-cols-2 gap-4 md:gap-20 relative z-20">
               {/* Left node cards */}
               <div ref={leftItemsContainerRef} className="space-y-6 flex flex-col justify-center">
-                <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">{t('exercises.groupOneConnectInstruction', 'المجموعة الأولى (انقر واسحب للتوصيل)')}</span>
+                <span className="text-[10px] md:text-xs font-bold text-slate-400 block mb-2">{t('exercises.groupOneConnectInstruction', 'المجموعة الأولى (انقر أو اسحب للتوصيل)')}</span>
                 {shuffledLeftItems.map(({ id, item }) => {
                   const renderType = getItemRenderType(item);
                   return (
@@ -1282,8 +1369,14 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                       data-id={id}
                       onMouseDown={(e) => handleStartDraw(e, id)}
                       onTouchStart={(e) => handleStartDraw(e, id)}
+                      onClick={() => handleLeftCardClick(id)}
                       className={getLeftCardClassName(id)}
                     >
+                      {selectedLeftId === id && !checked && (
+                        <span className="absolute -top-2.5 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm z-10">
+                          🔗
+                        </span>
+                      )}
                       {renderType === 'audio' ? (
                         <button
                           onClick={() => handlePlayAudio(item.value)}
@@ -1304,7 +1397,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           )}
                         </button>
                       ) : renderType === 'image' ? (
-                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt={t('exercises.attachmentAlt', 'مرفق')} className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt={t('exercises.attachmentAlt', 'مرفق')} className="max-h-20 md:max-h-24 object-contain rounded-lg pointer-events-none" />
                       ) : (
                         item.value
                       )}
@@ -1322,6 +1415,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                     <div
                       key={id}
                       data-id={id}
+                      onClick={() => handleRightCardClick(id)}
                       className={getRightCardClassName(id)}
                     >
                       {renderType === 'audio' ? (
@@ -1344,7 +1438,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
                           )}
                         </button>
                       ) : renderType === 'image' ? (
-                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt={t('exercises.attachmentAlt', 'مرفق')} className="max-h-20 md:max-h-24 object-contain rounded-lg" />
+                        <ImageWithLoader src={normalizeImageUrl(item.value)} alt={t('exercises.attachmentAlt', 'مرفق')} className="max-h-20 md:max-h-24 object-contain rounded-lg pointer-events-none" />
                       ) : (
                         item.value
                       )}

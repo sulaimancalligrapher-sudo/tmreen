@@ -2640,14 +2640,24 @@ export const defaultTranslations: TranslationDictionary = {
       th: 'การจับคู่และการเชื่อมโยง',
     },
     groupOneConnectInstruction: {
-      ar: 'المجموعة الأولى (انقر واسحب للتوصيل)',
-      en: 'Group 1 (Click & drag to connect)',
-      th: 'กลุ่มที่ 1 (คลิกและลากเพื่อเชื่อมต่อ)',
+      ar: 'المجموعة الأولى (انقر أو اسحب للتوصيل)',
+      en: 'Group 1 (Tap or drag to connect)',
+      th: 'กลุ่มที่ 1 (แตะหรือลากเพื่อเชื่อมต่อ)',
     },
     groupTwoTargetInstruction: {
       ar: 'المجموعة الثانية (مستقبل الوصلة)',
       en: 'Group 2 (Target node)',
       th: 'กลุ่มที่ 2 (ปลายทางเชื่อมต่อ)',
+    },
+    selectedItemNotice: {
+      ar: '✨ تم تحديد البطاقة! انقر الآن على الكلمة المقابلة في العمود الثاني لتوصيلها 🔗',
+      en: '✨ Card selected! Now tap the matching card in the second column to connect 🔗',
+      th: '✨ เลือกการ์ดแล้ว! แตะการ์ดที่ตรงกันในคอลัมน์ที่สองเพื่อเชื่อมต่อ 🔗',
+    },
+    cancelSelectionBtn: {
+      ar: 'إلغاء التحديد ✕',
+      en: 'Cancel ✕',
+      th: 'ยกเลิก ✕',
     },
     loadingEllipsis: {
       ar: 'تحميل...',
@@ -2685,9 +2695,9 @@ export const defaultTranslations: TranslationDictionary = {
       th: '🔒 การไปยังคำถามถัดไปถูกล็อกไว้ คุณต้องลองใหม่และได้คะแนนเต็ม (ไม่มีข้อผิดพลาด) เพื่อดำเนินการต่อ',
     },
     connectInstructionPrompt: {
-      ar: '* اضغط على أي بطاقة في العمود الأيمن واسحب الخط نحو المطابقة الصحيحة في العمود الأيسر.',
-      en: '* Click any card in the right column and drag the line towards the correct match in the left column.',
-      th: '* คลิกการ์ดใดก็ได้ในคอลัมน์ขวาแล้วลากเส้นไปยังคำตอบที่ถูกต้องในคอลัมน์ซ้าย',
+      ar: '* يمكنك التوصيل بالسحب المباشر بين البطاقتين، أو بالنقر على بطاقة في العمود الأول ثم النقر على البطاقة المقابلة في العمود الثاني.',
+      en: '* You can connect by dragging between cards, or by tapping a card in the first column then tapping the match in the second column.',
+      th: '* คุณสามารถเชื่อมต่อโดยการลากระหว่างการ์ด หรือแตะการ์ดในคอลัมน์แรกแล้วแตะการ์ดที่ตรงกันในคอลัมน์ที่สอง',
     },
     undoBtn: {
       ar: 'تراجع',
