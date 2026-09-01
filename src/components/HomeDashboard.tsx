@@ -43,11 +43,13 @@ import {
   DEFAULT_TELEGRAM_TEMPLATES_AR,
   DEFAULT_TELEGRAM_TEMPLATES_EN,
   DEFAULT_TELEGRAM_TEMPLATES_TH,
+  sendStudentPageCloseBeacon,
 } from '../utils/telegram';
 import {
   dispatchAttendanceTelegramNotification,
   resolveStudentTelegramChatId,
   registerStudentActivePresence,
+  clearStudentActivePresence,
 } from '../utils/telegramScheduler';
 
 interface HomeDashboardProps {
@@ -750,6 +752,41 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     }
   };
 
+  // Helper to determine exact entry notification state (Early, Late Blocked, Late Allowed, or On-time Login)
+  const determineEntryDetails = (now: Date) => {
+    const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 19, sm || 0, 0);
+
+    const durationType = studentCustomSchedule?.customDurationType || attendanceSettings?.durationType || 'from_start';
+    const durationMinutes = (studentCustomSchedule?.customSessionDuration && durationType === studentCustomSchedule?.customDurationType)
+      ? studentCustomSchedule.customSessionDuration
+      : (durationType === 'from_login' ? (Number(attendanceSettings?.sessionDurationFromLogin) || 90) : (Number(attendanceSettings?.sessionDurationFromStart) || 120));
+
+    const endToday = new Date(startToday.getTime() + durationMinutes * 60000);
+    const nowTimeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const isEarly = now.getTime() < startToday.getTime();
+    const isLate = now.getTime() >= endToday.getTime();
+
+    let templateKey: 'earlyEntryAllowed' | 'earlyEntryBlocked' | 'lateEntryBlocked' | 'lateEntryAllowed' | 'login' = 'login';
+
+    if (isEarly) {
+      templateKey = effectivePreventEarlyEntry ? 'earlyEntryBlocked' : 'earlyEntryAllowed';
+    } else if (isLate) {
+      templateKey = attendanceSettings?.timeRestricted ? 'lateEntryBlocked' : 'lateEntryAllowed';
+    } else {
+      templateKey = 'login';
+    }
+
+    return {
+      templateKey,
+      isEarly,
+      isLate,
+      startToday,
+      endToday,
+      nowTimeStr,
+    };
+  };
+
   // Reset dispatch ref when memory is cleared for testing
   useEffect(() => {
     const handleMemoryReset = () => {
@@ -759,6 +796,25 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     return () => window.removeEventListener('telegram_memory_cleared', handleMemoryReset);
   }, []);
 
+  // Listen for student exit / tab closure / navigation to immediately record departure and clear active presence
+  useEffect(() => {
+    if (!student || (student as any).isAdmin) return;
+
+    const handleExit = () => {
+      clearStudentActivePresence(student.id, student.name);
+      sendStudentPageCloseBeacon(student.id, student.name);
+    };
+
+    window.addEventListener('beforeunload', handleExit);
+    window.addEventListener('pagehide', handleExit);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleExit);
+      window.removeEventListener('pagehide', handleExit);
+      handleExit();
+    };
+  }, [student]);
+
   // Automatic Notification & Presence Registration when Student lands on Dashboard
   useEffect(() => {
     if (!attendanceSettings || !student || !isSettingsLoaded) return;
@@ -767,15 +823,12 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     const sName = student.name || student.id || 'student';
     const todayKey = getTodayKey();
     const todayIsoStr = new Date().toISOString().split('T')[0];
-    const nowTimeStr = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
-    
-    // Only dispatch automatic landing alert & register presence if NOT requiring manual punch-in (or if early entry blocked)
     const now = new Date();
-    const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
-    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
-    const isEarly = now.getTime() < startToday.getTime();
+    const entryDetails = determineEntryDetails(now);
+    const nowTimeStr = entryDetails.nowTimeStr;
 
-    if (isEarly && effectivePreventEarlyEntry) {
+    // If early entry is blocked, send early entry blocked alert and prevent presence activation
+    if (entryDetails.isEarly && effectivePreventEarlyEntry) {
       const blockedKey = `tg_blocked_${sId}_${todayIsoStr}`;
       if (!sessionStorage.getItem(blockedKey)) {
         sessionStorage.setItem(blockedKey, 'true');
@@ -806,27 +859,16 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       hasNotifiedEntryRef.current = true;
 
       const triggerLoginNotification = async () => {
-        let sendRes: any = null;
-        if (isEarly && !effectivePreventEarlyEntry) {
-          sendRes = await notifyStudentTelegram('earlyEntryAllowed', {
-            time: effectiveStartTime || '19:00',
-            classTime: effectiveStartTime || '19:00',
-            startTime: effectiveStartTime || '19:00',
-            الوقت: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTimeStr,
-            الوقت_الفعلي: nowTimeStr,
-          });
-        } else {
-          sendRes = await notifyStudentTelegram('login', {
-            time: nowTimeStr,
-            الوقت: nowTimeStr,
-            classTime: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTimeStr,
-            الوقت_الفعلي: nowTimeStr,
-          });
-        }
+        const sendRes = await notifyStudentTelegram(entryDetails.templateKey, {
+          time: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTimeStr,
+          الوقت: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTimeStr,
+          classTime: effectiveStartTime || '19:00',
+          وقت_الحصة: effectiveStartTime || '19:00',
+          startTime: effectiveStartTime || '19:00',
+          وقت_البدء: effectiveStartTime || '19:00',
+          actualTime: nowTimeStr,
+          الوقت_الفعلي: nowTimeStr,
+        });
 
         if (sendRes?.sentToStudent || sendRes?.sentToTeacher || sendRes?.sentToAdmin) {
           sessionStorage.setItem(loginNotifiedKey, 'true');
@@ -846,7 +888,9 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const handlePunchIn = async () => {
     setPunchLoading(true);
     setPunchMessage('');
-    const nowTime = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = new Date();
+    const entryDetails = determineEntryDetails(now);
+    const nowTime = entryDetails.nowTimeStr;
     const sId = student.id || student.name || 'student';
     const sName = student.name || student.id || 'student';
     const todayKey = getTodayKey();
@@ -880,32 +924,17 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         sessionStorage.setItem(loginNotifiedKey, 'true');
         localStorage.setItem(loginNotifiedKey, 'true');
         localStorage.setItem(legacyLoginKey, 'true');
-        
-        const now = new Date();
-        const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
-        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
-        const isEarly = now.getTime() < startToday.getTime();
 
-        if (isEarly && !effectivePreventEarlyEntry) {
-          notifyStudentTelegram('earlyEntryAllowed', {
-            time: effectiveStartTime || '19:00',
-            classTime: effectiveStartTime || '19:00',
-            startTime: effectiveStartTime || '19:00',
-            الوقت: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTime,
-            الوقت_الفعلي: nowTime,
-          });
-        } else {
-          notifyStudentTelegram('login', {
-            time: nowTime,
-            الوقت: nowTime,
-            classTime: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTime,
-            الوقت_الفعلي: nowTime,
-          });
-        }
+        notifyStudentTelegram(entryDetails.templateKey, {
+          time: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTime,
+          الوقت: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTime,
+          classTime: effectiveStartTime || '19:00',
+          وقت_الحصة: effectiveStartTime || '19:00',
+          startTime: effectiveStartTime || '19:00',
+          وقت_البدء: effectiveStartTime || '19:00',
+          actualTime: nowTime,
+          الوقت_الفعلي: nowTime,
+        });
       }
     } catch (e: any) {
       // Fallback local punch in
@@ -931,32 +960,17 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         sessionStorage.setItem(loginNotifiedKey, 'true');
         localStorage.setItem(loginNotifiedKey, 'true');
         localStorage.setItem(legacyLoginKey, 'true');
-        
-        const now = new Date();
-        const [sh, sm] = (effectiveStartTime || '19:00').split(':').map(Number);
-        const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
-        const isEarly = now.getTime() < startToday.getTime();
 
-        if (isEarly && !effectivePreventEarlyEntry) {
-          notifyStudentTelegram('earlyEntryAllowed', {
-            time: effectiveStartTime || '19:00',
-            classTime: effectiveStartTime || '19:00',
-            startTime: effectiveStartTime || '19:00',
-            الوقت: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTime,
-            الوقت_الفعلي: nowTime,
-          });
-        } else {
-          notifyStudentTelegram('login', {
-            time: nowTime,
-            الوقت: nowTime,
-            classTime: effectiveStartTime || '19:00',
-            وقت_الحصة: effectiveStartTime || '19:00',
-            actualTime: nowTime,
-            الوقت_الفعلي: nowTime,
-          });
-        }
+        notifyStudentTelegram(entryDetails.templateKey, {
+          time: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTime,
+          الوقت: entryDetails.isEarly ? (effectiveStartTime || '19:00') : nowTime,
+          classTime: effectiveStartTime || '19:00',
+          وقت_الحصة: effectiveStartTime || '19:00',
+          startTime: effectiveStartTime || '19:00',
+          وقت_البدء: effectiveStartTime || '19:00',
+          actualTime: nowTime,
+          الوقت_الفعلي: nowTime,
+        });
       }
     } finally {
       setPunchLoading(false);

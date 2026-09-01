@@ -800,7 +800,13 @@ export async function dispatchAttendanceTelegramNotification(
   const studentIdentifier = String(student.id || student.name || 'unknown').trim();
   const eventDedupKey = `tg_event_dispatched_${studentIdentifier}_${eventType}_${todayStr}_${classTime}`;
   const legacyDedupKey = `tg_event_dispatched_${studentIdentifier}_${eventType}_${todayStr}`;
-  const isSessionLockEvent = eventType === 'login' || eventType === 'earlyEntryAllowed' || eventType === 'regularExit' || eventType === 'earlyExit';
+  const isSessionLockEvent =
+    eventType === 'login' ||
+    eventType === 'earlyEntryAllowed' ||
+    eventType === 'lateEntryBlocked' ||
+    eventType === 'lateEntryAllowed' ||
+    eventType === 'regularExit' ||
+    eventType === 'earlyExit';
 
   if (!params.forceSend && isSessionLockEvent) {
     if (

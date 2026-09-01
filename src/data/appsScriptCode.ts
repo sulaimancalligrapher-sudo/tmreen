@@ -5267,7 +5267,7 @@ function logStudentPresence(studentId, studentName, actionType) {
   var statusText = 'نشط 🟢';
   if (actionType === 'punch_in') {
     statusText = 'حاضر 🟢';
-  } else if (actionType === 'logout') {
+  } else if (actionType === 'logout' || actionType === 'page_close' || actionType === 'exit') {
     statusText = 'غادر / خرج ⚪';
   }
   
@@ -5276,9 +5276,11 @@ function logStudentPresence(studentId, studentName, actionType) {
     sheet.getRange(foundRow, 8).setValue(statusText);
     if (actionType === 'logout') {
       sheet.getRange(foundRow, 9).setValue('تسجيل خروج يدوي');
+    } else if (actionType === 'page_close' || actionType === 'exit') {
+      sheet.getRange(foundRow, 9).setValue('إغلاق الصفحة / مغادرة');
     }
   } else {
-    sheet.appendRow([todayStr, studentId, studentName, nowTimeStr, nowTimeStr, 1, 0, statusText, actionType === 'punch_in' ? 'تسجيل دخول يدوي للحصة' : 'دخول للموقع']);
+    sheet.appendRow([todayStr, studentId, studentName, nowTimeStr, nowTimeStr, 1, 0, statusText, actionType === 'punch_in' ? 'تسجيل دخول يدوي للحصة' : (actionType === 'page_close' || actionType === 'logout' ? 'إغلاق الصفحة' : 'دخول للموقع')]);
   }
   
   return { success: true, message: 'تم تسجبل النشاط بنجاح' };

@@ -5,7 +5,7 @@
  */
 
 import { TeacherContact, TelegramBotCommandConfig, TelegramLanguageTemplates } from '../types';
-import { callGasApi } from './api';
+import { callGasApi, getApiUrl } from './api';
 
 export interface TelegramInlineKeyboardButton {
   text: string;
@@ -47,6 +47,8 @@ export const DEFAULT_TELEGRAM_TEMPLATES_AR: TelegramLanguageTemplates = {
   login: '🟢 تم تسجيل دخولك يا {{اسم_الطالب}} بنجاح ✅\nتوقيت الدخول: {{الوقت}}\nالدروس المقررة: {{الدرس}}\nحالة الحضور: في الموعد 🌿\nوفقك الله ونفع بك!',
   earlyEntryAllowed: '🌟 مرحباً بك يا {{اسم_الطالب}}!\nتم تسجيل حضورك مبكراً قبل موعد الحصة المقرر ({{الوقت}}) ⏰\nنقدر لك هذا الالتزام والحرص، ونتمنى لك جلسة تعليمية موفقة ومثمرة! 🌿',
   earlyEntryBlocked: '⏳ مرحباً بك يا {{اسم_الطالب}}:\nموعد جلستك المعتمد هو الساعة {{الوقت}} ⏰\nيرجى الدخول عند حلول الوقت المحدد للبدء بنجاح 📚',
+  lateEntryBlocked: '⚠️ **تنبيه الدخول المتأخر (انتهاء وقت الحصة):**\nمرحباً يا {{اسم_الطالب}} (#{{رقم_الطالب}})\nلقد دخلت متأخراً بعد انتهاء وقت الحصة المقرر ({{وقت_الحصة}}).\n🔒 **حالة التمارين:** تم قفل الأنشطة ومنع الإجابة لانتهاء الوقت المحدد.\n📞 **يرجى التواصل مع الإدارة أو المعلم المشرف لإتاحة الحصة أو إعادة الجدولة.**',
+  lateEntryAllowed: '⏰ **تنبيه الدخول المتأخر:**\nمرحباً يا {{اسم_الطالب}} (#{{رقم_الطالب}})\nلقد تم تسجيل دخولك في تمام الساعة {{الوقت_الفعلي}} بعد موعد الحصة المقرر ({{وقت_الحصة}}).\n🔓 **حالة التمارين:** يمكنك متابعة وحل التمارين والأنشطة الآن.\n🌿 نرجو منك الحرص على الحضور بالموعد في المرات القادمة لتحقيق أقصى استفادة!',
   preClass: '⏰ تذكير بموعد الحصة:\nمرحباً بك يا {{اسم_الطالب}}، تبدأ حصتك اليوم الساعة {{الوقت}}.\nيرجى الاستعداد والتواجد في الموعد لمتابعة دروسك المقررة 📚',
   absent: '⚠️ تنبيه التأخر عن الحصة:\nمرحباً يا {{اسم_الطالب}}، حان موعد حصتك اليوم الساعة {{الوقت}} ولم يتم تسجيل دخولك بعد.\nيرجى الدخول للمنصة الآن لتجنب احتساب الغياب 🚨',
   earlyExit: '🚪 إشعار تسجيل الخروج المبكر:\nمرحباً يا {{اسم_الطالب}}، تم تسجيل خروجك في تمام الساعة {{الوقت_الفعلي}} قبل انتهاء وقت الحصة المقرر ({{وقت_الحصة}}).\nيرجى مراجعة الجدول لاستكمال الوقت المتبقي ⏳',
@@ -73,6 +75,8 @@ export const DEFAULT_TELEGRAM_TEMPLATES_EN: TelegramLanguageTemplates = {
   login: '🟢 Welcome {{student_name}}, your login is confirmed ✅\nLogin Time: {{time}}\nAssigned Lessons: {{lesson}}\nStatus: Present On Time 🌿\nWishing you every success!',
   earlyEntryAllowed: '🌟 Welcome {{student_name}}!\nYou have checked in early before your scheduled class time ({{time}}) ⏰\nWe appreciate your dedication and punctuality! 🌿',
   earlyEntryBlocked: '⏳ Notice for {{student_name}}:\nYour scheduled session time is at ({{time}}) ⏰\nPlease join when the class starts to begin successfully 📚',
+  lateEntryBlocked: '⚠️ **Late Entry Alert (Session Expired):**\nHello {{student_name}} (#{{student_id}})\nYou have logged in late after the scheduled session time ({{class_time}}).\n🔒 **Exercises Status:** Exercises are locked and responses are disabled due to session expiry.\n📞 **Please contact administration or your teacher to request access or reschedule.**',
+  lateEntryAllowed: '⏰ **Late Entry Notice:**\nHello {{student_name}} (#{{student_id}})\nYour login was recorded at {{actual_time}} after the scheduled class time ({{class_time}}).\n🔓 **Exercises Status:** You can now proceed and solve exercises and activities.\n🌿 Please make sure to attend on time in future sessions for best learning outcomes!',
   preClass: '⏰ Upcoming Class Reminder:\nHello {{student_name}}, your class starts today at {{time}}.\nPlease be ready on time to join your session 📚',
   absent: '⚠️ Class Delay Alert:\nHello {{student_name}}, your class was scheduled today at {{time}} and login is not recorded yet.\nPlease log in now to avoid being marked absent 🚨',
   earlyExit: '🚪 Early Checkout Notice:\nHello {{student_name}}, checkout recorded at {{actual_time}} before scheduled session end ({{class_time}}).\nPlease review your schedule to complete remaining time ⏳',
@@ -99,6 +103,8 @@ export const DEFAULT_TELEGRAM_TEMPLATES_TH: TelegramLanguageTemplates = {
   login: '🟢 ยินดีต้อนรับคุณ {{student_name}} บันทึกการเข้าสู่ระบบเรียบร้อย ✅\nเวลาเข้าสู่ระบบ: {{time}}\nบทเรียนวันนี้: {{lesson}}\nสถานะ: เข้าเรียนตรงเวลา 🌿\nขอให้ประสบความสำเร็จในการเรียน!',
   earlyEntryAllowed: '🌟 ยินดีต้อนรับคุณ {{student_name}}!\nคุณได้เข้าสู่ระบบล่วงหน้าก่อนเวลาเรียนที่กำหนด ({{time}}) ⏰\nขอชื่นชมในความตรงต่อเวลาและการเตรียมพร้อม! 🌿',
   earlyEntryBlocked: '⏳ แจ้งเตือนคุณ {{student_name}}:\nเวลาเรียนที่กำหนดคือ ({{time}}) ⏰\nกรุณาเข้าสู่ระบบเมื่อถึงเวลาเรียนที่กำหนด 📚',
+  lateEntryBlocked: '⚠️ **แจ้งเตือนการเข้าเรียนสาย (หมดเวลาคาบเรียน):**\nสวัสดีคุณ {{student_name}} (#{{student_id}})\nคุณได้เข้าสู่ระบบล่าช้าหลังจากหมดเวลาคาบเรียนที่กำหนด ({{class_time}})\n🔒 **สถานะแบบฝึกหัด:** ระบบได้ล็อกแบบฝึกหัดและปิดการส่งคำตอบเนื่องจากหมดเวลา\n📞 **กรุณาติดต่อฝ่ายบริหารหรือคุณครูผู้ดูแลเพื่อขอเปิดสิทธิ์หรือจัดตารางใหม่**',
+  lateEntryAllowed: '⏰ **แจ้งเตือนการเข้าเรียนสาย:**\nสวัสดีคุณ {{student_name}} (#{{student_id}})\nระบบบันทึกเวลาเข้าเรียนของคุณเมื่อ {{actual_time}} ซึ่งเลยเวลาเริ่มเรียนที่กำหนด ({{class_time}})\n🔓 **สถานะแบบฝึกหัด:** คุณสามารถทำแบบฝึกหัดและกิจกรรมได้ตามปกติ\n🌿 กรุณาเข้าเรียนให้ตรงเวลาในครั้งถัดไปเพื่อประโยชน์สูงสุดในการเรียนรู้!',
   preClass: '⏰ แจ้งเตือนก่อนเริ่มคาบเรียน:\nสวัสดีคุณ {{student_name}} คาบเรียนของคุณจะเริ่มเวลา {{time}}\nกรุณาเตรียมตัวเข้าสู่ระบบตรงเวลา 📚',
   absent: '⚠️ แจ้งเตือนการเข้าเรียนล่าช้า:\nสวัสดีคุณ {{student_name}} ถึงเวลาเรียนของคุณแล้ว ({{time}}) แต่ยังไม่ได้เข้าสู่ระบบ\nกรุณาเข้าสู่ระบบทันทีเพื่อไม่ให้เสียสิทธิ์การเข้าเรียน 🚨',
   earlyExit: '🚪 แจ้งเตือนการออกจากระบบก่อนเวลา:\nขอแจ้งให้ทราบว่าคุณ {{student_name}} ได้ออกจากระบบเวลา {{actual_time}} ก่อนเวลาสิ้นสุดคาบเรียน ({{class_time}})\nกรุณาตรวจสอบตารางเรียนเพื่อติดตามบทเรียน ⏳',
@@ -1254,6 +1260,35 @@ export async function syncAllTelegramUsersToSheet(
   return callGasApi<{ success: boolean; message?: string; total?: number }>('syncAllTelegramUsers', {
     usersList: validUsers,
   });
+}
+
+/**
+ * Sends a lightweight, reliable beacon/keepalive to Google Apps Script when a student closes the tab/page.
+ * Immediately registers their exit in the AttendanceLogs sheet without blocking page unload.
+ */
+export function sendStudentPageCloseBeacon(studentId: string, studentName?: string): void {
+  const url = getApiUrl();
+  if (!url || !studentId || studentId === 'admin' || studentId === 'admin_preview') return;
+  const payload = JSON.stringify({
+    action: 'logStudentPresence',
+    studentId,
+    studentName: studentName || '',
+    actionType: 'page_close',
+  });
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
+      navigator.sendBeacon(url, blob);
+    } else {
+      fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        keepalive: true,
+        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
+      }).catch(() => {});
+    }
+  } catch (e) {}
 }
 
 

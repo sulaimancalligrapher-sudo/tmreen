@@ -213,6 +213,8 @@ export interface TelegramLanguageTemplates {
   login: string;
   earlyEntryAllowed?: string;
   earlyEntryBlocked?: string;
+  lateEntryBlocked?: string;
+  lateEntryAllowed?: string;
   preClass: string;
   absent: string;
   earlyExit?: string;
