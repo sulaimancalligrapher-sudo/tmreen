@@ -9,6 +9,12 @@ import {
   TelegramSignupRecord,
 } from './telegram';
 import {
+  dispatchTeacherExceptionalRecheckReport,
+  dispatchTeacherPostSessionWrapup,
+  dispatchTeacherMidClassSnapshot,
+  dispatchTeacherPreClassBriefing,
+} from './telegramScheduler';
+import {
   buildStudentMasterMenuKeyboard,
   isCompletedLessonsQuery,
   isEvaluationResultsQuery,
@@ -455,6 +461,41 @@ export async function processTelegramBotUpdates(params: ProcessTelegramUpdatesPa
         continue;
       }
 
+      // I. Teacher Recheck / Exceptional Attendance Scan (cmd_teacher_recheck)
+      if (cqData === 'cmd_teacher_recheck' || cqData === 'cmd_recheck') {
+        await sendTelegramMessage({
+          token: cleanToken,
+          chatId,
+          text: `⏳ **جاري الفحص المباشر وإعادة مطابقة الحضور...**\n_يتم فحص سجلات اليوم وحالات الدخول اللحظية..._`,
+          skipDeduplication: true,
+        }).catch(() => {});
+
+        await dispatchTeacherExceptionalRecheckReport({
+          settings,
+          schedules: allSchedules,
+          targetChatId: chatId,
+          forceSend: true,
+        }).catch(() => {});
+        continue;
+      }
+
+      // J. Teacher Wrapup / End-of-Day Summary (cmd_teacher_wrapup)
+      if (cqData === 'cmd_teacher_wrapup' || cqData === 'cmd_wrapup') {
+        await sendTelegramMessage({
+          token: cleanToken,
+          chatId,
+          text: `⏳ **جاري تجهيز التقرير الختامي الشامل...**`,
+          skipDeduplication: true,
+        }).catch(() => {});
+
+        await dispatchTeacherPostSessionWrapup({
+          settings,
+          schedules: allSchedules,
+          classTime: settings.startTime || '19:00',
+        }).catch(() => {});
+        continue;
+      }
+
       // Default answer callback query for unhandled buttons
       await answerTelegramCallbackQuery(cleanToken, cq.callbackQueryId).catch(() => {});
     }
@@ -701,7 +742,42 @@ export async function processTelegramBotUpdates(params: ProcessTelegramUpdatesPa
         continue;
       }
 
-      // H. Student ID Submission (e.g. typing "101", "طالب 101", "#101", etc.)
+      // H. Teacher / Admin Recheck & Attendance Scans (/recheck, /attendance, /summary, /eod, فحص, تقرير, etc.)
+      const lowerText = rawText.toLowerCase();
+      const isRecheckCommand =
+        lowerText === '/recheck' ||
+        lowerText === '/check' ||
+        lowerText === '/attendance' ||
+        lowerText === '/summary' ||
+        lowerText === '/eod' ||
+        lowerText === '/report' ||
+        rawText.includes('فحص الحضور') ||
+        rawText.includes('إعادة فحص') ||
+        rawText.includes('اعادة فحص') ||
+        rawText.includes('فحص استثنائي') ||
+        rawText.includes('تقرير الحضور') ||
+        rawText === 'فحص' ||
+        rawText === 'تقرير' ||
+        rawText === 'ملخص';
+
+      if (isRecheckCommand) {
+        await sendTelegramMessage({
+          token: cleanToken,
+          chatId,
+          text: `⏳ **جاري فحص حالة الحضور والغياب اللحظية لجميع المشتركين...**`,
+          skipDeduplication: true,
+        }).catch(() => {});
+
+        await dispatchTeacherExceptionalRecheckReport({
+          settings,
+          schedules: allSchedules,
+          targetChatId: chatId,
+          forceSend: true,
+        }).catch(() => {});
+        continue;
+      }
+
+      // I. Student ID Submission (e.g. typing "101", "طالب 101", "#101", etc.)
       let potentialId = rawText.replace(/^(?:طالب|student|رقم\s*طالب|رقم\s*الدراسي|رقم|تسجيل|معرف|id|reg|code)\s*[:#-]?\s*/i, '').trim();
       potentialId = potentialId.replace(/^[#:]+/, '').trim();
 

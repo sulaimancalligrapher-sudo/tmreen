@@ -558,6 +558,21 @@ export function normalizeTelegramLanguage(lang?: any): 'ar' | 'en' | 'th' {
 }
 
 /**
+ * Normalizes time string to standard 'HH:mm' format
+ */
+export function normalizeTimeSlot(timeStr?: string): string {
+  if (!timeStr) return '19:00';
+  const clean = String(timeStr).trim().replace(/^'+/, '');
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match) {
+    const h = String(parseInt(match[1], 10)).padStart(2, '0');
+    const m = match[2];
+    return `${h}:${m}`;
+  }
+  return clean || '19:00';
+}
+
+/**
  * Resolves the student's Telegram Chat ID from multiple fallback sources.
  */
 export function resolveStudentTelegramChatId(
@@ -566,12 +581,13 @@ export function resolveStudentTelegramChatId(
   explicitChatId?: string
 ): { chatId: string; lang: 'ar' | 'en' | 'th' } {
   if (explicitChatId && explicitChatId.trim()) {
+    const cleanCid = explicitChatId.trim();
     let lang: 'ar' | 'en' | 'th' = 'ar';
     try {
-      const storedLang = localStorage.getItem(`tg_chat_lang_${explicitChatId.trim()}`);
+      const storedLang = localStorage.getItem(`tg_chat_lang_${cleanCid}`);
       if (storedLang) lang = normalizeTelegramLanguage(storedLang);
     } catch (e) {}
-    return { chatId: explicitChatId.trim(), lang };
+    return { chatId: cleanCid, lang };
   }
 
   const sId = String(studentId || '').trim();
@@ -603,9 +619,13 @@ export function resolveStudentTelegramChatId(
           const parsed = JSON.parse(raw);
           const cid = parsed.telegramChatId || parsed.chatId;
           if (cid && String(cid).trim()) {
+            const cleanCid = String(cid).trim();
+            const userChosenLang = localStorage.getItem(`tg_chat_lang_${cleanCid}`);
             return {
-              chatId: String(cid).trim(),
-              lang: normalizeTelegramLanguage(parsed.preferredLang || parsed.preferredLanguage || parsed.languagePreference),
+              chatId: cleanCid,
+              lang: userChosenLang
+                ? normalizeTelegramLanguage(userChosenLang)
+                : normalizeTelegramLanguage(parsed.preferredLang || parsed.preferredLanguage || parsed.languagePreference),
             };
           }
         } catch (e) {
@@ -639,9 +659,13 @@ export function resolveStudentTelegramChatId(
             );
           });
           if (matched && matched.telegramChatId && String(matched.telegramChatId).trim()) {
+            const cleanCid = String(matched.telegramChatId).trim();
+            const userChosenLang = localStorage.getItem(`tg_chat_lang_${cleanCid}`);
             return {
-              chatId: String(matched.telegramChatId).trim(),
-              lang: normalizeTelegramLanguage(matched.preferredLanguage || matched.preferredLang),
+              chatId: cleanCid,
+              lang: userChosenLang
+                ? normalizeTelegramLanguage(userChosenLang)
+                : normalizeTelegramLanguage(matched.preferredLanguage || matched.preferredLang),
             };
           }
         }
@@ -903,22 +927,19 @@ export async function dispatchTeacherPreClassBriefing(options: {
   const botToken = settings.telegramToken?.trim();
   if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
 
-  // Filter real students
+  const normClassTime = normalizeTimeSlot(classTime);
+
+  // Filter real students for this specific time slot
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
-    const sTime = s.customStartTime || settings.startTime || '19:00';
-    const matchesTime = sTime === classTime;
+    const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
+    const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
     return matchesTime && matchesTeacher;
   });
 
-  // Fallback: If no students matched exact time, use all real students in schedules
   if (targetStudents.length === 0) {
-    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName));
-  }
-
-  if (targetStudents.length === 0) {
-    return { ok: false, error: 'لا يوجد مشتركون مسجلون في الجدول حالياً' };
+    return { ok: false, error: `لا يوجد مشتركون مسجلون لحصة الساعة ${classTime}` };
   }
 
   const teacherName = targetTeacher?.name || 'المعلم المشرف';
@@ -926,7 +947,7 @@ export async function dispatchTeacherPreClassBriefing(options: {
     .map((s, idx) => `${idx + 1}️⃣ ${s.studentName} (#${s.studentId})`)
     .join('\n');
 
-  const briefingMessage = `👨‍🏫 مرحباً يا أستاذ ${teacherName}،\n⏰ تذكير: ستبدأ الحصة اليوم في تمام الساعة ${classTime} (خلال ${reminderMinutes} دقيقة) 📚\n\n👥 قائمة المشتركين المقرر حضورهم في هذه الساعة (${targetStudents.length}):\n${studentListText}\n\n✨ يرجى الاستعداد واستقبال المشتركين في الموعد المحدد. نتمنى لكم حصة موفقة ومثمرة! 🌿`;
+  const briefingMessage = `👨‍🏫 مرحباً يا أستاذ ${teacherName}،\n⏰ تذكير: ستبدأ الحصة اليوم في تمام الساعة ${normClassTime} (خلال ${reminderMinutes} دقيقة) 📚\n\n👥 قائمة المشتركين المقرر حضورهم في هذه الساعة (${targetStudents.length}):\n${studentListText}\n\n✨ يرجى الاستعداد واستقبال المشتركين في الموعد المحدد. نتمنى لكم حصة موفقة ومثمرة! 🌿`;
 
   const recipients = new Set<string>();
   if (targetTeacher?.telegramChatId?.trim()) {
@@ -980,21 +1001,18 @@ export async function dispatchTeacherMidClassSnapshot(options: {
 
   const now = new Date();
   const nowTimeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const normClassTime = normalizeTimeSlot(classTime);
 
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
-    const sTime = s.customStartTime || settings.startTime || '19:00';
-    const matchesTime = sTime === classTime;
+    const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
+    const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
     return matchesTime && matchesTeacher;
   });
 
   if (targetStudents.length === 0) {
-    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName));
-  }
-
-  if (targetStudents.length === 0) {
-    return { ok: false, error: 'لا يوجد مشتركون مسجلون في الجدول حالياً' };
+    return { ok: false, error: `لا يوجد مشتركون مسجلون لحصة الساعة ${classTime}` };
   }
 
   const presentList: { name: string; id: string; entryTime: string }[] = [];
@@ -1013,10 +1031,10 @@ export async function dispatchTeacherMidClassSnapshot(options: {
   }
 
   const total = targetStudents.length;
-  const attendanceRate = Math.round((presentList.length / total) * 100);
+  const attendanceRate = total > 0 ? Math.round((presentList.length / total) * 100) : 0;
   const teacherName = targetTeacher?.name || 'المعلم المشرف';
 
-  let snapshotMessage = `📋 تقرير المتابعة اللحظية لحضور الحصة:\n👨‍🏫 الأستاذ: ${teacherName}\n⏰ توقيت الحصة: ${classTime} | الوقت الحالي: ${nowTimeStr}\n\n`;
+  let snapshotMessage = `📋 تقرير المتابعة اللحظية لحضور الحصة:\n👨‍🏫 الأستاذ: ${teacherName}\n⏰ توقيت الحصة: ${normClassTime} | الوقت الحالي: ${nowTimeStr}\n\n`;
 
   if (presentList.length > 0) {
     snapshotMessage += `🟢 الحاضرون الذين سجلوا دخولهم (${presentList.length}):\n`;
@@ -1088,21 +1106,18 @@ export async function dispatchTeacherPostSessionWrapup(options: {
 
   const now = new Date();
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const normClassTime = normalizeTimeSlot(classTime);
 
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
-    const sTime = s.customStartTime || settings.startTime || '19:00';
-    const matchesTime = sTime === classTime;
+    const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
+    const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
     return matchesTime && matchesTeacher;
   });
 
   if (targetStudents.length === 0) {
-    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName));
-  }
-
-  if (targetStudents.length === 0) {
-    return { ok: false, error: 'لا يوجد مشتركون مسجلون في الجدول حالياً' };
+    return { ok: false, error: `لا يوجد مشتركون مسجلون لحصة الساعة ${classTime}` };
   }
 
   const attendedList: { name: string; id: string }[] = [];
@@ -1121,10 +1136,10 @@ export async function dispatchTeacherPostSessionWrapup(options: {
   }
 
   const total = targetStudents.length;
-  const attendanceRate = Math.round((attendedList.length / total) * 100);
+  const attendanceRate = total > 0 ? Math.round((attendedList.length / total) * 100) : 0;
   const teacherName = targetTeacher?.name || 'المعلم المشرف';
 
-  let wrapupMessage = `📊 التقرير الختامي الشامل لحصة اليوم:\n👨‍🏫 الأستاذ: ${teacherName}\n📅 التاريخ: ${todayIsoKey} | ⏰ توقيت الحصة: ${classTime}\n\n`;
+  let wrapupMessage = `📊 التقرير الختامي الشامل لحصة اليوم:\n👨‍🏫 الأستاذ: ${teacherName}\n📅 التاريخ: ${todayIsoKey} | ⏰ توقيت الحصة: ${normClassTime}\n\n`;
 
   if (attendedList.length > 0) {
     wrapupMessage += `🟢 إجمالي الحاضرين والمنجزين (${attendedList.length}):\n`;
@@ -1178,6 +1193,170 @@ export async function dispatchTeacherPostSessionWrapup(options: {
   }
 
   return { ok: anySent, message: wrapupMessage };
+}
+
+/**
+ * 4️⃣ Exceptional Re-Check & End-of-Day Final Attendance Report
+ * (تقرير الفحص الاستثنائي المحدّث / نهاية اليوم لمعرفة الحاضرين في الموعد، المتأخرين، والغائبين)
+ * Provides a fresh live scan of actual attendance, explicitly differentiating:
+ * - On-time attendees 🟢
+ * - Late entries ⏰ with actual entry timestamp
+ * - Inactive/absent 🔴
+ * - Total recalculated attendance rate %
+ */
+export async function dispatchTeacherExceptionalRecheckReport(options: {
+  settings: AttendanceSettings;
+  schedules: StudentSchedule[];
+  classTime?: string;
+  targetTeacher?: TeacherContact;
+  targetChatId?: string;
+  forceSend?: boolean;
+}): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const { settings, schedules, classTime, targetTeacher, targetChatId, forceSend } = options;
+  const botToken = settings.telegramToken?.trim();
+  if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
+
+  const now = new Date();
+  const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const nowTimeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const normClassTime = classTime ? normalizeTimeSlot(classTime) : '';
+
+  let targetStudents = schedules.filter((s) => {
+    if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
+    if (normClassTime) {
+      const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
+      if (sTime !== normClassTime) return false;
+    }
+    const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
+    return matchesTeacher;
+  });
+
+  if (targetStudents.length === 0) {
+    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName));
+  }
+
+  if (targetStudents.length === 0) {
+    return { ok: false, error: 'لا يوجد مشتركون مسجلون في الجدول حالياً' };
+  }
+
+  const onTimeList: { name: string; id: string; entryTime: string }[] = [];
+  const lateList: { name: string; id: string; entryTime: string }[] = [];
+  const absentList: { name: string; id: string }[] = [];
+
+  for (const s of targetStudents) {
+    const studentId = s.studentId;
+    const studentName = s.studentName;
+    const sStartTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
+    const [sh, sm] = sStartTime.split(':').map(Number);
+    const scheduledStartMins = (sh || 19) * 60 + (sm || 0);
+
+    const presence = isStudentPresentOrActiveToday(studentId, studentName);
+
+    if (presence.isPresent) {
+      const entryTime = presence.entryTime || 'في الموعد';
+      let entryMins = scheduledStartMins;
+      const match = entryTime.match(/(\d{1,2}):(\d{2})/);
+      if (match) {
+        entryMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+      }
+
+      const lateDelay = Number(settings.telegramLateAlertDelayMinutes) || 10;
+      if (entryMins > scheduledStartMins + lateDelay) {
+        lateList.push({ name: studentName, id: studentId, entryTime });
+      } else {
+        onTimeList.push({ name: studentName, id: studentId, entryTime });
+      }
+    } else {
+      absentList.push({ name: studentName, id: studentId });
+    }
+  }
+
+  const total = targetStudents.length;
+  const totalAttended = onTimeList.length + lateList.length;
+  const attendanceRate = total > 0 ? Math.round((totalAttended / total) * 100) : 0;
+  const teacherName = targetTeacher?.name || 'المعلم المشرف';
+
+  let recheckMessage = `🔍 **تقرير الفحص الاستثنائي المحدّث لحضور المشتركين:**\n` +
+    `👨‍🏫 **الأستاذ المشرف:** ${teacherName}\n` +
+    `📅 **التاريخ:** ${todayIsoKey} | ⏰ **وقت الفحص:** ${nowTimeStr}\n\n`;
+
+  if (onTimeList.length > 0) {
+    recheckMessage += `🟢 **الحاضرون في الموعد المعتمد (${onTimeList.length}):**\n`;
+    recheckMessage += onTimeList.map((p) => `• ${p.name} (#${p.id}) - وقت الدخول: ${p.entryTime} ✅`).join('\n');
+    recheckMessage += '\n\n';
+  } else {
+    recheckMessage += `🟢 **الحاضرون في الموعد:** 0 مشترك\n\n`;
+  }
+
+  if (lateList.length > 0) {
+    recheckMessage += `⏰ **الحاضرون المتأخرون (${lateList.length}):**\n`;
+    recheckMessage += lateList.map((l) => `• ${l.name} (#${l.id}) - دخل متأخراً: ${l.entryTime} ⏳ (تم احتساب الحضور)`).join('\n');
+    recheckMessage += '\n\n';
+  }
+
+  if (absentList.length > 0) {
+    recheckMessage += `🔴 **الغائبون تماماً (${absentList.length}):**\n`;
+    recheckMessage += absentList.map((ab) => `• ${ab.name} (#${ab.id}) - لم يسجل دخول ❌`).join('\n');
+    recheckMessage += '\n\n';
+  } else {
+    recheckMessage += `🌟 **اكتمل حضور جميع المشتركين بنجاح 100%!** 👏\n\n`;
+  }
+
+  recheckMessage += `📊 **الملخص الإحصائي المحدّث:**\n` +
+    `👥 إجمالي المشتركين: ${total} مشترك\n` +
+    `✅ إجمالي الحاضرين الفعلي: ${totalAttended} مشترك\n` +
+    `❌ إجمالي الغياب: ${absentList.length} مشترك\n` +
+    `🎯 نسبة الحضور الإجمالية: ${attendanceRate}%`;
+
+  const recipients = new Set<string>();
+  if (targetChatId?.trim()) {
+    recipients.add(targetChatId.trim());
+  } else if (targetTeacher?.telegramChatId?.trim()) {
+    recipients.add(targetTeacher.telegramChatId.trim());
+  } else {
+    const teacherChatIds = (settings.teachers || [])
+      .filter((t) => t.enabled && t.telegramChatId?.trim())
+      .map((t) => t.telegramChatId.trim());
+
+    if (teacherChatIds.length > 0) {
+      teacherChatIds.forEach((id) => recipients.add(id));
+    } else {
+      if (settings.telegramChatId?.trim()) recipients.add(settings.telegramChatId.trim());
+      if (settings.telegramAdminUserId?.trim()) recipients.add(settings.telegramAdminUserId.trim());
+    }
+  }
+
+  if (recipients.size === 0) {
+    return { ok: false, error: 'لا يوجد معرّف محادثة (Chat ID) مسجل للمعلم أو الإدارة' };
+  }
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: '🔄 إعادة فحص الحضور وتحديث', callback_data: 'cmd_teacher_recheck' },
+        { text: '📊 التقرير الختامي', callback_data: 'cmd_teacher_wrapup' },
+      ],
+      [
+        { text: '🏠 القائمة الرئيسية للخدمات', callback_data: 'cmd_master_menu' },
+      ],
+    ],
+  };
+
+  let anySent = false;
+  for (const chatId of recipients) {
+    try {
+      const res = await sendTelegramMessage({
+        token: botToken,
+        chatId,
+        text: recheckMessage,
+        replyMarkup,
+        skipDeduplication: true,
+      });
+      if (res.ok) anySent = true;
+    } catch (e) {}
+  }
+
+  return { ok: anySent, message: recheckMessage };
 }
 
 export interface SchedulerStudentDiagnostic {
@@ -1309,7 +1488,7 @@ export async function checkAndDispatchAutomatedAlerts(
   // Collect unique class start times to manage Teacher Consolidated Digests
   const timeSlots = new Set<string>();
   for (const s of activeSchedules) {
-    timeSlots.add(s.customStartTime || settings.startTime || '19:00');
+    timeSlots.add(normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00'));
   }
 
   // -----------------------------------------------------------------

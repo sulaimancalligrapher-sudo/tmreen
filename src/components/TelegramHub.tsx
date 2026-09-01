@@ -22,6 +22,7 @@ import {
   dispatchTeacherPreClassBriefing,
   dispatchTeacherMidClassSnapshot,
   dispatchTeacherPostSessionWrapup,
+  dispatchTeacherExceptionalRecheckReport,
   isRealStudentRecord,
   checkAndDispatchAutomatedAlerts,
   AutomatedSchedulerResult,
@@ -1734,6 +1735,34 @@ export default function TelegramHub({
     }
   };
 
+  // Test Exceptional Live Attendance Re-check Digest
+  const handleTestTeacherRecheck = async () => {
+    if (!settings.telegramToken) {
+      setDigestTestFeedback({ ok: false, message: '⚠️ يرجى ضبط وتفعيل توكن البوت أولاً.' });
+      return;
+    }
+    clearTelegramDispatchCache();
+    setTestingDigestType('recheck' as any);
+    setDigestTestFeedback(null);
+    try {
+      const res = await dispatchTeacherExceptionalRecheckReport({
+        settings: { ...settings, teachers },
+        schedules: localSchedules,
+        classTime: simulatedClassTime || settings.startTime || '19:00',
+        forceSend: true,
+      });
+      if (res.ok) {
+        setDigestTestFeedback({ ok: true, message: '✅ تم إرسال تقرير الفحص الاستثنائي المحدّث للحضور بنجاح إلى المعلم والإدارة!' });
+      } else {
+        setDigestTestFeedback({ ok: false, message: `❌ ${res.error || 'تعذر إرسال التقرير'}` });
+      }
+    } catch (e: any) {
+      setDigestTestFeedback({ ok: false, message: `❌ خطأ: ${e.message}` });
+    } finally {
+      setTestingDigestType(null);
+    }
+  };
+
   // Test Trigger Automated Notification
   const handleTestTriggerNotification = async () => {
     if (!settings.telegramToken) {
@@ -2977,6 +3006,25 @@ export default function TelegramHub({
                         className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 disabled:opacity-50"
                       >
                         {testingDigestType === 'postSession' ? 'جاري الإرسال...' : '🚀 تجربة'}
+                      </button>
+                    </div>
+
+                    {/* Report 4: Live Recheck & End-of-Day Scan */}
+                    <div className="bg-slate-950/90 border border-indigo-500/30 p-2.5 rounded-xl flex items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>4️⃣ فحص استثنائي محدّث للحضور (أو نهاية اليوم)</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">فحص فوري ودقيق يفرز الحاضرين بالموعد، المتأخرين، والغائبين في رسالة تفاعلية</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestTeacherRecheck}
+                        disabled={testingDigestType !== null}
+                        className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 disabled:opacity-50"
+                      >
+                        {(testingDigestType as any) === 'recheck' ? 'جاري الفحص...' : '🔍 فحص الآن'}
                       </button>
                     </div>
                   </div>
