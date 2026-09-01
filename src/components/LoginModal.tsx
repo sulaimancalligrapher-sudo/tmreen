@@ -388,32 +388,51 @@ export default function LoginModal({
     }
   };
 
+  // Helper to ensure input scrolls into view smoothly above mobile virtual keyboard
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const el = e.target;
+    setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 280);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col justify-start sm:justify-center items-center p-3 sm:p-6 overflow-y-auto pt-4 pb-28 sm:py-8 overscroll-contain" dir="rtl">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3 }}
-        className="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-w-md w-full p-8 space-y-6 relative"
+        className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-xl sm:shadow-2xl overflow-visible max-w-md w-full p-4 sm:p-8 space-y-4 sm:space-y-6 relative my-auto"
       >
-        <div className="flex justify-between items-start">
-          <div className="w-10 h-10" /> {/* spacer for alignment */}
-          <div className="text-center space-y-2 flex-1">
-            <div className="inline-flex bg-amber-50 p-4 rounded-full text-amber-500 mb-1">
-              {loginMode === 'student' ? <User className="w-8 h-8" /> : <ShieldAlert className="w-8 h-8 text-slate-800" />}
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 font-sans">
-              {loginMode === 'student'
-                ? t('login.studentPortalTitle', 'بوابة الطالب الذكية')
-                : t('login.adminPortalTitle', 'بوابة المسؤولين والإدارة')}
-            </h1>
-            <p className="text-slate-500 text-sm">
-              {loginMode === 'student' 
-                ? t('login.studentSubtitle', 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.')
-                : t('login.adminSubtitle', 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.')}
-            </p>
+        {/* Header: Customized specifically for mobile (vertical stack: Icon -> Title -> Subtitle -> Language Switcher) while preserving Desktop/Tablet */}
+        <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
+          {/* Top Row for Desktop & Tablet ONLY (Language Switcher in corner) */}
+          <div className="w-full hidden sm:flex justify-between items-center -mb-6">
+            <div className="w-10 h-10" />
+            <LanguageSwitcher variant="minimal" />
           </div>
-          <div>
+
+          {/* 1. Icon (الأيقونة) */}
+          <div className="inline-flex bg-amber-50 p-3.5 sm:p-4 rounded-full text-amber-500 shadow-xs">
+            {loginMode === 'student' ? <User className="w-7 h-7 sm:w-8 sm:h-8" /> : <ShieldAlert className="w-7 h-7 sm:w-8 sm:h-8 text-slate-800" />}
+          </div>
+
+          {/* 2. Main Title (العنوان الرئيسي) */}
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-sans tracking-tight px-1 leading-snug w-full">
+            {loginMode === 'student'
+              ? t('login.studentPortalTitle', 'بوابة الطالب الذكية')
+              : t('login.adminPortalTitle', 'بوابة المسؤولين والإدارة')}
+          </h1>
+
+          {/* 3. Subtitle / Description (الوصف للعنوان) */}
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed max-w-xs sm:max-w-md px-1">
+            {loginMode === 'student' 
+              ? t('login.studentSubtitle', 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.')
+              : t('login.adminSubtitle', 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.')}
+          </p>
+
+          {/* 4. Language Switcher for Mobile ONLY (زر تغيير اللغة بالجوال تحته مباشرة) */}
+          <div className="flex sm:hidden justify-center pt-1 pb-0.5">
             <LanguageSwitcher variant="minimal" />
           </div>
         </div>
@@ -458,8 +477,9 @@ export default function LoginModal({
                       type="text"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
+                      onFocus={handleInputFocus}
                       placeholder={t('login.studentNamePlaceholder', 'اسم المستخدم مثل: أحمد محمد')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition scroll-mt-16"
                     />
                   </div>
                 </div>
@@ -474,8 +494,9 @@ export default function LoginModal({
                       type="password"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
+                      onFocus={handleInputFocus}
                       placeholder={t('login.studentIdPlaceholder', 'الرقم التعريفي الخاص بك')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-right"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-right scroll-mt-16"
                     />
                   </div>
                 </div>
@@ -514,8 +535,9 @@ export default function LoginModal({
                       type="text"
                       value={adminUsername}
                       onChange={(e) => setAdminUsername(e.target.value)}
+                      onFocus={handleInputFocus}
                       placeholder={t('login.adminUsernamePlaceholder', 'اسم مستخدم المدير (مثال: admin)')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-16"
                     />
                   </div>
                 </div>
@@ -530,8 +552,9 @@ export default function LoginModal({
                       type="password"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
+                      onFocus={handleInputFocus}
                       placeholder={t('login.adminPasswordPlaceholder', 'كلمة المرور الخاصة بك')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-16"
                     />
                   </div>
                 </div>
@@ -603,8 +626,9 @@ export default function LoginModal({
                     type="url"
                     value={customGasUrl}
                     onChange={(e) => setCustomGasUrl(e.target.value)}
+                    onFocus={handleInputFocus}
                     placeholder="https://script.google.com/macros/s/.../exec"
-                    className="w-full bg-slate-950 border border-slate-700 text-amber-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono text-left"
+                    className="w-full bg-slate-950 border border-slate-700 text-amber-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono text-left scroll-mt-16"
                   />
                 </div>
 

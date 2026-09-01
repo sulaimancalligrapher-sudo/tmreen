@@ -58,7 +58,7 @@ export default function LanguageSwitcher({ variant = 'header' }: LanguageSwitche
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 sm:right-0 mt-1.5 w-48 bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-1.5 z-50 space-y-1"
+            className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-1.5 w-48 bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-1.5 z-50 space-y-1"
           >
             <div className="px-3 py-1.5 border-b border-slate-800 text-[11px] font-bold text-slate-400 text-center">
               اختر اللغة / Select Language
