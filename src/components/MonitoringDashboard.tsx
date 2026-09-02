@@ -32,17 +32,22 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Check,
+  LogOut,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MonitoringDashboardProps {
   onBackToAdmin?: () => void;
   onGoToStudentHome?: () => void;
+  onLogout?: () => void;
+  currentAdminName?: string;
 }
 
 export default function MonitoringDashboard({
   onBackToAdmin,
   onGoToStudentHome,
+  onLogout,
+  currentAdminName,
 }: MonitoringDashboardProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
@@ -961,6 +966,13 @@ export default function MonitoringDashboard({
 
           {/* Action Header Buttons */}
           <div className="flex items-center gap-3">
+            {currentAdminName && (
+              <div className="text-right hidden sm:block pl-3 border-l border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-bold">المشرف الحالي:</span>
+                <span className="text-xs font-bold text-emerald-400 block">{currentAdminName}</span>
+              </div>
+            )}
+
             <button
               onClick={() => fetchMonitoringData(false)}
               disabled={loading}
@@ -988,6 +1000,16 @@ export default function MonitoringDashboard({
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>الرئيسية</span>
+              </button>
+            )}
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 p-2 rounded-xl transition"
+                title="تسجيل الخروج"
+              >
+                <LogOut className="w-4 h-4" />
               </button>
             )}
           </div>

@@ -18,6 +18,8 @@ interface LoginModalProps {
   forcedMode?: 'student' | 'admin';
   onGoToStudentPage?: () => void;
   onGoToAdminPage?: () => void;
+  title?: string;
+  subtitle?: string;
 }
 
 export default function LoginModal({
@@ -26,6 +28,8 @@ export default function LoginModal({
   forcedMode,
   onGoToStudentPage,
   onGoToAdminPage,
+  title,
+  subtitle,
 }: LoginModalProps) {
   const { t } = useLanguage();
   const [loginMode, setLoginMode] = useState<'student' | 'admin'>(forcedMode || 'student');
@@ -419,16 +423,16 @@ export default function LoginModal({
 
           {/* 2. Main Title (العنوان الرئيسي) */}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-sans tracking-tight px-1 leading-snug w-full">
-            {loginMode === 'student'
+            {title || (loginMode === 'student'
               ? t('login.studentPortalTitle', 'بوابة الطالب الذكية')
-              : t('login.adminPortalTitle', 'بوابة المسؤولين والإدارة')}
+              : t('login.adminPortalTitle', 'بوابة المسؤولين والإدارة'))}
           </h1>
 
           {/* 3. Subtitle / Description (الوصف للعنوان) */}
           <p className="text-slate-500 text-xs sm:text-sm leading-relaxed max-w-xs sm:max-w-md px-1">
-            {loginMode === 'student' 
+            {subtitle || (loginMode === 'student' 
               ? t('login.studentSubtitle', 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.')
-              : t('login.adminSubtitle', 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.')}
+              : t('login.adminSubtitle', 'قم بتسجيل الدخول للتحكم في الدروس والأسئلة وحسابات الطلاب.'))}
           </p>
 
           {/* 4. Language Switcher for Mobile ONLY (زر تغيير اللغة بالجوال تحته مباشرة) */}

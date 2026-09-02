@@ -51,6 +51,13 @@ import {
   registerStudentActivePresence,
   clearStudentActivePresence,
 } from '../utils/telegramScheduler';
+import {
+  getSystemHomeTranslation,
+  getLessonReminderConfig,
+  calculateStudentDayNumber,
+  interpolateReminderText,
+  StudentReminderStats,
+} from '../utils/homeContentSystem';
 
 interface HomeDashboardProps {
   student: Student;
@@ -398,7 +405,7 @@ function LightboxModal({ images, currentIndex, onClose, onNavigate }: LightboxMo
 // 🏠 MAIN COMPONENT: HomeDashboard
 // ==========================================
 export default function HomeDashboard({ student, generalData, onSelectExercise, onNavigateTo }: HomeDashboardProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [items, setItems] = useState<HomeContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -470,6 +477,98 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const [timeUntilStartStr, setTimeUntilStartStr] = useState<string>('');
   const [punchMessage, setPunchMessage] = useState<string>('');
   const hasNotifiedEntryRef = useRef<boolean>(false);
+
+  // Student dynamic stats for lesson reminder calculations
+  const [studentStats, setStudentStats] = useState<StudentReminderStats>(() => {
+    const sId = student.id || (student as any).studentId || '';
+    const sName = student.name || (student as any).studentName || '';
+    const dayNumber = calculateStudentDayNumber(sId, sName);
+
+    let newLessons = 0;
+    let pendingLessons = 0;
+    let completedLessons = 0;
+
+    try {
+      const cachedStats = localStorage.getItem(`student_stats_cached_${sId}`);
+      if (cachedStats) {
+        const parsed = JSON.parse(cachedStats);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ...parsed,
+            dayNumber: parsed.dayNumber || dayNumber,
+            studentName: sName,
+          };
+        }
+      }
+      const cached = localStorage.getItem(`student_full_report_cached_${sId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.aReport) {
+          newLessons = Array.isArray(parsed.aReport.todayLessons) ? parsed.aReport.todayLessons.length : 0;
+          pendingLessons = Array.isArray(parsed.aReport.pendingLessons) ? parsed.aReport.pendingLessons.length : 0;
+          completedLessons = Array.isArray(parsed.aReport.completedLessons) ? parsed.aReport.completedLessons.length : 0;
+        }
+      }
+    } catch (e) {}
+
+    return {
+      dayNumber,
+      newLessons,
+      pendingLessons,
+      completedLessons,
+      totalRemaining: newLessons + pendingLessons,
+      studentName: sName,
+    };
+  });
+
+  // Fetch Student Lesson Details for dynamic reminder calculations
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStudentLessonStats = async () => {
+      const sId = student.id || (student as any).studentId || '';
+      const sName = student.name || (student as any).studentName || '';
+      if (!sId && !sName) return;
+
+      try {
+        const fullReport = await callGasApi<any>('getStudentFullReportData', {
+          studentId: sId,
+          studentName: sName,
+        });
+
+        if (!isMounted) return;
+
+        if (fullReport && fullReport.success && fullReport.aReport) {
+          const todayL = Array.isArray(fullReport.aReport.todayLessons) ? fullReport.aReport.todayLessons.length : 0;
+          const pendingL = Array.isArray(fullReport.aReport.pendingLessons) ? fullReport.aReport.pendingLessons.length : 0;
+          const completedL = Array.isArray(fullReport.aReport.completedLessons) ? fullReport.aReport.completedLessons.length : 0;
+          const calculatedDay = calculateStudentDayNumber(sId, sName);
+
+          const updatedStats: StudentReminderStats = {
+            dayNumber: calculatedDay,
+            newLessons: todayL,
+            pendingLessons: pendingL,
+            completedLessons: completedL,
+            totalRemaining: todayL + pendingL,
+            studentName: sName,
+          };
+
+          setStudentStats(updatedStats);
+
+          try {
+            localStorage.setItem(`student_full_report_cached_${sId}`, JSON.stringify(fullReport));
+            localStorage.setItem(`student_stats_cached_${sId}`, JSON.stringify(updatedStats));
+          } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('Failed to fetch student reminder lesson stats', e);
+      }
+    };
+
+    fetchStudentLessonStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [student.id, student.name]);
 
   const formatDisplayTime = (t?: string): string => {
     if (!t) return '';
@@ -1026,6 +1125,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             let rawContent = '';
             let targetStudent = 'ALL';
             let status = 'active';
+            let titleEn = '';
+            let contentEn = '';
+            let titleTh = '';
+            let contentTh = '';
 
             let rawTypeStr = '';
             if (Array.isArray(item)) {
@@ -1034,12 +1137,29 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
               rawContent = (item[2] || '').toString().trim();
               targetStudent = (item[3] || 'ALL').toString().trim();
               status = (item[4] || 'active').toString().trim();
+              titleEn = (item[5] || '').toString().trim();
+              contentEn = (item[6] || '').toString().trim();
+              titleTh = (item[7] || '').toString().trim();
+              contentTh = (item[8] || '').toString().trim();
             } else if (typeof item === 'object' && item !== null) {
               rawTypeStr = (item.type || '').toString().trim();
               title = (item.title || '').toString().trim();
               rawContent = (item.content || '').toString().trim();
               targetStudent = (item.targetStudent || item.Target_Student || 'ALL').toString().trim();
               status = (item.status || item.Status || 'active').toString().trim();
+              titleEn = (item.titleEn || item.Title_En || item.title_en || '').toString().trim();
+              contentEn = (item.contentEn || item.Content_En || item.content_en || '').toString().trim();
+              titleTh = (item.titleTh || item.Title_Th || item.title_th || '').toString().trim();
+              contentTh = (item.contentTh || item.Content_Th || item.content_th || '').toString().trim();
+            }
+
+            // Also check system translations store (fast in-system translations)
+            const sysTrans = getSystemHomeTranslation(title);
+            if (sysTrans) {
+              if (!titleEn && sysTrans.titleEn) titleEn = sysTrans.titleEn;
+              if (!contentEn && sysTrans.contentEn) contentEn = sysTrans.contentEn;
+              if (!titleTh && sysTrans.titleTh) titleTh = sysTrans.titleTh;
+              if (!contentTh && sysTrans.contentTh) contentTh = sysTrans.contentTh;
             }
 
             const cleanType = rawTypeStr.toLowerCase();
@@ -1049,9 +1169,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             else if (cleanType === 'تعليمات' || cleanType === 'توجيه' || cleanType === 'instruction') type = 'instruction';
             else if (cleanType === 'رابط' || cleanType === 'روابط' || cleanType === 'link') type = 'link';
             else if (cleanType === 'درس' || cleanType === 'دروس' || cleanType === 'lesson' || cleanType === 'lesson_link' || cleanType === 'lesson link' || cleanType === 'رابط درس') type = 'lesson';
+            else if (cleanType === 'تذكير' || cleanType === 'reminder') type = 'reminder';
             else type = cleanType || 'announcement';
 
-            if (!title && !rawContent) return;
+            if (!title && !rawContent && !titleEn && !titleTh) return;
 
             // Split multiple URLs separated by commas or linebreaks for photos, videos, links or lessons
             if ((type === 'photo' || type === 'video' || type === 'link' || type === 'lesson') && (rawContent.includes(',') || rawContent.includes('\n'))) {
@@ -1062,6 +1183,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                     type,
                     title: parts.length > 1 ? `${title} (${subIdx + 1})` : title,
                     content: partUrl,
+                    titleEn,
+                    contentEn,
+                    titleTh,
+                    contentTh,
                     targetStudent,
                     status,
                   });
@@ -1074,6 +1199,10 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
               type,
               title,
               content: rawContent,
+              titleEn,
+              contentEn,
+              titleTh,
+              contentTh,
               targetStudent,
               status,
             });
@@ -1219,6 +1348,25 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const photoItems = items.filter((i) => i.type === 'photo' || i.type === 'صورة' || i.type === 'صور');
   const videoItems = items.filter((i) => i.type === 'video' || i.type === 'فيديو' || i.type === 'مرئي');
   const linkItems = items.filter((i) => i.type === 'link' || i.type === 'رابط' || i.type === 'روابط');
+
+  // Active reminder item from system configuration with dynamic variables interpolation
+  const reminderConfig = getLessonReminderConfig();
+  const rawTitle =
+    language === 'en'
+      ? reminderConfig.titleEn || reminderConfig.titleAr
+      : language === 'th'
+      ? reminderConfig.titleTh || reminderConfig.titleAr
+      : reminderConfig.titleAr || t('home.importantReminderTitle', 'تذكير هام بالدروس والتمارين 📌');
+
+  const rawContent =
+    language === 'en'
+      ? reminderConfig.contentEn || reminderConfig.contentAr
+      : language === 'th'
+      ? reminderConfig.contentTh || reminderConfig.contentAr
+      : reminderConfig.contentAr || t('home.importantReminderDesc', 'مرحباً بك يا {student_name}! هذا هو يومك التدريبي ({day_number})، لديك ({new_lessons}) دروس جديدة، و({pending_lessons}) دروس سابقة لم ترسل إجابتها (المتبقي: {total_remaining}، المنجز: {completed_lessons}).');
+
+  const reminderTitle = interpolateReminderText(rawTitle, studentStats, (language as 'ar' | 'en' | 'th') || 'ar');
+  const reminderContent = interpolateReminderText(rawContent, studentStats, (language as 'ar' | 'en' | 'th') || 'ar');
 
   return (
     <div className="space-y-8 text-right" dir="rtl">
@@ -1538,31 +1686,63 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       </div>
 
       {/* 🔔 REMINDER BAR: Lesson reminder alert for new and pending lessons */}
-      <div className="bg-gradient-to-r from-amber-50/90 via-amber-100/50 to-orange-50/90 border border-amber-200/90 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 text-right">
-          <div className="bg-amber-500 text-slate-950 p-2.5 rounded-xl shrink-0 shadow-sm">
-            <Bell className="w-5 h-5 fill-slate-950" />
+      {reminderConfig.enabled && (
+        <div className="bg-gradient-to-r from-amber-50/95 via-amber-100/60 to-orange-50/95 border border-amber-300/80 rounded-3xl p-5 shadow-sm space-y-3.5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 text-right">
+              <div className="bg-amber-500 text-slate-950 p-2.5 rounded-2xl shrink-0 shadow-sm mt-0.5">
+                <Bell className="w-5 h-5 fill-slate-950 animate-bounce-subtle" />
+              </div>
+              <div className="space-y-1">
+                <span className="font-black text-amber-950 text-sm md:text-base block">
+                  {reminderTitle}
+                </span>
+                <p className="text-amber-950/90 text-xs md:text-sm leading-relaxed font-bold whitespace-pre-line">
+                  {reminderContent}
+                </p>
+              </div>
+            </div>
+
+            {onNavigateTo && (
+              <button
+                onClick={() => onNavigateTo('reports')}
+                className="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-2xl text-xs transition shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95"
+              >
+                <FileText className="w-4 h-4" />
+                <span>{t('home.goToReportsBtn', 'متابعة وحل الدروس في التقارير 📊')}</span>
+              </button>
+            )}
           </div>
-          <div>
-            <span className="font-extrabold text-amber-950 text-sm block">
-              {t('home.importantReminderTitle', 'تذكير هام بالدروس والتمارين 📌')}
-            </span>
-            <p className="text-amber-900/80 text-xs mt-0.5 leading-relaxed font-bold">
-              {t('home.importantReminderDesc', 'تذكير: لديك دروس جديدة ودروس قديمة لم تحل بعد! يمكنك متابعة حالة إنجازك والدروس المتبقية من قسم التقارير.')}
-            </p>
+
+          {/* Quick Dynamic Stats Pills */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/60 text-xs">
+            <div className="bg-amber-200/70 border border-amber-300 px-3 py-1 rounded-xl font-bold text-amber-950 flex items-center gap-1.5 shadow-2xs">
+              <span>📅 اليوم التدريبي:</span>
+              <strong className="text-amber-900 font-black">{interpolateReminderText('{day_number}', studentStats, (language as 'ar' | 'en' | 'th') || 'ar')}</strong>
+            </div>
+
+            <div className="bg-emerald-100/80 border border-emerald-300 px-3 py-1 rounded-xl font-bold text-emerald-950 flex items-center gap-1.5 shadow-2xs">
+              <span>🌟 دروس جديدة:</span>
+              <strong className="text-emerald-800 font-black">{studentStats.newLessons}</strong>
+            </div>
+
+            <div className="bg-orange-100/80 border border-orange-300 px-3 py-1 rounded-xl font-bold text-orange-950 flex items-center gap-1.5 shadow-2xs">
+              <span>⏳ دروس معلقة:</span>
+              <strong className="text-orange-900 font-black">{studentStats.pendingLessons}</strong>
+            </div>
+
+            <div className="bg-blue-100/80 border border-blue-300 px-3 py-1 rounded-xl font-bold text-blue-950 flex items-center gap-1.5 shadow-2xs">
+              <span>✅ دروس مكتملة:</span>
+              <strong className="text-blue-900 font-black">{studentStats.completedLessons}</strong>
+            </div>
+
+            <div className="bg-purple-100/80 border border-purple-300 px-3 py-1 rounded-xl font-bold text-purple-950 flex items-center gap-1.5 shadow-2xs">
+              <span>📌 إجمالي المتبقي:</span>
+              <strong className="text-purple-900 font-black">{studentStats.totalRemaining}</strong>
+            </div>
           </div>
         </div>
-
-        {onNavigateTo && (
-          <button
-            onClick={() => onNavigateTo('reports')}
-            className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2 shrink-0 active:scale-95"
-          >
-            <FileText className="w-4 h-4" />
-            <span>{t('home.goToReportsBtn', 'انتقال للتقارير')}</span>
-          </button>
-        )}
-      </div>
+      )}
 
       {/* 📢 SECTION 1: Announcements & Guidelines (إعلانات وتوجيهات) */}
       {announcementsAndInstructions.length > 0 && (
@@ -1576,7 +1756,20 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             {announcementsAndInstructions.map((item, idx) => {
               const isPersonalized = item.targetStudent && item.targetStudent.toUpperCase() !== 'ALL';
 
-              let textContent = item.content || '';
+              // Localized Title & Content
+              const itemTitle =
+                language === 'en' && item.titleEn
+                  ? item.titleEn
+                  : language === 'th' && item.titleTh
+                  ? item.titleTh
+                  : item.title;
+
+              let textContent =
+                language === 'en' && item.contentEn
+                  ? item.contentEn
+                  : language === 'th' && item.contentTh
+                  ? item.contentTh
+                  : item.content || '';
               let attachedImage = '';
 
               if (textContent.includes('||IMAGE||')) {
@@ -1633,9 +1826,9 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                     )}
                   </div>
 
-                  {item.title && (
+                  {itemTitle && (
                     <h3 className="text-base font-extrabold text-slate-900 font-sans">
-                      {item.title}
+                      {itemTitle}
                     </h3>
                   )}
 
@@ -1648,11 +1841,11 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                   {attachedImage && (
                     <div
                       className="mt-3 rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm bg-slate-50 cursor-pointer group hover:border-amber-400 transition"
-                      onClick={() => setActiveEnlargedImage({ url: attachedImage, title: item.title || 'صورة شارحة' })}
+                      onClick={() => setActiveEnlargedImage({ url: attachedImage, title: itemTitle || 'صورة شارحة' })}
                     >
                       <img
                         src={attachedImage}
-                        alt={item.title || 'صورة شارحة'}
+                        alt={itemTitle || 'صورة شارحة'}
                         className="w-full max-h-80 object-contain bg-slate-900/5 group-hover:scale-[1.01] transition duration-300"
                         onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                       />

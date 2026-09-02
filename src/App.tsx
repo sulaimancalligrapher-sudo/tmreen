@@ -58,7 +58,20 @@ import { motion, AnimatePresence } from 'motion/react';
 export default function App() {
   const { t } = useLanguage();
   const [apiConfigured, setApiConfigured] = useState<boolean>(isApiConfigured());
-  const [student, setStudent] = useState<Student | null>(null);
+  const [student, setStudent] = useState<Student | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get('page');
+    const adminUser = sessionStorage.getItem('adminUser');
+    if ((p === 'admin' || p === 'monitoring') && adminUser) {
+      return { name: adminUser, id: 'admin', isAdmin: true };
+    }
+    const savedName = localStorage.getItem('studentName') || sessionStorage.getItem('studentName');
+    const savedId = localStorage.getItem('studentId') || sessionStorage.getItem('studentId');
+    if (savedName && savedId && savedId !== 'admin' && p !== 'admin' && p !== 'monitoring') {
+      return { name: savedName, id: savedId, isAdmin: false };
+    }
+    return null;
+  });
   const [generalData, setGeneralData] = useState<GeneralData | null>(null);
   
   // URL routing state: check if URL query has ?page=admin or ?page=monitoring
@@ -476,6 +489,8 @@ export default function App() {
     setStudent(null);
     if (isAdminPage) {
       setActiveScreen('admin');
+    } else if (isMonitoringPage) {
+      setActiveScreen('monitoring');
     } else {
       setActiveScreen('home');
     }
@@ -484,7 +499,11 @@ export default function App() {
   const handleLoginSuccess = (loggedInStudent: Student) => {
     setStudent(loggedInStudent);
     if (loggedInStudent.isAdmin) {
-      goToAdminPage();
+      if (isMonitoringPage || activeScreen === 'monitoring') {
+        goToMonitoringPage();
+      } else {
+        goToAdminPage();
+      }
     } else {
       goToStudentPage();
     }
@@ -494,6 +513,8 @@ export default function App() {
     setApiConfigured(true);
     if (isAdminPage) {
       setActiveScreen('admin');
+    } else if (isMonitoringPage) {
+      setActiveScreen('monitoring');
     } else {
       setActiveScreen('home');
     }
@@ -505,7 +526,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <Onboarding
           onSuccess={handleOnboardingSuccess}
-          onBack={apiConfigured ? () => setActiveScreen(isAdminPage ? 'admin' : 'home') : undefined}
+          onBack={apiConfigured ? () => setActiveScreen(isAdminPage ? 'admin' : (isMonitoringPage ? 'monitoring' : 'home')) : undefined}
         />
       </div>
     );
@@ -515,10 +536,26 @@ export default function App() {
   // ROUTE 0: MONITORING PAGE (?page=monitoring)
   // ==========================================
   if (isMonitoringPage || activeScreen === 'monitoring') {
+    // If not logged in as Admin, show Admin Login Modal
+    if (!student || !student.isAdmin) {
+      return (
+        <LoginModal
+          forcedMode="admin"
+          title={t('login.monitoringAdminTitle', 'لوحة المتابعة المباشرة - تسجيل دخول الإدارة')}
+          subtitle={t('login.monitoringAdminSubtitle', 'يرجى تسجيل الدخول برقم واسم الإدارة للوصول إلى لوحة المتابعة المباشرة أونلاين.')}
+          onLoginSuccess={handleLoginSuccess}
+          onOpenSettings={() => setActiveScreen('onboarding')}
+          onGoToStudentPage={goToStudentPage}
+        />
+      );
+    }
+
     return (
       <MonitoringDashboard
         onBackToAdmin={goToAdminPage}
         onGoToStudentHome={goToStudentPage}
+        onLogout={handleLogout}
+        currentAdminName={student.name}
       />
     );
   }

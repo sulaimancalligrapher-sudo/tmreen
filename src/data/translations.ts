@@ -230,6 +230,16 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Admin & Management Portal',
       th: 'พอร์ทัลผู้ดูแลและระบบ',
     },
+    monitoringAdminTitle: {
+      ar: 'لوحة المتابعة المباشرة - تسجيل دخول الإدارة',
+      en: 'Live Monitoring - Admin Login',
+      th: 'การติดตามแบบสด - เข้าสู่ระบบผู้ดูแล',
+    },
+    monitoringAdminSubtitle: {
+      ar: 'يرجى تسجيل الدخول برقم واسم الإدارة للوصول إلى لوحة المتابعة المباشرة أونلاين.',
+      en: 'Please log in with admin username and passcode to access the live monitoring dashboard.',
+      th: 'กรุณาล็อกอินด้วยชื่อผู้ใช้และรหัสผ่านผู้ดูแลเพื่อเข้าถึงแดชบอร์ดติดตามแบบสด',
+    },
     studentSubtitle: {
       ar: 'يرجى تسجيل الدخول للبدء بالتمارين والاطلاع على تقريرك.',
       en: 'Please log in to start exercises and view your report.',

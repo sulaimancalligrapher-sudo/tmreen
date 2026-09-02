@@ -5,7 +5,7 @@
 
 // Default Google Apps Script Web App URL
 // You can set this variable directly or set VITE_GAS_API_URL in Vercel environment variables
-export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbxrK7Vhk2OqHlC-cnHG1ALXWfvJMJYR3u4fVmCVTYwnR33h3ipfIC-tSBjbDCZcSia5XA/exec";
+export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbz5EQs0bazcNkA7xZzMT91_EHhIWXNEf0mJ49ZuevS6DzNPUVSm1P0hsXkxi4m63WXKxg/exec";
 
 // Retrieve Google Apps Script Web App URL (LocalStorage > Environment Variable > Hardcoded Default)
 export function getApiUrl(): string {

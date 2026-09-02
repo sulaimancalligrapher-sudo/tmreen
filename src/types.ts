@@ -64,8 +64,13 @@ export interface HomeContentItem {
   type: 'announcement' | 'photo' | 'video' | 'instruction' | 'link' | string;
   title: string;
   content: string;
+  titleEn?: string;
+  contentEn?: string;
+  titleTh?: string;
+  contentTh?: string;
   targetStudent?: string;
   status?: string;
+  row?: number;
 }
 
 export interface GeneralData {
