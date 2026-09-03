@@ -73,7 +73,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
   
   // Validation modal
   const [resultModal, setResultModal] = useState<{ show: boolean; percentage: number; isSuccess: boolean } | null>(null);
-  const [customAlert, setCustomAlert] = useState<{ message: string; title?: string; type?: 'error' | 'success' | 'info' } | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ message: string; title?: string; type?: 'error' | 'success' | 'info'; onClose?: () => void } | null>(null);
   const [resettingLessonLabel, setResettingLessonLabel] = useState<string | null>(null);
 
   const templateCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -538,8 +538,8 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
       if (e.touches.length === 0) return { x: 0, y: 0, pressure: 1 };
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
-      if (e.touches[0].force !== undefined) {
-        pressure = e.touches[0].force || 1;
+      if ((e.touches[0] as any).force !== undefined) {
+        pressure = (e.touches[0] as any).force || 1;
       }
     } else {
       clientX = e.clientX;
@@ -1670,7 +1670,7 @@ export default function ExerciseDrawing({ student, onBack, onSelectExercise }: E
               {t('exercises.backToLessons', 'العودة للدروس 📂')}
             </button>
             <button
-              onClick={handleCheckDrawing}
+              onClick={() => handleCheckDrawing()}
               disabled={saving || !lessonStarted}
               className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-2"
             >

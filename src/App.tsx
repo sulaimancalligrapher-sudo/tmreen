@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { callGasApi, isApiConfigured } from './utils/api';
+import { callGasApi, isApiConfigured, transformGoogleDriveImageUrl } from './utils/api';
 import { Student, GeneralData, ExerciseType } from './types';
 
 // Importing custom modular components
@@ -73,7 +73,19 @@ export default function App() {
     }
     return null;
   });
-  const [generalData, setGeneralData] = useState<GeneralData | null>(null);
+  const [generalData, setGeneralData] = useState<GeneralData | null>(() => {
+    try {
+      const cached = localStorage.getItem('cached_general_data');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object' && parsed.header) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
+  const [logoError, setLogoError] = useState<boolean>(false);
   
   // URL routing state: check if URL query has ?page=admin or ?page=monitoring
   const [pageParam, setPageParam] = useState<string>(() => {
@@ -112,6 +124,33 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Fetch General App Data (Profile, Header logo/title/description, About, Contact)
+  useEffect(() => {
+    if (!apiConfigured) return;
+
+    let isMounted = true;
+    const fetchGeneralData = async () => {
+      try {
+        const data = await callGasApi<GeneralData>('getData');
+        if (data && typeof data === 'object' && data.header && isMounted) {
+          setGeneralData(data);
+          setLogoError(false);
+          try {
+            localStorage.setItem('cached_general_data', JSON.stringify(data));
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.warn('Could not fetch general data from Google Sheet:', err);
+      }
+    };
+
+    fetchGeneralData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [apiConfigured]);
 
   // Ping student presence and manage smart inactivity timeout
   useEffect(() => {
@@ -670,7 +709,7 @@ export default function App() {
                   لوحة تحكم الإدارة والمسؤولين
                 </h1>
                 <p className="text-xs text-slate-400">
-                  {generalData?.header.mainTitle || 'منصة الضاد التعليمية'}
+                  {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
                 </p>
               </div>
             </div>
@@ -813,11 +852,13 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
           {/* Logo & Main Title */}
           <div className="flex items-center gap-3">
-            {generalData?.header.logoUrl ? (
+            {generalData?.header?.logoUrl && !logoError ? (
               <img
-                src={generalData.header.logoUrl}
-                alt="شعار"
-                className="w-10 h-10 object-contain rounded-lg"
+                src={transformGoogleDriveImageUrl(generalData.header.logoUrl)}
+                alt={generalData.header?.mainTitle || 'شعار'}
+                className="w-10 h-10 object-contain rounded-xl shadow-sm border border-slate-100 bg-white"
+                referrerPolicy="no-referrer"
+                onError={() => setLogoError(true)}
               />
             ) : (
               <div className="bg-amber-500 text-slate-950 font-extrabold w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-md">
@@ -826,10 +867,10 @@ export default function App() {
             )}
             <div className="text-right">
               <span className="font-extrabold text-slate-900 tracking-tight text-base md:text-lg block font-sans">
-                {generalData?.header.mainTitle || 'منصة الضاد التعليمية'}
+                {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
               </span>
               <span className="text-[10px] text-slate-400 font-bold block">
-                {generalData?.header.description || 'تعلم وممارسة مهارات اللغة العربية'}
+                {generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية'}
               </span>
             </div>
           </div>
@@ -871,7 +912,7 @@ export default function App() {
             </button>
 
             {/* Dynamic buttons from Profile Sheet */}
-            {generalData?.header.buttons?.map((btn, idx) => {
+            {generalData?.header?.buttons?.map((btn, idx) => {
               if (!btn.buttonText || btn.buttonText === 'زر بدون نص' || btn.buttonUrl === '#' || btn.buttonUrl === '-') return null;
               
               const handleLaunch = () => {

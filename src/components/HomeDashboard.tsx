@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
-import { Student, HomeContentItem, ExerciseType, GeneralData, AttendanceSettings } from '../types';
+import { Student, HomeContentItem, ExerciseType, GeneralData, AttendanceSettings, StudentSchedule } from '../types';
 import {
   Sparkles,
   Compass,
@@ -58,6 +58,7 @@ import {
   interpolateReminderText,
   StudentReminderStats,
 } from '../utils/homeContentSystem';
+import { calculateStudentStudyDay, StudyDayInfo } from '../utils/studyDayHelper';
 
 interface HomeDashboardProps {
   student: Student;
@@ -426,13 +427,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
     return null;
   });
 
-  const [studentCustomSchedule, setStudentCustomSchedule] = useState<{
-    customStartTime?: string;
-    customSessionDuration?: number;
-    customDurationType?: 'from_start' | 'from_login';
-    customPreventEarlyEntry?: boolean;
-    customForceLogin?: boolean;
-  } | null>(() => {
+  const [studentCustomSchedule, setStudentCustomSchedule] = useState<StudentSchedule | null>(() => {
     try {
       const sId = student.id || (student as any).studentId || '';
       const sName = student.name || (student as any).studentName || '';
@@ -477,6 +472,22 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const [timeUntilStartStr, setTimeUntilStartStr] = useState<string>('');
   const [punchMessage, setPunchMessage] = useState<string>('');
   const hasNotifiedEntryRef = useRef<boolean>(false);
+
+  // Welcome login notice with Study Day determination
+  const [showWelcomeLoginNotice, setShowWelcomeLoginNotice] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('just_logged_in_welcome') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  // Calculate current study day for student based on schedule
+  const studyDayInfo: StudyDayInfo = useMemo(() => {
+    const sId = student.id || (student as any).studentId || '';
+    const sName = student.name || (student as any).studentName || '';
+    return calculateStudentStudyDay(studentCustomSchedule, sName, sId);
+  }, [studentCustomSchedule, student.id, student.name]);
 
   // Student dynamic stats for lesson reminder calculations
   const [studentStats, setStudentStats] = useState<StudentReminderStats>(() => {
@@ -1018,7 +1029,12 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (e) {}
-      setPunchMessage(t('attendance.punchInSuccess', '🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.'));
+
+      const studyInfo = calculateStudentStudyDay(studentCustomSchedule, sName, sId);
+      const punchSuccessText = studyInfo.dayOrdinal
+        ? `🎉 أهلاً بك يا ${sName}.. تم تسجيل حضورك في اليوم ${studyInfo.dayOrdinal} من البرنامج بنجاح! نتمنى لك علماً نافعاً وموفقاً. 🌟`
+        : t('attendance.punchInSuccess', '🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.');
+      setPunchMessage(punchSuccessText);
 
       // Send automated Telegram notification only once per session
       const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
@@ -1054,7 +1070,12 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (err) {}
-      setPunchMessage(t('attendance.punchInLocalSuccess', '✅ تم تسجيل الحضور محلياً بنجاح.'));
+
+      const studyInfoFallback = calculateStudentStudyDay(studentCustomSchedule, sName, sId);
+      const fallbackSuccessText = studyInfoFallback.dayOrdinal
+        ? `✅ أهلاً بك يا ${sName}.. تم تسجيل حضورك في اليوم ${studyInfoFallback.dayOrdinal} من البرنامج محلياً بنجاح.`
+        : t('attendance.punchInLocalSuccess', '✅ تم تسجيل الحضور محلياً بنجاح.');
+      setPunchMessage(fallbackSuccessText);
 
       // Send automated Telegram notification fallback once
       const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
@@ -1504,18 +1525,61 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         </div>
       )}
 
+      {/* 🌟 Welcome Notice with Study Day upon Login */}
+      {showWelcomeLoginNotice && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/15 to-emerald-500/10 border-2 border-amber-400/40 p-4 md:p-5 rounded-3xl shadow-sm flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="bg-amber-500 text-slate-950 p-2.5 rounded-2xl shrink-0 shadow-md">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs bg-amber-500 text-slate-950 font-black px-2.5 py-0.5 rounded-lg shadow-sm">
+                  {studyDayInfo.dayOrdinal ? `اليوم ${studyDayInfo.dayOrdinal}` : 'تسجيل دخول'}
+                </span>
+                <span className="text-xs text-slate-600 font-bold">
+                  {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
+              </div>
+              <p className="text-sm md:text-base font-black text-slate-900 leading-snug">
+                {studyDayInfo.welcomeMessage}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setShowWelcomeLoginNotice(false);
+              try {
+                sessionStorage.removeItem('just_logged_in_welcome');
+              } catch (e) {}
+            }}
+            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-200/60 transition shrink-0 cursor-pointer"
+            title={t('common.close', 'إغلاق')}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-1">
-          <div className="inline-flex bg-amber-50 text-amber-700 px-3 py-0.5 rounded-full text-xs font-bold gap-1 items-center">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{t('home.welcomeBadge', 'مرحباً بك يا بطل المتميز! 🌟')}</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex bg-amber-50 text-amber-800 px-3 py-1 rounded-full text-xs font-black gap-1.5 items-center border border-amber-200/80 shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>{studyDayInfo.badgeText}</span>
+            </div>
+            {studyDayInfo.dayOrdinal && (
+              <span className="text-xs bg-emerald-50 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200/80">
+                اليوم {studyDayInfo.dayOrdinal} 🎯
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-black text-slate-900 font-sans">
             {t('home.welcomeStudent', 'أهلاً بك،')} {student.name}! 👋
           </h1>
-          <p className="text-slate-500 text-sm max-w-xl">
-            {t('home.welcomeDesc', 'استعرض الإعلانات والتوجيهات الخاصة بك، وتدرّب في منصتك الذكية لإتقان مهارات اللغة العربية وقواعد الخط.')}
+          <p className="text-slate-600 text-sm max-w-xl font-medium leading-relaxed">
+            {studyDayInfo.welcomeMessage}
           </p>
         </div>
 
