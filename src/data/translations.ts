@@ -608,6 +608,26 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Scheduled class time expired',
       th: 'หมดเวลาชั้นเรียนที่กำหนดแล้ว',
     },
+    hoursShort: {
+      ar: 'س',
+      en: 'h',
+      th: 'ชม.',
+    },
+    minutesShort: {
+      ar: 'د',
+      en: 'm',
+      th: 'น.',
+    },
+    secondsShort: {
+      ar: 'ث',
+      en: 's',
+      th: 'วิ',
+    },
+    closeAlert: {
+      ar: 'إغلاق',
+      en: 'Close',
+      th: 'ปิด',
+    },
   },
 
   monitoring: {

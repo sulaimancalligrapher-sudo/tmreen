@@ -24,9 +24,31 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminTranslationManager() {
   const { translationsDict, updateTranslationsDict, resetTranslationsDict, t } = useLanguage();
-  
-  // Working local state of translations for editing
-  const [editedDict, setEditedDict] = useState<TranslationDictionary>(() => JSON.parse(JSON.stringify(translationsDict)));
+
+  const SECTION_INFO: Record<string, { labelAr: string; icon: string }> = {
+    attendance: { labelAr: '⏱️ تسجيل الحضور والجلسات الحية (attendance)', icon: '⏱️' },
+    home: { labelAr: '🏠 الصفحة الرئيسية ولوحة الطالب (home)', icon: '🏠' },
+    exercises: { labelAr: '✏️ التمارين والأنشطة والمهام (exercises)', icon: '✏️' },
+    telegram: { labelAr: '📢 إشعارات ورسائل تليجرام (telegram)', icon: '📢' },
+    monitoring: { labelAr: '📡 المتابعة اللحظية للكشف (monitoring)', icon: '📡' },
+    reports: { labelAr: '📊 التقارير ومتابعة الإنجاز (reports)', icon: '📊' },
+    admin: { labelAr: '⚙️ لوحة الإدارة والمعلم (admin)', icon: '⚙️' },
+    auth: { labelAr: '🔐 تسجيل الدخول والمصادقة (auth)', icon: '🔐' },
+    common: { labelAr: '🌐 الكلمات العامة والأزرار (common)', icon: '🌐' },
+  };
+
+  // Working local state of translations for editing (merged with defaultTranslations to ensure all keys exist)
+  const [editedDict, setEditedDict] = useState<TranslationDictionary>(() => {
+    const base: TranslationDictionary = JSON.parse(JSON.stringify(defaultTranslations));
+    const current = translationsDict || {};
+    Object.keys(current).forEach((sec) => {
+      if (!base[sec]) base[sec] = {};
+      Object.keys(current[sec] || {}).forEach((k) => {
+        base[sec][k] = { ...base[sec][k], ...current[sec][k] };
+      });
+    });
+    return base;
+  });
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
@@ -140,7 +162,8 @@ export default function AdminTranslationManager() {
       const item = editedDict[sec][k];
       const search = searchTerm.toLowerCase();
 
-      const matchKey = k.toLowerCase().includes(search) || sec.toLowerCase().includes(search);
+      const secInfo = SECTION_INFO[sec]?.labelAr || '';
+      const matchKey = k.toLowerCase().includes(search) || sec.toLowerCase().includes(search) || secInfo.toLowerCase().includes(search);
       const matchAr = (item.ar || '').toLowerCase().includes(search);
       const matchEn = (item.en || '').toLowerCase().includes(search);
       const matchTh = (item.th || '').toLowerCase().includes(search);
@@ -249,35 +272,76 @@ export default function AdminTranslationManager() {
       </AnimatePresence>
 
       {/* Filters & Search */}
-      <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-md flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-xs text-slate-300 font-bold whitespace-nowrap">
-            {t('admin.sectionFilter', 'تصفية حسب القسم:')}
-          </span>
-          <select
-            value={selectedSection}
-            onChange={(e) => setSelectedSection(e.target.value)}
-            className="bg-slate-800 text-white text-xs font-bold rounded-xl px-3 py-2 border border-slate-700 outline-none focus:border-indigo-500 transition"
-          >
-            <option value="all">{t('admin.allSections', 'جميع الأقسام')}</option>
-            {Object.keys(editedDict).map((sec) => (
-              <option key={sec} value={sec}>
-                {sec}
-              </option>
-            ))}
-          </select>
+      <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 shadow-md flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3 w-full">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <span className="text-xs text-slate-300 font-bold whitespace-nowrap">
+              {t('admin.sectionFilter', 'تصفية حسب القسم:')}
+            </span>
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="bg-slate-800 text-white text-xs font-bold rounded-xl px-3 py-2 border border-slate-700 outline-none focus:border-indigo-500 transition max-w-xs"
+            >
+              <option value="all">🌟 {t('admin.allSections', 'جميع الأقسام')}</option>
+              {Object.keys(editedDict).map((sec) => (
+                <option key={sec} value={sec}>
+                  {SECTION_INFO[sec]?.labelAr || sec}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t('admin.searchKeyPlaceholder', 'ابحث عن نص أو كلمة (مثل: حضور، يلزم، وقت)...')}
+              className="w-full bg-slate-800 text-white text-xs rounded-xl pr-9 pl-3 py-2 border border-slate-700 outline-none focus:border-indigo-500 transition"
+            />
+          </div>
         </div>
 
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={t('admin.searchKeyPlaceholder', 'ابحث عن نص أو مفتاح...')}
-            className="w-full bg-slate-800 text-white text-xs rounded-xl pr-9 pl-3 py-2 border border-slate-700 outline-none focus:border-indigo-500 transition"
-          />
+        {/* Quick Category Chips */}
+        <div className="w-full flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
+          <span className="text-[11px] text-slate-400 font-bold ml-1">أقسام سريعة:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedSection('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              selectedSection === 'all'
+                ? 'bg-indigo-600 text-white shadow'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            جميع الأقسام
+          </button>
+          {Object.keys(editedDict).map((sec) => {
+            const info = SECTION_INFO[sec] || { labelAr: sec, icon: '📁' };
+            const count = Object.keys(editedDict[sec] || {}).length;
+            const isSelected = selectedSection === sec;
+            return (
+              <button
+                key={sec}
+                type="button"
+                onClick={() => setSelectedSection(sec)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-amber-400 text-slate-950 font-black shadow-md'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <span>{info.icon}</span>
+                <span>{info.labelAr.split(' ')[1] || sec}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-slate-900/20 text-slate-950 font-black' : 'bg-slate-700 text-slate-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
