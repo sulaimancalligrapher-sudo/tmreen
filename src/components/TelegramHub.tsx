@@ -1797,8 +1797,8 @@ export default function TelegramHub({
           id: targetStudent.studentId,
           name: targetStudent.studentName || 'الطالب',
           telegramChatId: targetStudent.telegramChatId || settings.telegramChatId,
-          preferredLanguage: (targetStudent as any).preferredLanguage,
-          assignedTeacherId: (targetStudent as any).assignedTeacherId,
+          preferredLanguage: targetStudent.preferredLanguage,
+          assignedTeacherId: targetStudent.assignedTeacherId,
         },
         settings: {
           ...settings,
@@ -5086,7 +5086,7 @@ export default function TelegramHub({
                     <span className="text-sm font-bold text-white">{cmd.description}</span>
                     {cmd.keywords && (
                       <span className="text-[11px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 font-mono">
-                        الكلمات المفتاحية: {Array.isArray(cmd.keywords) ? (cmd.keywords as string[]).slice(0, 4).join(', ') : String(cmd.keywords).split(',').slice(0, 4).join(', ')}
+                        الكلمات المفتاحية: {Array.isArray(cmd.keywords) ? cmd.keywords.slice(0, 4).join(', ') : String(cmd.keywords).split(',').slice(0, 4).join(', ')}
                       </span>
                     )}
                   </div>

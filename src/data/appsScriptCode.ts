@@ -164,61 +164,10 @@ function getData() {
     });
   }
   
-  var formatImageUrl = function(url) {
-    if (!url) return '';
-    var u = url.toString().trim();
-    if (u.indexOf('drive.google.com') !== -1) {
-      if (u.indexOf('/file/d/') !== -1) {
-        var id1 = u.split('/file/d/')[1].split('/')[0].split('?')[0];
-        if (id1) return 'https://drive.google.com/thumbnail?id=' + id1 + '&sz=w1000';
-      } else if (u.indexOf('id=') !== -1) {
-        var id2 = u.split('id=')[1].split('&')[0];
-        if (id2) return 'https://drive.google.com/thumbnail?id=' + id2 + '&sz=w1000';
-      } else if (u.indexOf('/d/') !== -1) {
-        var id3 = u.split('/d/')[1].split('/')[0].split('?')[0];
-        if (id3) return 'https://drive.google.com/thumbnail?id=' + id3 + '&sz=w1000';
-      }
-    }
-    return u;
-  };
-
-  var logoUrl = profileData[9] && profileData[9][2] ? profileData[9][2].toString().trim() : '';
-  var mainTitle = profileData[9] && profileData[9][1] ? profileData[9][1].toString().trim() : '';
-  var description = profileData[10] && profileData[10][1] ? profileData[10][1].toString().trim() : '';
-
-  // Smart scan in Profile sheet if standard cell C10/B10 is empty
-  if (!logoUrl && profileData.length > 0) {
-    for (var r = 0; r < profileData.length; r++) {
-      for (var c = 0; c < profileData[r].length; c++) {
-        var val = profileData[r][c] ? profileData[r][c].toString().trim() : '';
-        if (val && (val.indexOf('http://') === 0 || val.indexOf('https://') === 0 || val.indexOf('drive.google.com') !== -1) &&
-            (val.indexOf('jpg') !== -1 || val.indexOf('jpeg') !== -1 || val.indexOf('png') !== -1 || val.indexOf('svg') !== -1 || val.indexOf('webp') !== -1 || val.indexOf('drive.google.com') !== -1 || val.indexOf('thumbnail') !== -1)) {
-          logoUrl = val;
-          break;
-        }
-      }
-      if (logoUrl) break;
-    }
-  }
-
-  // Also check if any row label has "شعار" or "logo"
-  if (!logoUrl && profileData.length > 0) {
-    for (var r2 = 0; r2 < profileData.length; r2++) {
-      var colA = profileData[r2][0] ? profileData[r2][0].toString().trim().toLowerCase() : '';
-      if (colA.indexOf('شعار') !== -1 || colA.indexOf('logo') !== -1) {
-        var candidate = (profileData[r2][2] || profileData[r2][1] || '').toString().trim();
-        if (candidate) {
-          logoUrl = candidate;
-          break;
-        }
-      }
-    }
-  }
-
   var headerData = {
-    logoUrl: formatImageUrl(logoUrl),
-    mainTitle: mainTitle,
-    description: description,
+    logoUrl: profileData[9] && profileData[9][2] ? profileData[9][2].toString().trim() : '',
+    mainTitle: profileData[9] && profileData[9][1] ? profileData[9][1].toString().trim() : '',
+    description: profileData[10] && profileData[10][1] ? profileData[10][1].toString().trim() : '',
     buttons: buttonsData
   };
   
@@ -329,56 +278,13 @@ function loginUser(studentName, studentId, deviceId, lat, lng) {
       studentSched = getStudentSchedule(studentId);
     } catch (schedErr) {}
     
-    var studyDayData = null;
-    try {
-      var effSched = studentSched || getDefaultSchedule();
-      if (effSched && effSched.startDate) {
-        var pActive = parseActiveDays(effSched.activeDays);
-        var pParts = effSched.startDate.split('-');
-        if (pParts.length === 3) {
-          var pStart = new Date(parseInt(pParts[0]), parseInt(pParts[1]) - 1, parseInt(pParts[2]));
-          pStart.setHours(0, 0, 0, 0);
-          var pToday = new Date();
-          pToday.setHours(0, 0, 0, 0);
-          if (pToday >= pStart) {
-            var pPassed = 0;
-            var pCur = new Date(pStart.getTime());
-            var pLimit = 0;
-            while (pCur <= pToday && pLimit < 1500) {
-              if (pActive.indexOf(pCur.getDay()) !== -1) {
-                pPassed++;
-              }
-              pCur.setDate(pCur.getDate() + 1);
-              pLimit++;
-            }
-            var pOrdinals = {
-              1: 'الأول', 2: 'الثاني', 3: 'الثالث', 4: 'الرابع', 5: 'الخامس',
-              6: 'السادس', 7: 'السابع', 8: 'الثامن', 9: 'التاسع', 10: 'العاشر',
-              11: 'الحادي عشر', 12: 'الثاني عشر', 13: 'الثالث عشر', 14: 'الرابع عشر', 15: 'الخامس عشر',
-              16: 'السادس عشر', 17: 'السابع عشر', 18: 'الثامن عشر', 19: 'التاسع عشر', 20: 'العشرون',
-              21: 'الحادي والعشرون', 22: 'الثاني والعشرون', 23: 'الثالث والعشرون', 24: 'الرابع والعشرون', 25: 'الخامس والعشرون',
-              26: 'السادس والعشرون', 27: 'السابع والعشرون', 28: 'الثامن والعشرون', 29: 'التاسع والعشرون', 30: 'الثلاثون'
-            };
-            var pDayNum = Math.max(1, pPassed);
-            var pOrd = pOrdinals[pDayNum] || ('الـ ' + pDayNum);
-            studyDayData = {
-              dayNumber: pDayNum,
-              dayOrdinal: pOrd,
-              message: 'أهلاً بك يا ' + studentName + '.. تم تسجيل دخولك في اليوم ' + pOrd + ' من البرنامج، نتمنى لك علماً نافعاً وموفقاً! 🌟'
-            };
-          }
-        }
-      }
-    } catch (dayErr) {}
-
     return {
       success: true,
       name: studentName,
       id: studentId,
       telegramChatId: tgInfo.telegramChatId || (studentSched && studentSched.telegramChatId) || '',
       preferredLanguage: tgInfo.preferredLanguage || (studentSched && studentSched.preferredLanguage) || 'ar',
-      schedule: studentSched || null,
-      studyDay: studyDayData
+      schedule: studentSched || null
     };
   } catch (e) {
     return { success: false, message: 'حدث خطأ في عملية تسجيل الدخول: ' + e.toString() };
