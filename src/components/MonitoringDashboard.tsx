@@ -3,7 +3,7 @@ import { callGasApi } from '../utils/api';
 import { AttendanceSettings, LiveMonitoringData, LiveStudentStatus, StudentSchedule } from '../types';
 import TelegramHub from './TelegramHub';
 import { sendTelegramMessage, interpolateTelegramTemplate, saveTelegramUserToSheetPassive } from '../utils/telegram';
-import { checkAndDispatchAutomatedAlerts, clearStudentActivePresence } from '../utils/telegramScheduler';
+import { checkAndDispatchAutomatedAlerts, clearStudentActivePresence, ensureTodayAttendanceSync } from '../utils/telegramScheduler';
 import {
   Clock,
   UserCheck,
@@ -159,6 +159,12 @@ export default function MonitoringDashboard({
   // Live Monitoring Lists (Pre-loaded from cache for instant 0.0s rendering)
   const [activeStudents, setActiveStudents] = useState<LiveStudentStatus[]>(() => {
     try {
+      const now = new Date();
+      ensureTodayAttendanceSync(now);
+      const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const cacheDate = localStorage.getItem('live_attendance_cache_date');
+      if (cacheDate && cacheDate !== todayIsoKey) return [];
+
       const cached = localStorage.getItem('live_active_students_cached');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
@@ -166,6 +172,11 @@ export default function MonitoringDashboard({
   });
   const [loggedOutStudents, setLoggedOutStudents] = useState<LiveStudentStatus[]>(() => {
     try {
+      const now = new Date();
+      const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const cacheDate = localStorage.getItem('live_attendance_cache_date');
+      if (cacheDate && cacheDate !== todayIsoKey) return [];
+
       const cached = localStorage.getItem('live_logged_out_students_cached');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
@@ -173,6 +184,11 @@ export default function MonitoringDashboard({
   });
   const [completedStudents, setCompletedStudents] = useState<LiveStudentStatus[]>(() => {
     try {
+      const now = new Date();
+      const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const cacheDate = localStorage.getItem('live_attendance_cache_date');
+      if (cacheDate && cacheDate !== todayIsoKey) return [];
+
       const cached = localStorage.getItem('live_completed_students_cached');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
@@ -180,6 +196,11 @@ export default function MonitoringDashboard({
   });
   const [absentStudents, setAbsentStudents] = useState<LiveStudentStatus[]>(() => {
     try {
+      const now = new Date();
+      const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const cacheDate = localStorage.getItem('live_attendance_cache_date');
+      if (cacheDate && cacheDate !== todayIsoKey) return [];
+
       const cached = localStorage.getItem('live_absent_students_cached');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
@@ -532,10 +553,12 @@ export default function MonitoringDashboard({
       setCompletedStudents(fetchedCompleted);
       setAbsentStudents(fetchedAbsent);
       try {
+        const todayIso = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
         localStorage.setItem('live_active_students_cached', JSON.stringify(fetchedActive));
         localStorage.setItem('live_logged_out_students_cached', JSON.stringify(fetchedLoggedOut));
         localStorage.setItem('live_completed_students_cached', JSON.stringify(fetchedCompleted));
         localStorage.setItem('live_absent_students_cached', JSON.stringify(fetchedAbsent));
+        localStorage.setItem('live_attendance_cache_date', todayIso);
       } catch (e) {}
       setLastRefreshed(response?.data?.lastRefreshed || new Date().toLocaleTimeString('ar-SA'));
     } catch (err: any) {

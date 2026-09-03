@@ -38,6 +38,7 @@ import {
   clearStudentActivePresence,
   normalizeStudentIdForMatching,
   normalizeArabicText,
+  ensureTodayAttendanceSync,
 } from './utils/telegramScheduler';
 
 // Icons
@@ -190,18 +191,33 @@ export default function App() {
 
         const liveData = (liveRes as any)?.data || liveRes;
         if (liveData) {
+          const now = new Date();
+          const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          ensureTodayAttendanceSync(now);
+
           if (Array.isArray(liveData.activeStudents)) {
-            localStorage.setItem('live_active_students_cached', JSON.stringify(liveData.activeStudents));
+            const todayActive = liveData.activeStudents
+              .filter((st: any) => !st.date || st.date === todayIsoKey)
+              .map((st: any) => ({ ...st, date: st.date || todayIsoKey }));
+            localStorage.setItem('live_active_students_cached', JSON.stringify(todayActive));
           }
           if (Array.isArray(liveData.completedStudents)) {
-            localStorage.setItem('live_completed_students_cached', JSON.stringify(liveData.completedStudents));
+            const todayCompleted = liveData.completedStudents
+              .filter((st: any) => !st.date || st.date === todayIsoKey)
+              .map((st: any) => ({ ...st, date: st.date || todayIsoKey }));
+            localStorage.setItem('live_completed_students_cached', JSON.stringify(todayCompleted));
           }
           if (Array.isArray(liveData.loggedOutStudents)) {
-            localStorage.setItem('live_logged_out_students_cached', JSON.stringify(liveData.loggedOutStudents));
+            const todayLoggedOut = liveData.loggedOutStudents
+              .filter((st: any) => !st.date || st.date === todayIsoKey)
+              .map((st: any) => ({ ...st, date: st.date || todayIsoKey }));
+            localStorage.setItem('live_logged_out_students_cached', JSON.stringify(todayLoggedOut));
           }
           if (Array.isArray(liveData.absentStudents)) {
             localStorage.setItem('live_absent_students_cached', JSON.stringify(liveData.absentStudents));
           }
+          localStorage.setItem('live_attendance_cache_date', todayIsoKey);
+
           if (liveData.settings && !isRecentlySavedLocally) {
             localStorage.setItem('attendance_settings_cached', JSON.stringify(liveData.settings));
           }

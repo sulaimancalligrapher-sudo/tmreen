@@ -299,6 +299,118 @@ export function areStudentRecordsMatching(
 }
 
 /**
+ * Accurately parses active days (Arabic, English, Thai) into day indices (0 = Sun, ..., 6 = Sat).
+ */
+export function parseActiveDaysIndices(activeDaysStr?: string): number[] {
+  if (!activeDaysStr || !activeDaysStr.trim()) return [0, 1, 2, 3, 4, 5, 6];
+  const parts = activeDaysStr.split(/[,،\s/|]+/);
+  const days: number[] = [];
+  for (const part of parts) {
+    const d = part.trim().toLowerCase();
+    let idx = -1;
+    if (d.includes('أحد') || d.includes('احد') || d.includes('sun') || d.includes('อาทิตย์')) idx = 0;
+    else if (d.includes('اثنين') || d.includes('إثنين') || d.includes('mon') || d.includes('จันทร์')) idx = 1;
+    else if (d.includes('ثلاثاء') || d.includes('tue') || d.includes('อังคาร')) idx = 2;
+    else if (d.includes('أربعاء') || d.includes('اربعاء') || d.includes('wed') || d.includes('พุธ')) idx = 3;
+    else if (d.includes('خميس') || d.includes('thu') || d.includes('พฤหัส')) idx = 4;
+    else if (d.includes('جمعة') || d.includes('fri') || d.includes('ศุกร์')) idx = 5;
+    else if (d.includes('سبت') || d.includes('sat') || d.includes('เสาร์')) idx = 6;
+    if (idx !== -1 && !days.includes(idx)) days.push(idx);
+  }
+  return days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6];
+}
+
+/**
+ * Validates whether a student has an active scheduled lesson on a given date
+ * (strictly checks active days of the week and active date range [startDate - expiryDate]).
+ */
+export function isStudentScheduledToday(
+  schedule: Partial<StudentSchedule> | null | undefined,
+  defaultSchedule?: Partial<StudentSchedule> | null,
+  targetDate: Date = new Date()
+): boolean {
+  if (!schedule) return false;
+  const sId = (schedule.studentId || (schedule as any).id || '').toString().trim();
+  if (!sId || sId === 'DEFAULT_STUDENT' || sId === 'dummy') return false;
+
+  const currentDayOfWeek = targetDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const todayMid = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  todayMid.setHours(0, 0, 0, 0);
+
+  // 1. Check activeDays
+  const activeDaysStr = schedule.activeDays || defaultSchedule?.activeDays || 'الأحد، الاثنين، الثلاثاء، الأربعاء، الخميس، الجمعة، السبت';
+  const activeDaysIndices = parseActiveDaysIndices(activeDaysStr);
+  if (!activeDaysIndices.includes(currentDayOfWeek)) {
+    return false;
+  }
+
+  // 2. Check startDate
+  const effStartDate = schedule.startDate || defaultSchedule?.startDate || '';
+  if (effStartDate && effStartDate.trim()) {
+    const p = effStartDate.trim().split('-');
+    if (p.length === 3) {
+      const sDate = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+      sDate.setHours(0, 0, 0, 0);
+      if (todayMid < sDate) return false;
+    }
+  }
+
+  // 3. Check expiryDate
+  const effExpDate = schedule.expiryDate || defaultSchedule?.expiryDate || '';
+  if (effExpDate && effExpDate.trim()) {
+    const expP = effExpDate.trim().split('-');
+    if (expP.length === 3) {
+      const expDate = new Date(parseInt(expP[0], 10), parseInt(expP[1], 10) - 1, parseInt(expP[2], 10));
+      expDate.setHours(0, 0, 0, 0);
+      if (todayMid > expDate) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Ensures attendance memory and caches are strictly bound to today's date.
+ * When a new day arrives, stale yesterday attendance logs and presence flags are purged automatically.
+ */
+export function ensureTodayAttendanceSync(targetDate: Date = new Date()): void {
+  try {
+    const todayIsoKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+    const storedDate = localStorage.getItem('live_attendance_cache_date');
+
+    if (storedDate && storedDate !== todayIsoKey) {
+      // Day has changed! Purge all yesterday's presence and cached attendance lists
+      localStorage.removeItem('live_active_students_cached');
+      localStorage.removeItem('live_logged_out_students_cached');
+      localStorage.removeItem('live_completed_students_cached');
+      localStorage.removeItem('live_absent_students_cached');
+      localStorage.removeItem('today_active_presence_registry');
+
+      // Purge old punch-in and attendance keys from localStorage from previous days
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (
+          (key.startsWith('student_present_') ||
+           key.startsWith('student_attended_') ||
+           key.startsWith('punchin_') ||
+           key.startsWith('attendance_punch_in_')) &&
+          !key.endsWith(`_${todayIsoKey}`)
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+    }
+
+    localStorage.setItem('live_attendance_cache_date', todayIsoKey);
+  } catch (e) {}
+}
+
+/**
  * Registers student active presence into all localStorage & sessionStorage keys and central active registry.
  */
 export function registerStudentActivePresence(
@@ -315,6 +427,8 @@ export function registerStudentActivePresence(
   const time = entryTimeStr || now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   try {
+    ensureTodayAttendanceSync(now);
+
     // 1. Direct LocalStorage flags
     if (sId) {
       localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
@@ -340,18 +454,21 @@ export function registerStudentActivePresence(
       localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
     }
 
-    // 2. SessionStorage flags
+    // 2. SessionStorage flags (strictly tagged with today's date)
     if (sId) {
-      sessionStorage.setItem(`student_active_session_${sId}`, 'true');
+      sessionStorage.setItem(`student_active_session_${sId}`, todayIsoKey);
       sessionStorage.setItem(`tg_entry_time_${sId}`, time);
+      sessionStorage.setItem(`tg_entry_date_${sId}`, todayIsoKey);
     }
     if (cleanId) {
-      sessionStorage.setItem(`student_active_session_${cleanId}`, 'true');
+      sessionStorage.setItem(`student_active_session_${cleanId}`, todayIsoKey);
       sessionStorage.setItem(`tg_entry_time_${cleanId}`, time);
+      sessionStorage.setItem(`tg_entry_date_${cleanId}`, todayIsoKey);
     }
     if (sName) {
-      sessionStorage.setItem(`student_active_session_${sName}`, 'true');
+      sessionStorage.setItem(`student_active_session_${sName}`, todayIsoKey);
       sessionStorage.setItem(`tg_entry_time_${sName}`, time);
+      sessionStorage.setItem(`tg_entry_date_${sName}`, todayIsoKey);
     }
 
     // 3. Central presence registry in LocalStorage
@@ -392,6 +509,7 @@ export function registerStudentActivePresence(
           date: todayIsoKey,
         });
         localStorage.setItem('live_active_students_cached', JSON.stringify(liveList));
+        localStorage.setItem('live_attendance_cache_date', todayIsoKey);
       }
 
       // Remove from cached absent list if present
@@ -416,6 +534,7 @@ export function registerStudentActivePresence(
 
 /**
  * Checks whether a student is present / logged in / active / completed today from all sources (local + backend synced).
+ * STRICTLY restricted to today's date: records from yesterday or earlier are never considered present today.
  */
 export function isStudentPresentOrActiveToday(
   studentId: string,
@@ -427,6 +546,12 @@ export function isStudentPresentOrActiveToday(
 
   const now = new Date();
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // Ensure daily rollover sync has taken place
+  ensureTodayAttendanceSync(now);
+
+  const cacheDate = localStorage.getItem('live_attendance_cache_date');
+  const isCacheForToday = !cacheDate || cacheDate === todayIsoKey;
 
   // 1. Check if student actually punched in / attended TODAY on this client or session
   try {
@@ -454,55 +579,67 @@ export function isStudentPresentOrActiveToday(
 
     // Check active session flag for today
     const activeSessionKey = `student_active_session_${sId}`;
-    if (sessionStorage.getItem(activeSessionKey) === todayIsoKey) {
+    const activeVal = sessionStorage.getItem(activeSessionKey);
+    const sessionDate = sessionStorage.getItem(`tg_entry_date_${sId}`);
+    if (activeVal === todayIsoKey || (activeVal === 'true' && sessionDate === todayIsoKey)) {
       return { isPresent: true, entryTime: sessionStorage.getItem(`tg_entry_time_${sId}`) || 'متواجد الآن' };
     }
   } catch (e) {}
 
   // 2. Check live_active_students_cached (synced directly from Google Sheet AttendanceLogs for today)
-  try {
-    const liveActiveRaw = localStorage.getItem('live_active_students_cached');
-    if (liveActiveRaw) {
-      const list = JSON.parse(liveActiveRaw);
-      if (Array.isArray(list) && list.length > 0) {
-        for (const st of list) {
-          if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
-            return { isPresent: true, entryTime: st.loginTime || st.entryTime || 'متواجد الآن' };
+  if (isCacheForToday) {
+    try {
+      const liveActiveRaw = localStorage.getItem('live_active_students_cached');
+      if (liveActiveRaw) {
+        const list = JSON.parse(liveActiveRaw);
+        if (Array.isArray(list) && list.length > 0) {
+          for (const st of list) {
+            // Must strictly match today's date if date is present on the record
+            if (st.date && st.date !== todayIsoKey) continue;
+            if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
+              return { isPresent: true, entryTime: st.loginTime || st.entryTime || 'متواجد الآن' };
+            }
           }
         }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 
   // 3. Check live_completed_students_cached (completed all required lessons today)
-  try {
-    const liveCompletedRaw = localStorage.getItem('live_completed_students_cached');
-    if (liveCompletedRaw) {
-      const list = JSON.parse(liveCompletedRaw);
-      if (Array.isArray(list) && list.length > 0) {
-        for (const st of list) {
-          if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
-            return { isPresent: true, entryTime: st.loginTime || 'أتم الدروس بنجاح' };
+  if (isCacheForToday) {
+    try {
+      const liveCompletedRaw = localStorage.getItem('live_completed_students_cached');
+      if (liveCompletedRaw) {
+        const list = JSON.parse(liveCompletedRaw);
+        if (Array.isArray(list) && list.length > 0) {
+          for (const st of list) {
+            if (st.date && st.date !== todayIsoKey) continue;
+            if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
+              return { isPresent: true, entryTime: st.loginTime || 'أتم الدروس بنجاح' };
+            }
           }
         }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 
   // 4. Check live_logged_out_students_cached (student attended and logged out today)
-  try {
-    const liveLoggedOutRaw = localStorage.getItem('live_logged_out_students_cached');
-    if (liveLoggedOutRaw) {
-      const list = JSON.parse(liveLoggedOutRaw);
-      if (Array.isArray(list) && list.length > 0) {
-        for (const st of list) {
-          if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
-            return { isPresent: true, entryTime: st.loginTime || st.entryTime || 'حضر وسجل خروج' };
+  if (isCacheForToday) {
+    try {
+      const liveLoggedOutRaw = localStorage.getItem('live_logged_out_students_cached');
+      if (liveLoggedOutRaw) {
+        const list = JSON.parse(liveLoggedOutRaw);
+        if (Array.isArray(list) && list.length > 0) {
+          for (const st of list) {
+            if (st.date && st.date !== todayIsoKey) continue;
+            if (areStudentRecordsMatching({ id: sId, name: sName }, { id: st.studentId || st.id, name: st.studentName || st.name })) {
+              return { isPresent: true, entryTime: st.loginTime || st.entryTime || 'حضر وسجل خروج' };
+            }
           }
         }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 
   // 5. Check local student_attended records for today
   try {
@@ -517,31 +654,32 @@ export function isStudentPresentOrActiveToday(
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
-          if (parsed && (parsed.date === todayIsoKey || !parsed.date)) {
+          if (parsed && parsed.date === todayIsoKey) {
             return { isPresent: true, entryTime: parsed.time || 'حضر وسجل خروج' };
           }
-        } catch (e) {
-          return { isPresent: true, entryTime: 'حضر وسجل خروج' };
-        }
+        } catch (e) {}
       }
     }
   } catch (e) {}
 
   // 6. Check central presence registry for today
-  try {
-    const registryRaw = localStorage.getItem('today_active_presence_registry');
-    if (registryRaw) {
-      const registry = JSON.parse(registryRaw);
-      if (registry && typeof registry === 'object') {
-        for (const [k, item] of Object.entries<any>(registry)) {
-          if (item?.date && item.date !== todayIsoKey) continue;
-          if (areStudentRecordsMatching({ id: sId, name: sName }, { id: item?.studentId || k, name: item?.studentName })) {
-            return { isPresent: true, entryTime: item.time || 'مسجل بالحصة' };
+  if (isCacheForToday) {
+    try {
+      const registryRaw = localStorage.getItem('today_active_presence_registry');
+      if (registryRaw) {
+        const registry = JSON.parse(registryRaw);
+        if (registry && typeof registry === 'object') {
+          for (const [k, item] of Object.entries<any>(registry)) {
+            // Strictly check that item was registered today
+            if (!item?.date || item.date !== todayIsoKey) continue;
+            if (areStudentRecordsMatching({ id: sId, name: sName }, { id: item?.studentId || k, name: item?.studentName })) {
+              return { isPresent: true, entryTime: item.time || 'مسجل بالحصة' };
+            }
           }
         }
       }
-    }
-  } catch (e) {}
+    } catch (e) {}
+  }
 
   return { isPresent: false, entryTime: '' };
 }
@@ -928,10 +1066,14 @@ export async function dispatchTeacherPreClassBriefing(options: {
   if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
 
   const normClassTime = normalizeTimeSlot(classTime);
+  const now = new Date();
+  ensureTodayAttendanceSync(now);
+  const defaultSched = schedules.find((s) => s.studentId === 'DEFAULT_STUDENT');
 
-  // Filter real students for this specific time slot
+  // Filter real students strictly scheduled for today and this specific time slot
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
+    if (!isStudentScheduledToday(s, defaultSched, now)) return false;
     const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
     const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
@@ -1000,11 +1142,14 @@ export async function dispatchTeacherMidClassSnapshot(options: {
   if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
 
   const now = new Date();
+  ensureTodayAttendanceSync(now);
   const nowTimeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
   const normClassTime = normalizeTimeSlot(classTime);
+  const defaultSched = schedules.find((s) => s.studentId === 'DEFAULT_STUDENT');
 
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
+    if (!isStudentScheduledToday(s, defaultSched, now)) return false;
     const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
     const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
@@ -1105,11 +1250,14 @@ export async function dispatchTeacherPostSessionWrapup(options: {
   if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
 
   const now = new Date();
+  ensureTodayAttendanceSync(now);
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const normClassTime = normalizeTimeSlot(classTime);
+  const defaultSched = schedules.find((s) => s.studentId === 'DEFAULT_STUDENT');
 
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
+    if (!isStudentScheduledToday(s, defaultSched, now)) return false;
     const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
     const matchesTime = sTime === normClassTime;
     const matchesTeacher = !targetTeacher || !s.assignedTeacherId || s.assignedTeacherId === targetTeacher.id;
@@ -1217,12 +1365,15 @@ export async function dispatchTeacherExceptionalRecheckReport(options: {
   if (!botToken) return { ok: false, error: 'رمز التوكن غير متوفر' };
 
   const now = new Date();
+  ensureTodayAttendanceSync(now);
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const nowTimeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit', hour12: false });
   const normClassTime = classTime ? normalizeTimeSlot(classTime) : '';
+  const defaultSched = schedules.find((s) => s.studentId === 'DEFAULT_STUDENT');
 
   let targetStudents = schedules.filter((s) => {
     if (!isRealStudentRecord(s.studentId, s.studentName)) return false;
+    if (!isStudentScheduledToday(s, defaultSched, now)) return false;
     if (normClassTime) {
       const sTime = normalizeTimeSlot(s.customStartTime || settings.startTime || '19:00');
       if (sTime !== normClassTime) return false;
@@ -1232,7 +1383,7 @@ export async function dispatchTeacherExceptionalRecheckReport(options: {
   });
 
   if (targetStudents.length === 0) {
-    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName));
+    targetStudents = schedules.filter((s) => isRealStudentRecord(s.studentId, s.studentName) && isStudentScheduledToday(s, defaultSched, now));
   }
 
   if (targetStudents.length === 0) {
@@ -1443,6 +1594,7 @@ export async function checkAndDispatchAutomatedAlerts(
   }
 
   const todayIsoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  ensureTodayAttendanceSync(now);
 
   const preClassMins = Number(settings.telegramPreClassReminderMinutes) || 15;
   const lateDelayMins = Number(settings.telegramLateAlertDelayMinutes) || 10;
@@ -1451,6 +1603,8 @@ export async function checkAndDispatchAutomatedAlerts(
   const maxRepeatCount = Math.max(1, Number(settings.telegramLateAlertMaxCount) || 2);
   const finalAbsentTiming = settings.telegramFinalAbsentTiming || 'end_of_session';
   const isDigestEnabled = settings.telegramTeacherDigestEnabled !== false;
+
+  const defaultSched = (schedules && schedules.length > 0 ? schedules : []).find((s) => s.studentId === 'DEFAULT_STUDENT');
 
   // Deduplicate active student schedules to prevent multiple dispatches for the same student
   const rawList = (schedules && schedules.length > 0 ? schedules : []).filter((s) =>
@@ -1464,6 +1618,11 @@ export async function checkAndDispatchAutomatedAlerts(
     const sId = String(s.studentId || (s as any).id || '').trim();
     const sName = String(s.studentName || (s as any).name || '').trim();
     if (!isRealStudentRecord(sId, sName)) continue;
+
+    // Strictly verify the student is scheduled for TODAY (active days & active date range)
+    if (!isStudentScheduledToday(s, defaultSched, now)) {
+      continue;
+    }
 
     const normId = normalizeStudentIdForMatching(sId);
     const normName = normalizeArabicText(sName);
