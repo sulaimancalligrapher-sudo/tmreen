@@ -33,7 +33,6 @@ import {
   RotateCcw,
   Check,
   LogOut,
-  Timer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -115,7 +114,6 @@ export default function MonitoringDashboard({
           startTime: formatTimeStr(parsed.startTime),
           durationType: parsed.durationType || 'from_start',
           preventEarlyEntry: Boolean(parsed.preventEarlyEntry),
-          inactivityTimeoutMinutes: parsed.inactivityTimeoutMinutes !== undefined ? Number(parsed.inactivityTimeoutMinutes) : 10,
         };
       }
     } catch (e) {}
@@ -127,7 +125,6 @@ export default function MonitoringDashboard({
       forceLogin: false,
       timeRestricted: false,
       preventEarlyEntry: false,
-      inactivityTimeoutMinutes: 10,
       allowedExceptionStudents: [],
       telegramToken: '',
       telegramChatId: '',
@@ -1230,15 +1227,9 @@ export default function MonitoringDashboard({
                       <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
                       <h3 className="font-bold text-white text-base">🟢 قائمة المتواجدين أونلاين الآن</h3>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs bg-slate-900 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full font-mono flex items-center gap-1">
-                        <Timer className="w-3 h-3" />
-                        <span>مهلة الخمول: {settings.inactivityTimeoutMinutes || 10} د</span>
-                      </span>
-                      <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full font-bold">
-                        {activeStudents.length} متواجد
-                      </span>
-                    </div>
+                    <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full font-bold">
+                      {activeStudents.length} متواجد
+                    </span>
                   </div>
 
                   <div className="p-6">
@@ -1345,15 +1336,10 @@ export default function MonitoringDashboard({
                                     <span>دخول: <strong className="text-slate-300 font-mono">{formatDisplayTime(st.loginTime)}</strong></span>
                                     <span>خروج: <strong className="text-amber-400 font-mono">{formatDisplayTime(st.lastActiveTime)}</strong></span>
                                   </div>
-                                  {st.notes && (
-                                    <p className="text-[11px] text-slate-400/90 pt-0.5">
-                                      {st.notes}
-                                    </p>
-                                  )}
                                 </div>
-                                <div className="flex flex-col items-end gap-1">
-                                  <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1 rounded-lg font-bold whitespace-nowrap">
-                                    {st.notes?.includes('انقطاع') || st.notes?.includes('تلقائي') ? 'خروج تلقائي ⚪' : 'غادر المنصة ⚪'}
+                                <div>
+                                  <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1 rounded-lg font-bold">
+                                    غادر المنصة ⚪
                                   </span>
                                 </div>
                               </div>
@@ -1750,58 +1736,6 @@ export default function MonitoringDashboard({
                         />
                         <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
                       </label>
-                    </div>
-                  </div>
-
-                  {/* Setting 4: Inactivity Timeout Card */}
-                  <div className="bg-slate-900/80 border border-slate-700/80 p-5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="space-y-1 max-w-xl">
-                      <div className="flex items-center gap-2">
-                        <Timer className="w-5 h-5 text-emerald-400" />
-                        <h4 className="font-bold text-white text-sm">مهلة عدم النشاط التلقائية (Inactivity Timeout):</h4>
-                        <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                          خروج تلقائي ذكي
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        إذا لم يُسجل الطالب أي نشاط أو تفاعل أو أغلق الصفحة وانقطعت نبضات الاتصال لمدة محددة، يتم تسجيل خروجه تلقائياً وتحديث حالته في ورقة سجل الحضور <span className="font-mono text-slate-300 font-bold">AttendanceLogs</span> إلى (غادر / خروج تلقائي ⚪). وعند عودته يُستأنف نشاطه تلقائياً فوراً.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                      <div className="relative flex-1 md:w-36">
-                        <input
-                          type="number"
-                          min="2"
-                          max="120"
-                          value={settings.inactivityTimeoutMinutes || 10}
-                          onChange={(e) =>
-                            setSettings({
-                              ...settings,
-                              inactivityTimeoutMinutes: Math.max(2, parseInt(e.target.value, 10) || 10),
-                            })
-                          }
-                          className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
-                        />
-                        <span className="absolute left-3 top-2 text-xs text-slate-400 font-bold pointer-events-none">
-                          دقيقة
-                        </span>
-                      </div>
-                      <div className="flex gap-1.5">
-                        {[5, 10, 15, 20].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setSettings({ ...settings, inactivityTimeoutMinutes: preset })}
-                            className={`text-xs px-2.5 py-1.5 rounded-lg font-bold border transition ${
-                              (settings.inactivityTimeoutMinutes || 10) === preset
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-                            }`}
-                          >
-                            {preset}د
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
 

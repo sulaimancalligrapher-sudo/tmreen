@@ -257,7 +257,6 @@ export interface AttendanceSettings {
   forceLogin: boolean; // إجبار الدخول (نعم / لا)
   timeRestricted: boolean; // التقيد بالوقت (نعم / لا)
   preventEarlyEntry?: boolean; // منع الدخول قبل الوقت المحدد (نعم / لا)
-  inactivityTimeoutMinutes?: number; // مهلة الخروج التلقائي عند انقطاع النشاط بالدقائق (e.g. 10)
   allowedExceptionStudents: string[]; // قائمة أسماء/أرقام الطلاب المسموح لهم بالدخول الاستثنائي
   
   // Telegram Settings

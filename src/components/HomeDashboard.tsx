@@ -666,7 +666,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
       if (isException) {
         setIsBeforeStartTime(false);
         setIsTimeExpired(false);
-        setSessionRemainingStr(t('attendance.openSessionException', 'مفتوح (استثناء)'));
+        setSessionRemainingStr('مفتوح (استثناء)');
         return;
       }
 
@@ -703,11 +703,6 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         });
       }
 
-      // Time units
-      const hUnit = t('attendance.hoursShort', 'س');
-      const mUnit = t('attendance.minutesShort', 'د');
-      const sUnit = t('attendance.secondsShort', 'ث');
-
       // Check if early entry before start time
       const [sh, sm] = effectiveStartTime.split(':').map(Number);
       const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh || 0, sm || 0, 0);
@@ -721,9 +716,9 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           const bHrs = Math.floor(diffBefore / 3600000);
           const bMins = Math.floor((diffBefore % 3600000) / 60000);
           const bSecs = Math.floor((diffBefore % 60000) / 1000);
-          const timeStr = `${bHrs > 0 ? bHrs + hUnit + ' ' : ''}${bMins}${mUnit} ${bSecs}${sUnit}`;
+          const timeStr = `${bHrs > 0 ? bHrs + 'س ' : ''}${bMins}د ${bSecs}ث`;
           setTimeUntilStartStr(timeStr);
-          setSessionRemainingStr(`${t('attendance.timeRemainingToClassStart', 'متبقي على بدء الحصة:')} ${timeStr}`);
+          setSessionRemainingStr(`متبقي على بدء الحصة: ${timeStr}`);
           return;
         } else {
           setTimeUntilStartStr('');
@@ -749,13 +744,13 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           if (attendanceSettings.timeRestricted) {
             setIsTimeExpired(true);
           }
-          setSessionRemainingStr(t('attendance.sessionExpired', 'انتهى وقت الحصة المحدد'));
+          setSessionRemainingStr('انتهى وقت الحصة المحدد');
         } else {
           setIsTimeExpired(false);
           const hrs = Math.floor(diff / 3600000);
           const mins = Math.floor((diff % 3600000) / 60000);
           const secs = Math.floor((diff % 60000) / 1000);
-          setSessionRemainingStr(`${hrs > 0 ? hrs + hUnit + ' ' : ''}${mins}${mUnit} ${secs}${sUnit}`);
+          setSessionRemainingStr(`${hrs > 0 ? hrs + 'س ' : ''}${mins}د ${secs}ث`);
         }
       } else if (durationType === 'from_login') {
         // 2️⃣ Type 2: Session Duration from Student Login
@@ -772,17 +767,17 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             if (attendanceSettings.timeRestricted) {
               setIsTimeExpired(true);
             }
-            setSessionRemainingStr(t('attendance.sessionDurationExpired', 'انتهت مدة الجلسة'));
+            setSessionRemainingStr('انتهت مدة الجلسة');
           } else {
             setIsTimeExpired(false);
             const hrs = Math.floor(diff / 3600000);
             const mins = Math.floor((diff % 3600000) / 60000);
             const secs = Math.floor((diff % 60000) / 1000);
-            setSessionRemainingStr(`${hrs > 0 ? hrs + hUnit + ' ' : ''}${mins}${mUnit} ${secs}${sUnit}`);
+            setSessionRemainingStr(`${hrs > 0 ? hrs + 'س ' : ''}${mins}د ${secs}ث`);
           }
         } else {
           setIsTimeExpired(false);
-          setSessionRemainingStr(t('attendance.timerStartsOnLogin', 'يبدأ العداد فور تسجيل الدخول'));
+          setSessionRemainingStr('يبدأ العداد فور تسجيل الدخول');
         }
       } else {
         setIsTimeExpired(false);
@@ -1018,7 +1013,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (e) {}
-      setPunchMessage(t('attendance.punchInSuccess', '🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.'));
+      setPunchMessage('🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.');
 
       // Send automated Telegram notification only once per session
       const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
@@ -1054,7 +1049,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`attendance_punch_in_${sName}_${todayKey}`, 'true');
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (err) {}
-      setPunchMessage(t('attendance.punchInLocalSuccess', '✅ تم تسجيل الحضور محلياً بنجاح.'));
+      setPunchMessage('✅ تم تسجيل الحضور محلياً بنجاح.');
 
       // Send automated Telegram notification fallback once
       const loginNotifiedKey = `tg_entry_notified_${sId}_${todayIsoStr}_${effectiveStartTime || '19:00'}`;
@@ -1383,20 +1378,21 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             <div className="space-y-2 text-center md:text-right">
               <div className="inline-flex items-center gap-2 bg-rose-500/20 px-3.5 py-1 rounded-full text-xs font-black backdrop-blur border border-rose-500/40 text-rose-300">
                 <ShieldAlert className="w-4 h-4 text-rose-400" />
-                <span>{t('attendance.earlyEntryBlockedBadge', 'نظام منع الدخول قبل الموعد مُفعّل')}</span>
+                <span>نظام منع الدخول قبل الموعد مُفعّل</span>
               </div>
               <h2 className="text-xl md:text-2xl font-black text-white">
-                {t('attendance.earlyEntryBlockedTitle', '🔒 موعد الحصة لم يبدأ بعد!')}
+                🔒 موعد الحصة لم يبدأ بعد!
               </h2>
               <p className="text-slate-300 text-xs md:text-sm font-medium max-w-xl leading-relaxed">
-                {t('common.welcomeStudent', 'مرحباً بك يا')} <strong>{student.name}</strong>! {t('attendance.earlyEntryBlockedDesc', 'موعد بداية حصة اليوم هو الساعة {time}. يرجى الانتظار، وسيتم فتح التمارين تلقائياً عند حلول الموعد.').replace('{time}', `${effectiveStartTime} (${formatDisplayTime(effectiveStartTime)})`)}
+                مرحباً بك يا <strong>{student.name}</strong>! موعد بداية حصة اليوم هو الساعة <strong className="text-amber-400 font-mono text-base">{effectiveStartTime}</strong> ({formatDisplayTime(effectiveStartTime)}).
+                يرجى الانتظار، وسيتم فتح التمارين تلقائياً عند حلول الموعد.
               </p>
             </div>
 
             <div className="bg-slate-900/90 border border-rose-500/40 px-6 py-4 rounded-2xl flex items-center gap-3 shrink-0 shadow-inner">
               <Clock className="w-5 h-5 text-amber-400 shrink-0 animate-pulse" />
               <div className="text-right">
-                <span className="text-[11px] text-slate-400 font-bold block">{t('attendance.timeRemainingToClassStart', 'متبقي على فتح الحصة:')}</span>
+                <span className="text-[11px] text-slate-400 font-bold block">متبقي على فتح الحصة:</span>
                 <span className="text-lg md:text-xl font-black font-mono text-amber-400 block tracking-wide">
                   {timeUntilStartStr}
                 </span>
@@ -1414,13 +1410,13 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             <div className="space-y-2 text-center md:text-right">
               <div className="inline-flex items-center gap-2 bg-white/20 px-3.5 py-1 rounded-full text-xs font-black backdrop-blur border border-white/20">
                 <Lock className="w-4 h-4 text-amber-200" />
-                <span>{t('attendance.forceLoginActiveBadge', 'نظام تسجيل الحضور الإجباري مفعّل')}</span>
+                <span>نظام تسجيل الحضور الإجباري مفعّل</span>
               </div>
               <h2 className="text-xl md:text-2xl font-black text-white">
-                {t('attendance.forceLoginTitle', '⏱️ يلزم تسجيل حضور الحصة لبدء التمارين والدروس')}
+                ⏱️ يلزم تسجيل حضور الحصة لبدء التمارين والدروس
               </h2>
               <p className="text-amber-100 text-xs md:text-sm font-medium max-w-xl leading-relaxed">
-                {t('common.welcomeStudent', 'مرحباً بك يا')} <strong>{student.name}</strong>! {t('attendance.forceLoginDesc', 'اضغط على زر تسجيل الحضور أدناه لتسجيل تواجدك في كشف الحضور وبدء الحصة المقررة لك اليوم وحل التمارين.').replace('{student_name}', student.name)}
+                مرحباً بك يا <strong>{student.name}</strong>! اضغط على زر تسجيل الحضور أدناه لتسجيل تواجدك في كشف الحضور وبدء الحصة المقررة لك اليوم وحل التمارين.
               </p>
             </div>
 
@@ -1434,7 +1430,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
               ) : (
                 <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping" />
               )}
-              <span>{t('attendance.punchInBtn', '🟢 تسجيل حضور ودخول الحصة الآن')}</span>
+              <span>🟢 تسجيل حضور ودخول الحصة الآن</span>
             </button>
           </div>
         </div>
@@ -1450,22 +1446,22 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs md:text-sm font-black text-emerald-400">
-                  {isPunchedIn ? t('attendance.punchInRecorded', '✅ تم تسجيل حضور ودخول الحصة') : t('attendance.sessionActive', '🟢 الجلسة الحالية نشطة')}
+                  {isPunchedIn ? '✅ تم تسجيل حضور ودخول الحصة' : '🟢 الجلسة الحالية نشطة'}
                 </span>
                 {punchTime && (
                   <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono border border-slate-700">
-                    {t('attendance.loginTimeLabel', 'توقيت الدخول:')} {punchTime}
+                    توقيت الدخول: {punchTime}
                   </span>
                 )}
                 {studentCustomSchedule?.customStartTime && (
                   <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono border border-amber-500/30 flex items-center gap-1">
-                    <span>{t('attendance.customTimeBadge', '⭐ موعدك الخاص:')}</span>
+                    <span>⭐ موعدك الخاص:</span>
                     <span>{formatDisplayTime(studentCustomSchedule.customStartTime)}</span>
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {t('attendance.attendanceLinkedNotice', 'حضورك مسجل ومربوط في كشف المعلم ولوحة المتابعة الحية.')}
+                حضورك مسجل ومربوط في كشف المعلم ولوحة المتابعة الحية.
               </p>
             </div>
           </div>
@@ -1474,7 +1470,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             <div className="bg-slate-800/90 px-4 py-2.5 rounded-xl border border-slate-700 flex items-center gap-3">
               <Clock className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-bold block">{t('attendance.sessionRemainingTime', 'الوقت المتبقي للجلسة:')}</span>
+                <span className="text-[10px] text-slate-400 font-bold block">الوقت المتبقي للجلسة:</span>
                 <span
                   className={`text-sm font-black font-mono block ${
                     isTimeExpired ? 'text-rose-400' : 'text-amber-400'
@@ -1497,9 +1493,9 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           </div>
           <button
             onClick={() => setPunchMessage('')}
-            className="text-emerald-700 hover:text-emerald-950 text-xs bg-emerald-100 px-2.5 py-1 rounded-lg cursor-pointer"
+            className="text-emerald-700 hover:text-emerald-950 text-xs bg-emerald-100 px-2.5 py-1 rounded-lg"
           >
-            {t('attendance.closeAlert', 'إغلاق')}
+            إغلاق
           </button>
         </div>
       )}
@@ -1641,7 +1637,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
           <button
             onClick={() => {
               if (isEarlyEntryBlocked) {
-                setPunchMessage(t('attendance.earlyEntryWarning', '🔒 موعد الحصة لم يبدأ بعد! تبدأ الحصة الساعة {time}').replace('{time}', `${formatDisplayTime(effectiveStartTime)} (${effectiveStartTime})`));
+                setPunchMessage(`🔒 موعد الحصة لم يبدأ بعد! تبدأ الحصة الساعة ${formatDisplayTime(effectiveStartTime)} (${effectiveStartTime})`);
                 return;
               }
               if (isForceLoginBlocked) {
@@ -1649,7 +1645,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
                 return;
               }
               if (isTimeRestrictedBlocked) {
-                setPunchMessage(t('attendance.classTimeExpiredWarning', '⚠️ انتهى الوقت المخصص للحصة المقررة اليوم.'));
+                setPunchMessage('⚠️ انتهى الوقت المخصص للحصة المقررة اليوم.');
                 return;
               }
               setShowExerciseModal(true);
@@ -1667,17 +1663,17 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             {isEarlyEntryBlocked ? (
               <>
                 <Lock className="w-4 h-4 text-rose-300" />
-                <span>{t('attendance.classStartsAt', 'تبدأ الحصة الساعة {time}').replace('{time}', `${formatDisplayTime(effectiveStartTime)} (${effectiveStartTime})`)}</span>
+                <span>تبدأ الحصة الساعة {formatDisplayTime(effectiveStartTime)} ({effectiveStartTime})</span>
               </>
             ) : isForceLoginBlocked ? (
               <>
                 <Lock className="w-4 h-4 text-slate-950" />
-                <span>{t('attendance.mustPunchInFirstBtn', 'سجل الحضور أولاً لبدء التمارين 🔓')}</span>
+                <span>سجل الحضور أولاً لبدء التمارين 🔓</span>
               </>
             ) : isTimeRestrictedBlocked ? (
               <>
                 <Lock className="w-4 h-4 text-slate-400" />
-                <span>{t('attendance.classTimeExpired', 'انتهى وقت الحصة المقررة')}</span>
+                <span>انتهى وقت الحصة المقررة</span>
               </>
             ) : (
               <>
