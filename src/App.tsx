@@ -113,23 +113,86 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Ping student presence when student is logged in
+  // Ping student presence and manage smart inactivity timeout
   useEffect(() => {
     if (student && !student.isAdmin && apiConfigured) {
-      const pingPresence = async () => {
+      let lastActivityTime = Date.now();
+      let isInactiveTimedOut = false;
+
+      // Determine inactivity limit from cached settings (default 10 minutes)
+      const getTimeoutMinutes = () => {
+        try {
+          const raw = localStorage.getItem('attendance_settings_cached');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.inactivityTimeoutMinutes) return Math.max(2, Number(parsed.inactivityTimeoutMinutes));
+          }
+        } catch (e) {}
+        return 10;
+      };
+
+      const sendPresenceUpdate = async (actionType: string) => {
         try {
           await callGasApi('logStudentPresence', {
             studentId: student.id,
             studentName: student.name,
-            actionType: 'ping',
+            actionType,
           });
         } catch (e) {
           // silent fail
         }
       };
-      pingPresence();
-      const interval = setInterval(pingPresence, 60000); // ping every 1 min
-      return () => clearInterval(interval);
+
+      // Initial active ping
+      sendPresenceUpdate('ping');
+
+      // User interaction listener to refresh activity timestamp & resume if timed out
+      const handleUserActivity = () => {
+        const now = Date.now();
+        lastActivityTime = now;
+
+        if (isInactiveTimedOut) {
+          // Student returned and interacted with the page
+          isInactiveTimedOut = false;
+          sendPresenceUpdate('resume');
+        }
+      };
+
+      const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+      activityEvents.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+      // Periodic heartbeat and idle check every 60 seconds
+      const interval = setInterval(() => {
+        const timeoutMs = getTimeoutMinutes() * 60 * 1000;
+        const idleDuration = Date.now() - lastActivityTime;
+
+        if (idleDuration >= timeoutMs) {
+          if (!isInactiveTimedOut) {
+            // Student was inactive for >= timeout
+            isInactiveTimedOut = true;
+            sendPresenceUpdate('inactivity_logout');
+          }
+        } else {
+          // Still active, send routine heartbeat
+          if (!isInactiveTimedOut) {
+            sendPresenceUpdate('ping');
+          }
+        }
+      }, 60000);
+
+      // Attempt fast exit notification on tab close / unload
+      const handlePageHide = () => {
+        try {
+          sendPresenceUpdate('page_close');
+        } catch (e) {}
+      };
+      window.addEventListener('pagehide', handlePageHide);
+
+      return () => {
+        clearInterval(interval);
+        activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+        window.removeEventListener('pagehide', handlePageHide);
+      };
     }
   }, [student, apiConfigured]);
 
