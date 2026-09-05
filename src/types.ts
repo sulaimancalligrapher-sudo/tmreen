@@ -8,6 +8,10 @@ export interface HeaderData {
   mainTitle: string;
   description: string;
   buttons: Array<{ buttonText: string; buttonUrl: string }>;
+  mainTitleEn?: string;
+  mainTitleTh?: string;
+  descriptionEn?: string;
+  descriptionTh?: string;
 }
 
 export interface Student {

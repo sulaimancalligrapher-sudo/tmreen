@@ -126,13 +126,19 @@ export default function App() {
   }, []);
 
   // Determine display app title and description with intelligent fallback and language awareness
-  const displayAppTitle = generalData?.header?.mainTitle
-    ? (language === 'ar' ? generalData.header.mainTitle : t('common.appName', generalData.header.mainTitle))
-    : t('common.appName', 'منصة الضاد التعليمية');
+  const displayAppTitle = (() => {
+    if (language === 'en' && generalData?.header?.mainTitleEn) return generalData.header.mainTitleEn;
+    if (language === 'th' && generalData?.header?.mainTitleTh) return generalData.header.mainTitleTh;
+    if (language === 'ar' && generalData?.header?.mainTitle) return generalData.header.mainTitle;
+    return t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية');
+  })();
 
-  const displayAppDesc = generalData?.header?.description
-    ? (language === 'ar' ? generalData.header.description : t('common.appDescription', generalData.header.description))
-    : t('common.appDescription', 'تعلم وممارسة مهارات اللغة العربية');
+  const displayAppDesc = (() => {
+    if (language === 'en' && generalData?.header?.descriptionEn) return generalData.header.descriptionEn;
+    if (language === 'th' && generalData?.header?.descriptionTh) return generalData.header.descriptionTh;
+    if (language === 'ar' && generalData?.header?.description) return generalData.header.description;
+    return t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية');
+  })();
 
   // Synchronize browser tab title with institution name
   useEffect(() => {
