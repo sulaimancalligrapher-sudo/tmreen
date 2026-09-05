@@ -125,6 +125,13 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Synchronize browser tab title with institution name
+  useEffect(() => {
+    if (generalData?.header?.mainTitle) {
+      document.title = generalData.header.mainTitle;
+    }
+  }, [generalData?.header?.mainTitle]);
+
   // Fetch General App Data (Profile, Header logo/title/description, About, Contact)
   useEffect(() => {
     if (!apiConfigured) return;
@@ -849,7 +856,8 @@ export default function App() {
     <div className="min-h-screen bg-slate-50/70 flex flex-col font-sans" dir="rtl">
       {/* Top Professional Navigation Bar (Student View) */}
       <header className="sticky top-0 bg-white border-b border-slate-100 z-40 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 h-20 flex items-center justify-between">
+        {/* ================= DESKTOP & TABLET HEADER (md and above) ================= */}
+        <div className="hidden md:flex max-w-6xl mx-auto px-6 md:px-8 h-20 items-center justify-between">
           {/* Logo & Main Title */}
           <div className="flex items-center gap-3">
             {generalData?.header?.logoUrl && !logoError ? (
@@ -876,7 +884,7 @@ export default function App() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex flex-wrap items-center gap-1 text-sm font-bold text-slate-600">
+          <nav className="flex flex-wrap items-center gap-1 text-sm font-bold text-slate-600">
             <button
               onClick={() => setActiveScreen('home')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition ${
@@ -965,8 +973,64 @@ export default function App() {
 
             <button
               onClick={handleLogout}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 p-2.5 rounded-xl transition"
-              title="تسجيل الخروج"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 p-2.5 rounded-xl transition cursor-pointer"
+              title={t('auth.logout', 'تسجيل الخروج')}
+            >
+              <LogOut className="w-5 h-5 shrink-0" />
+            </button>
+          </div>
+        </div>
+
+        {/* ================= MOBILE HEADER (2-Row Layout) ================= */}
+        <div className="md:hidden px-4 py-3 flex flex-col gap-2.5">
+          {/* Row 1: Larger Logo + Institution Name & Multi-line Description in one row */}
+          <div className="flex items-start gap-3.5">
+            {generalData?.header?.logoUrl && !logoError ? (
+              <img
+                src={transformGoogleDriveImageUrl(generalData.header.logoUrl)}
+                alt={generalData.header?.mainTitle || 'شعار'}
+                className="w-13 h-13 min-w-[52px] min-h-[52px] object-contain rounded-2xl shadow-xs border border-slate-200/80 bg-white p-1 shrink-0 mt-0.5"
+                referrerPolicy="no-referrer"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="bg-amber-500 text-slate-950 font-black w-13 h-13 min-w-[52px] min-h-[52px] rounded-2xl flex items-center justify-center text-2xl shadow-md shrink-0 mt-0.5">
+                ض
+              </div>
+            )}
+            <div className="min-w-0 flex-1 text-right">
+              <span className="font-black text-slate-900 tracking-tight text-base leading-snug block font-sans">
+                {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
+              </span>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-relaxed block line-clamp-2 sm:line-clamp-3 mt-0.5 break-words">
+                {generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية'}
+              </p>
+            </div>
+          </div>
+
+          {/* Row 2: Language Switcher (Icon Only), Student Name (up to 2 lines), Logout Button (Icon Only) */}
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            {/* Language Switcher - Icon Only */}
+            <div className="shrink-0">
+              <LanguageSwitcher variant="iconOnly" />
+            </div>
+
+            {/* Student Name - Can wrap into 2 lines if long */}
+            {student?.name ? (
+              <div className="flex-1 min-w-0 px-2 text-center">
+                <span className="inline-block text-xs font-black text-slate-800 bg-slate-100/90 border border-slate-200/80 px-3 py-1 rounded-xl line-clamp-2 leading-tight text-center max-w-full break-words shadow-2xs">
+                  {student.name}
+                </span>
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
+
+            {/* Logout Button - Icon Only */}
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl transition shrink-0 border border-rose-100/80 shadow-xs cursor-pointer"
+              title={t('auth.logout', 'تسجيل الخروج')}
             >
               <LogOut className="w-5 h-5 shrink-0" />
             </button>

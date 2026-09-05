@@ -10,7 +10,7 @@ import { Globe, ChevronDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LanguageSwitcherProps {
-  variant?: 'header' | 'compact' | 'admin' | 'minimal';
+  variant?: 'header' | 'compact' | 'admin' | 'minimal' | 'iconOnly';
 }
 
 export default function LanguageSwitcher({ variant = 'header' }: LanguageSwitcherProps) {
@@ -38,17 +38,25 @@ export default function LanguageSwitcher({ variant = 'header' }: LanguageSwitche
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 rounded-xl transition font-bold text-xs shadow-sm ${
-          variant === 'admin'
-            ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5'
-            : 'bg-white/90 hover:bg-white text-slate-800 border border-slate-200 px-3 py-1.5 shadow'
+        className={`flex items-center justify-center rounded-xl transition font-bold text-xs shadow-sm cursor-pointer ${
+          variant === 'iconOnly'
+            ? 'w-10 h-10 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 shadow-xs'
+            : variant === 'admin'
+            ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5 gap-2'
+            : 'bg-white/90 hover:bg-white text-slate-800 border border-slate-200 px-3 py-1.5 shadow gap-2'
         }`}
         title="تغيير اللغة / Select Language / เลือกภาษา"
       >
-        <Globe className="w-4 h-4 text-emerald-600 dark:text-amber-400 shrink-0" />
-        <span className="text-base leading-none">{languageOption.flag}</span>
-        <span className="font-bold">{languageOption.nativeName}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        {variant === 'iconOnly' ? (
+          <Globe className="w-5 h-5 text-emerald-600 shrink-0" />
+        ) : (
+          <>
+            <Globe className="w-4 h-4 text-emerald-600 dark:text-amber-400 shrink-0" />
+            <span className="text-base leading-none">{languageOption.flag}</span>
+            <span className="font-bold">{languageOption.nativeName}</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </>
+        )}
       </button>
 
       <AnimatePresence>
@@ -58,7 +66,7 @@ export default function LanguageSwitcher({ variant = 'header' }: LanguageSwitche
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-1.5 w-48 bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-1.5 z-50 space-y-1"
+            className="absolute left-0 sm:left-auto sm:right-0 mt-1.5 w-48 bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-1.5 z-50 space-y-1"
           >
             <div className="px-3 py-1.5 border-b border-slate-800 text-[11px] font-bold text-slate-400 text-center">
               اختر اللغة / Select Language
