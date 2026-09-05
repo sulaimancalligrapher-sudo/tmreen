@@ -31,6 +31,11 @@ export function setApiUrl(url: string): void {
 
 export function resetApiUrlToDefault(): void {
   localStorage.removeItem('gas_api_url');
+  apiCache.clear();
+}
+
+export function clearApiCache(): void {
+  apiCache.clear();
 }
 
 // Check if API URL is configured
@@ -196,6 +201,9 @@ export async function callGasApi<T>(
 
         if (isReadOnlyAction) {
           apiCache.set(cacheKey, { timestamp: Date.now(), data });
+        } else {
+          // Invalidate cache on mutations
+          apiCache.clear();
         }
 
         return data as T;
@@ -214,6 +222,34 @@ export async function callGasApi<T>(
         if (attempt === maxRetries) {
           break;
         }
+      }
+    }
+
+    // Auto-recovery check: If a custom URL failed and it differs from DEFAULT_GAS_API_URL, try DEFAULT_GAS_API_URL!
+    const customUrl = localStorage.getItem('gas_api_url');
+    if (customUrl && customUrl !== DEFAULT_GAS_API_URL && DEFAULT_GAS_API_URL) {
+      try {
+        console.warn('[API] Custom URL failed. Attempting fallback to DEFAULT_GAS_API_URL...');
+        const fallbackRes = await fetch(DEFAULT_GAS_API_URL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action, ...payload }),
+        });
+        if (fallbackRes.ok) {
+          const fbText = await fallbackRes.text();
+          const fbData = JSON.parse(fbText);
+          if (fbData && !fbData.error) {
+            console.log('[API] Auto-recovery successful with DEFAULT_GAS_API_URL! Clearing stale custom URL.');
+            localStorage.removeItem('gas_api_url');
+            if (isReadOnlyAction) {
+              apiCache.set(cacheKey, { timestamp: Date.now(), data: fbData });
+            }
+            return fbData as T;
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('[API] Fallback to DEFAULT_GAS_API_URL also failed:', fallbackErr);
       }
     }
 

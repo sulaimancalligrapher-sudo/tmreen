@@ -255,6 +255,11 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Student Login',
       th: 'เข้าสู่ระบบสำหรับนักเรียน',
     },
+    studentLoginErrorInvalid: {
+      ar: 'اسم أو رقم الطالب غير صحيح، يرجى التأكد والمحاولة مرة أخرى.',
+      en: 'Student name or number is incorrect. Please verify and try again.',
+      th: 'ชื่อหรือรหัสนักเรียนไม่ถูกต้อง โปรดตรวจสอบและลองอีกครั้ง',
+    },
     adminLoginTitle: {
       ar: 'بوابة الإدارة والتحكم',
       en: 'Admin & Control Portal',
@@ -1522,6 +1527,21 @@ export const defaultTranslations: TranslationDictionary = {
       ar: 'أهلاً بك في منصتك التعليمية',
       en: 'Welcome to your learning platform',
       th: 'ยินดีต้อนรับสู่แพลตฟอร์มการเรียนรู้ของคุณ',
+    },
+    welcomeDayMessageTemplate: {
+      ar: 'أهلاً بك يا {name}.. تم تسجيل دخولك في اليوم {day} من البرنامج، نتمنى لك علماً نافعاً وموفقاً! 🌟',
+      en: 'Welcome {name}.. You have logged in on Day {day} of the program. Wishing you a fruitful and blessed journey! 🌟',
+      th: 'ยินดีต้อนรับ {name}.. คุณได้เข้าสู่ระบบในวันที่ {day} ของโปรแกรม ขอให้ประสบความสำเร็จในการเรียนรู้! 🌟',
+    },
+    welcomeRestDayMessageTemplate: {
+      ar: 'أهلاً بك يا {name}.. اليوم استراحة ومراجعة بعد إنهاء اليوم {day} من البرنامج، نتمنى لك وقتاً ممتعاً! 🌟',
+      en: 'Welcome {name}.. Today is a rest and review day after completing Day {day} of the program. Enjoy your time! 🌟',
+      th: 'ยินดีต้อนรับ {name}.. วันนี้เป็นวันพักและทบทวนหลังจากจบวันที่ {day} ของโปรแกรม ขอให้มีความสุข! 🌟',
+    },
+    welcomeNotStartedMessageTemplate: {
+      ar: 'أهلاً بك يا {name}.. يبدأ برنامجك الدراسي بتاريخ {date}، نتمنى لك رحلة تعليمية موفقة! 🌟',
+      en: 'Welcome {name}.. Your study program starts on {date}. Wishing you a wonderful learning journey! 🌟',
+      th: 'ยินดีต้อนรับ {name}.. โปรแกรมการเรียนของคุณจะเริ่มในวันที่ {date} ขอให้โชคดีในการเรียน! 🌟',
     },
     welcomeBadge: {
       ar: 'مرحباً بك يا بطل المتميز! 🌟',

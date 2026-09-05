@@ -353,10 +353,10 @@ export default function LoginModal({
 
           onLoginSuccess(student);
         } else {
-          setError(response.message || t('login.loginFailedCheckData', 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.'));
+          setError(t('login.studentLoginErrorInvalid', 'اسم أو رقم الطالب غير صحيح، يرجى التأكد والمحاولة مرة أخرى.'));
         }
       } catch (err: any) {
-        setError(`${t('login.serverSheetError', 'خطأ في خادم الشيت:')} ${err.message}`);
+        setError(t('login.studentLoginErrorInvalid', 'اسم أو رقم الطالب غير صحيح، يرجى التأكد والمحاولة مرة أخرى.'));
       } finally {
         setLoading(false);
       }
@@ -414,16 +414,20 @@ export default function LoginModal({
       >
         {/* Header: Customized specifically for mobile (vertical stack: Icon -> Title -> Subtitle -> Language Switcher) while preserving Desktop/Tablet */}
         <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
-          {/* Top Row for Desktop & Tablet ONLY (Language Switcher in corner) */}
+          {/* Top Row for Desktop & Tablet ONLY (Language Switcher in corner, Settings for Admin only) */}
           <div className="w-full hidden sm:flex justify-between items-center -mb-6">
-            <button
-              type="button"
-              onClick={() => setShowUrlEditor(!showUrlEditor)}
-              className="p-2 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-xl transition"
-              title={t('login.editGasServerUrl', 'إعدادات ربط خادم Google Apps Script')}
-            >
-              <Settings className="w-5 h-5" />
-            </button>
+            {loginMode === 'admin' ? (
+              <button
+                type="button"
+                onClick={() => setShowUrlEditor(!showUrlEditor)}
+                className="p-2 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+                title={t('login.editGasServerUrl', 'إعدادات ربط خادم Google Apps Script')}
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            ) : (
+              <div className="w-9 h-9" />
+            )}
             <LanguageSwitcher variant="minimal" />
           </div>
 
@@ -587,29 +591,31 @@ export default function LoginModal({
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
                 <span className="leading-relaxed font-bold">{error}</span>
               </div>
-              <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowUrlEditor(true)}
-                  className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
-                >
-                  <Settings className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{t('login.editGasServerUrl', 'تعديل رابط خادم الشيت')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetUrlDefault}
-                  className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
-                >
-                  {t('login.resetDefaultUrl', 'إعادة الضبط للافتراضي')}
-                </button>
-              </div>
+              {loginMode === 'admin' && (
+                <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlEditor(true)}
+                    className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{t('login.editGasServerUrl', 'تعديل رابط خادم الشيت')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetUrlDefault}
+                    className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
+                  >
+                    {t('login.resetDefaultUrl', 'إعادة الضبط للافتراضي')}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 
-          {/* GAS Server URL Drawer */}
+          {/* GAS Server URL Drawer (Admin Only) */}
           <AnimatePresence>
-            {showUrlEditor && (
+            {showUrlEditor && loginMode === 'admin' && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}

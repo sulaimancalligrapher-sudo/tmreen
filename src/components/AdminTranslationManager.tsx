@@ -33,7 +33,8 @@ export default function AdminTranslationManager() {
     monitoring: { labelAr: '📡 المتابعة اللحظية للكشف (monitoring)', icon: '📡' },
     reports: { labelAr: '📊 التقارير ومتابعة الإنجاز (reports)', icon: '📊' },
     admin: { labelAr: '⚙️ لوحة الإدارة والمعلم (admin)', icon: '⚙️' },
-    auth: { labelAr: '🔐 تسجيل الدخول والمصادقة (auth)', icon: '🔐' },
+    login: { labelAr: '🔐 شاشة تسجيل الدخول والترحيب (login)', icon: '🔐' },
+    auth: { labelAr: '🔐 المصادقة والصلاحيات (auth)', icon: '🔐' },
     common: { labelAr: '🌐 الكلمات العامة والأزرار (common)', icon: '🌐' },
   };
 

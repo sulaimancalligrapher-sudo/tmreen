@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { callGasApi, transformGoogleDriveImageUrl } from '../utils/api';
+import { callGasApi, transformGoogleDriveImageUrl, resetApiUrlToDefault } from '../utils/api';
 import { Student } from '../types';
 import StudentScheduleCard, { StudentSchedule } from './StudentScheduleCard';
 import ReportDashboard from './ReportDashboard';
@@ -889,7 +889,7 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
     try {
       setLoadingLessons(true);
       setLessonsError('');
-      const data = await callGasApi<any>('getLessonsForAdmin', {}, { timeoutMs: 60000 });
+      const data = await callGasApi<any>('getLessonsForAdmin', {}, { timeoutMs: 30000, priority: true });
       if (data && data.success) {
         const fetchedLessons = {
           questionsLessons: data.questionsLessons || [],
@@ -2781,13 +2781,41 @@ export default function AdminDashboard({ onBackToHome, onOpenConnectionSettings 
 
       {/* Tabs content rendering */}
       {lessonsError && (
-        <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 rounded-2xl text-xs flex gap-2 items-center mb-6">
-          <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
-          <span>{lessonsError}</span>
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shadow-xs">
+          <div className="flex gap-2 items-center">
+            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+            <span className="font-bold leading-relaxed">{lessonsError}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => fetchLessons()}
+              className="bg-white hover:bg-rose-100 text-rose-900 border border-rose-200 px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+              <span>إعادة المحاولة</span>
+            </button>
+            <button
+              onClick={() => {
+                resetApiUrlToDefault();
+                fetchLessons();
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="مسح الرابط القديم المحفوظ في المتصفح والاعتماد على الرابط الافتراضي"
+            >
+              <span>الرابط الافتراضي ومسح الكاش</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {loadingLessons ? (
+      {loadingLessons && (lessons.questionsLessons.length > 0 || lessons.matchesLessons.length > 0 || lessons.drawingLessons.length > 0) && (
+        <div className="bg-amber-50/80 border border-amber-200/80 text-amber-900 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2.5 mb-4 animate-pulse">
+          <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+          <span className="font-bold">جاري مزامنة بيانات التمارين المحدثة مع Google Sheets في الخلفية...</span>
+        </div>
+      )}
+
+      {loadingLessons && lessons.questionsLessons.length === 0 && lessons.matchesLessons.length === 0 && lessons.drawingLessons.length === 0 ? (
         <div className="py-20 flex flex-col items-center justify-center space-y-3">
           <Loader2 className="w-10 h-10 animate-spin text-amber-500" />
           <p className="text-slate-400 text-xs font-bold">جاري تحميل بيانات التمارين من Google Sheets...</p>
