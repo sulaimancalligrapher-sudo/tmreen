@@ -57,7 +57,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [apiConfigured, setApiConfigured] = useState<boolean>(isApiConfigured());
   const [student, setStudent] = useState<Student | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -125,10 +125,19 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Determine display app title and description with intelligent fallback and language awareness
+  const displayAppTitle = generalData?.header?.mainTitle
+    ? (language === 'ar' ? generalData.header.mainTitle : t('common.appName', generalData.header.mainTitle))
+    : t('common.appName', 'منصة الضاد التعليمية');
+
+  const displayAppDesc = generalData?.header?.description
+    ? (language === 'ar' ? generalData.header.description : t('common.appDescription', generalData.header.description))
+    : t('common.appDescription', 'تعلم وممارسة مهارات اللغة العربية');
+
   // Synchronize browser tab title with institution name
   useEffect(() => {
-    document.title = t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية');
-  }, [generalData?.header?.mainTitle, t]);
+    document.title = displayAppTitle;
+  }, [displayAppTitle]);
 
   // Fetch General App Data (Profile, Header logo/title/description, About, Contact)
   useEffect(() => {
@@ -714,7 +723,7 @@ export default function App() {
                   لوحة تحكم الإدارة والمسؤولين
                 </h1>
                 <p className="text-xs text-slate-400">
-                  {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
+                  {displayAppTitle}
                 </p>
               </div>
             </div>
@@ -873,10 +882,10 @@ export default function App() {
             )}
             <div className="text-right">
               <span className="font-extrabold text-slate-900 tracking-tight text-base md:text-lg block font-sans">
-                {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
+                {displayAppTitle}
               </span>
               <span className="text-[10px] text-slate-400 font-bold block">
-                {t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية')}
+                {displayAppDesc}
               </span>
             </div>
           </div>
@@ -998,10 +1007,10 @@ export default function App() {
             )}
             <div className="min-w-0 flex-1 text-right">
               <span className="font-black text-slate-900 tracking-tight text-base leading-snug block font-sans">
-                {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
+                {displayAppTitle}
               </span>
               <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-relaxed block line-clamp-2 sm:line-clamp-3 mt-0.5 break-words">
-                {t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية')}
+                {displayAppDesc}
               </p>
             </div>
           </div>
