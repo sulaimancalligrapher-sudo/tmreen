@@ -121,6 +121,8 @@ function doPost(e) {
       result = getLiveMonitoringData();
     } else if (action === 'logStudentPresence') {
       result = logStudentPresence(request.studentId, request.studentName, request.actionType);
+    } else if (action === 'autoCheckInactivityTimeout') {
+      result = autoCheckInactivityTimeout();
     } else if (action === 'processTelegramAlerts') {
       result = processScheduledTelegramNotifications();
     } else if (action === 'recordTelegramUser') {
@@ -162,10 +164,61 @@ function getData() {
     });
   }
   
+  var formatImageUrl = function(url) {
+    if (!url) return '';
+    var u = url.toString().trim();
+    if (u.indexOf('drive.google.com') !== -1) {
+      if (u.indexOf('/file/d/') !== -1) {
+        var id1 = u.split('/file/d/')[1].split('/')[0].split('?')[0];
+        if (id1) return 'https://drive.google.com/thumbnail?id=' + id1 + '&sz=w1000';
+      } else if (u.indexOf('id=') !== -1) {
+        var id2 = u.split('id=')[1].split('&')[0];
+        if (id2) return 'https://drive.google.com/thumbnail?id=' + id2 + '&sz=w1000';
+      } else if (u.indexOf('/d/') !== -1) {
+        var id3 = u.split('/d/')[1].split('/')[0].split('?')[0];
+        if (id3) return 'https://drive.google.com/thumbnail?id=' + id3 + '&sz=w1000';
+      }
+    }
+    return u;
+  };
+
+  var logoUrl = profileData[9] && profileData[9][2] ? profileData[9][2].toString().trim() : '';
+  var mainTitle = profileData[9] && profileData[9][1] ? profileData[9][1].toString().trim() : '';
+  var description = profileData[10] && profileData[10][1] ? profileData[10][1].toString().trim() : '';
+
+  // Smart scan in Profile sheet if standard cell C10/B10 is empty
+  if (!logoUrl && profileData.length > 0) {
+    for (var r = 0; r < profileData.length; r++) {
+      for (var c = 0; c < profileData[r].length; c++) {
+        var val = profileData[r][c] ? profileData[r][c].toString().trim() : '';
+        if (val && (val.indexOf('http://') === 0 || val.indexOf('https://') === 0 || val.indexOf('drive.google.com') !== -1) &&
+            (val.indexOf('jpg') !== -1 || val.indexOf('jpeg') !== -1 || val.indexOf('png') !== -1 || val.indexOf('svg') !== -1 || val.indexOf('webp') !== -1 || val.indexOf('drive.google.com') !== -1 || val.indexOf('thumbnail') !== -1)) {
+          logoUrl = val;
+          break;
+        }
+      }
+      if (logoUrl) break;
+    }
+  }
+
+  // Also check if any row label has "شعار" or "logo"
+  if (!logoUrl && profileData.length > 0) {
+    for (var r2 = 0; r2 < profileData.length; r2++) {
+      var colA = profileData[r2][0] ? profileData[r2][0].toString().trim().toLowerCase() : '';
+      if (colA.indexOf('شعار') !== -1 || colA.indexOf('logo') !== -1) {
+        var candidate = (profileData[r2][2] || profileData[r2][1] || '').toString().trim();
+        if (candidate) {
+          logoUrl = candidate;
+          break;
+        }
+      }
+    }
+  }
+
   var headerData = {
-    logoUrl: profileData[9] && profileData[9][2] ? profileData[9][2].toString().trim() : '',
-    mainTitle: profileData[9] && profileData[9][1] ? profileData[9][1].toString().trim() : '',
-    description: profileData[10] && profileData[10][1] ? profileData[10][1].toString().trim() : '',
+    logoUrl: formatImageUrl(logoUrl),
+    mainTitle: mainTitle,
+    description: description,
     buttons: buttonsData
   };
   
@@ -276,13 +329,56 @@ function loginUser(studentName, studentId, deviceId, lat, lng) {
       studentSched = getStudentSchedule(studentId);
     } catch (schedErr) {}
     
+    var studyDayData = null;
+    try {
+      var effSched = studentSched || getDefaultSchedule();
+      if (effSched && effSched.startDate) {
+        var pActive = parseActiveDays(effSched.activeDays);
+        var pParts = effSched.startDate.split('-');
+        if (pParts.length === 3) {
+          var pStart = new Date(parseInt(pParts[0]), parseInt(pParts[1]) - 1, parseInt(pParts[2]));
+          pStart.setHours(0, 0, 0, 0);
+          var pToday = new Date();
+          pToday.setHours(0, 0, 0, 0);
+          if (pToday >= pStart) {
+            var pPassed = 0;
+            var pCur = new Date(pStart.getTime());
+            var pLimit = 0;
+            while (pCur <= pToday && pLimit < 1500) {
+              if (pActive.indexOf(pCur.getDay()) !== -1) {
+                pPassed++;
+              }
+              pCur.setDate(pCur.getDate() + 1);
+              pLimit++;
+            }
+            var pOrdinals = {
+              1: 'الأول', 2: 'الثاني', 3: 'الثالث', 4: 'الرابع', 5: 'الخامس',
+              6: 'السادس', 7: 'السابع', 8: 'الثامن', 9: 'التاسع', 10: 'العاشر',
+              11: 'الحادي عشر', 12: 'الثاني عشر', 13: 'الثالث عشر', 14: 'الرابع عشر', 15: 'الخامس عشر',
+              16: 'السادس عشر', 17: 'السابع عشر', 18: 'الثامن عشر', 19: 'التاسع عشر', 20: 'العشرون',
+              21: 'الحادي والعشرون', 22: 'الثاني والعشرون', 23: 'الثالث والعشرون', 24: 'الرابع والعشرون', 25: 'الخامس والعشرون',
+              26: 'السادس والعشرون', 27: 'السابع والعشرون', 28: 'الثامن والعشرون', 29: 'التاسع والعشرون', 30: 'الثلاثون'
+            };
+            var pDayNum = Math.max(1, pPassed);
+            var pOrd = pOrdinals[pDayNum] || ('الـ ' + pDayNum);
+            studyDayData = {
+              dayNumber: pDayNum,
+              dayOrdinal: pOrd,
+              message: 'أهلاً بك يا ' + studentName + '.. تم تسجيل دخولك في اليوم ' + pOrd + ' من البرنامج، نتمنى لك علماً نافعاً وموفقاً! 🌟'
+            };
+          }
+        }
+      }
+    } catch (dayErr) {}
+
     return {
       success: true,
       name: studentName,
       id: studentId,
       telegramChatId: tgInfo.telegramChatId || (studentSched && studentSched.telegramChatId) || '',
       preferredLanguage: tgInfo.preferredLanguage || (studentSched && studentSched.preferredLanguage) || 'ar',
-      schedule: studentSched || null
+      schedule: studentSched || null,
+      studyDay: studyDayData
     };
   } catch (e) {
     return { success: false, message: 'حدث خطأ في عملية تسجيل الدخول: ' + e.toString() };
@@ -5071,6 +5167,7 @@ function getAttendanceSettings() {
     forceLogin: false,
     timeRestricted: false,
     preventEarlyEntry: false,
+    inactivityTimeoutMinutes: 10,
     allowedExceptionStudents: [],
     telegramToken: '',
     telegramChatId: '',
@@ -5114,6 +5211,7 @@ function getAttendanceSettings() {
     else if (key === 'forceLogin') settingsMap.forceLogin = (val === 'true');
     else if (key === 'timeRestricted') settingsMap.timeRestricted = (val === 'true');
     else if (key === 'preventEarlyEntry') settingsMap.preventEarlyEntry = (val === 'true');
+    else if (key === 'inactivityTimeoutMinutes') settingsMap.inactivityTimeoutMinutes = parseInt(val, 10) || 10;
     else if (key === 'allowedExceptionStudents') settingsMap.allowedExceptionStudents = val ? val.split(',').map(function(s){ return s.trim(); }) : [];
     else if (key === 'telegramToken') settingsMap.telegramToken = val;
     else if (key === 'telegramChatId') settingsMap.telegramChatId = val;
@@ -5177,6 +5275,7 @@ function saveAttendanceSettings(newSettings) {
     forceLogin: newSettings.forceLogin ? 'true' : 'false',
     timeRestricted: newSettings.timeRestricted ? 'true' : 'false',
     preventEarlyEntry: newSettings.preventEarlyEntry ? 'true' : 'false',
+    inactivityTimeoutMinutes: (newSettings.inactivityTimeoutMinutes || 10).toString(),
     allowedExceptionStudents: allowedStr,
     telegramToken: newSettings.telegramToken || '',
     telegramChatId: newSettings.telegramChatId || '',
@@ -5249,6 +5348,7 @@ function logStudentPresence(studentId, studentName, actionType) {
   var foundRow = -1;
   var existingLoginTime = nowTimeStr;
   var existingTotalMinutes = 1;
+  var existingStatus = '';
   
   if (lastRow >= 2) {
     var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
@@ -5259,31 +5359,122 @@ function logStudentPresence(studentId, studentName, actionType) {
         foundRow = i + 2;
         existingLoginTime = data[i][3] ? data[i][3].toString() : nowTimeStr;
         existingTotalMinutes = data[i][5] ? parseInt(data[i][5], 10) || 1 : 1;
+        existingStatus = data[i][7] ? data[i][7].toString() : '';
         break;
       }
     }
   }
   
+  // Calculate total minutes spent in session
+  var totalMinutes = existingTotalMinutes;
+  try {
+    var loginMatch = existingLoginTime.match(/(\d{1,2}):(\d{2})/);
+    if (loginMatch) {
+      var lh = parseInt(loginMatch[1], 10);
+      var lm = parseInt(loginMatch[2], 10);
+      var logDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), lh, lm, 0);
+      totalMinutes = Math.max(1, Math.round((now.getTime() - logDate.getTime()) / 60000));
+    }
+  } catch(e) {}
+  
   var statusText = 'نشط 🟢';
+  var notesText = 'متصل / نشط الآن';
+
   if (actionType === 'punch_in') {
     statusText = 'حاضر 🟢';
-  } else if (actionType === 'logout' || actionType === 'page_close' || actionType === 'exit') {
+    notesText = 'تسجيل حضور ودخول الحصة';
+  } else if (actionType === 'logout') {
     statusText = 'غادر / خرج ⚪';
+    notesText = 'تسجيل خروج يدوي';
+  } else if (actionType === 'page_close' || actionType === 'exit') {
+    statusText = 'غادر / خرج ⚪';
+    notesText = 'إغلاق الصفحة / مغادرة';
+  } else if (actionType === 'timeout' || actionType === 'inactivity_logout') {
+    statusText = 'غادر / خروج تلقائي ⚪';
+    notesText = 'خروج تلقائي (انقطاع النشاط)';
+  } else if (actionType === 'ping' || actionType === 'resume') {
+    // Preserve 'حاضر 🟢' if student previously punched in
+    if (existingStatus.indexOf('حاضر') !== -1) {
+      statusText = 'حاضر 🟢';
+    } else {
+      statusText = 'نشط 🟢';
+    }
+    notesText = (actionType === 'resume') ? 'استئناف النشاط' : 'متصل بالجلسة الحية';
   }
   
   if (foundRow !== -1) {
     sheet.getRange(foundRow, 5).setValue(nowTimeStr); // update last active / exit time
+    sheet.getRange(foundRow, 6).setValue(totalMinutes);
     sheet.getRange(foundRow, 8).setValue(statusText);
-    if (actionType === 'logout') {
-      sheet.getRange(foundRow, 9).setValue('تسجيل خروج يدوي');
-    } else if (actionType === 'page_close' || actionType === 'exit') {
-      sheet.getRange(foundRow, 9).setValue('إغلاق الصفحة / مغادرة');
+    sheet.getRange(foundRow, 9).setValue(notesText);
+    if (statusText.indexOf('🟢') !== -1) {
+      sheet.getRange(foundRow, 8).setBackground('#dcfce7').setFontColor('#15803d');
+    } else {
+      sheet.getRange(foundRow, 8).setBackground('#f8fafc').setFontColor('#64748b');
     }
   } else {
-    sheet.appendRow([todayStr, studentId, studentName, nowTimeStr, nowTimeStr, 1, 0, statusText, actionType === 'punch_in' ? 'تسجيل دخول يدوي للحصة' : (actionType === 'page_close' || actionType === 'logout' ? 'إغلاق الصفحة' : 'دخول للموقع')]);
+    sheet.appendRow([todayStr, studentId, studentName, nowTimeStr, nowTimeStr, totalMinutes, 0, statusText, notesText]);
+    var newRow = sheet.getLastRow();
+    if (statusText.indexOf('🟢') !== -1) {
+      sheet.getRange(newRow, 8).setBackground('#dcfce7').setFontColor('#15803d');
+    } else {
+      sheet.getRange(newRow, 8).setBackground('#f8fafc').setFontColor('#64748b');
+    }
   }
   
-  return { success: true, message: 'تم تسجبل النشاط بنجاح' };
+  return { success: true, message: 'تم تسجيل النشاط بنجاح' };
+}
+
+function sweepInactivityTimeouts(ss, timeoutMinutes) {
+  var limitMinutes = parseInt(timeoutMinutes, 10) || 10;
+  var sheet = getOrCreateAttendanceLogsSheet(ss);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  
+  var now = new Date();
+  var todayStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  var updatedCount = 0;
+  
+  for (var i = 0; i < data.length; i++) {
+    var rDate = data[i][0] ? (data[i][0] instanceof Date ? Utilities.formatDate(data[i][0], Session.getScriptTimeZone(), 'yyyy-MM-dd') : data[i][0].toString().trim()) : '';
+    if (rDate !== todayStr) continue;
+    
+    var currentStatus = data[i][7] ? data[i][7].toString() : '';
+    // Only check active students marked with green
+    var isActive = currentStatus.indexOf('🟢') !== -1 || currentStatus.indexOf('نشط') !== -1 || currentStatus.indexOf('حاضر') !== -1;
+    if (!isActive) continue;
+    
+    var lastActiveRaw = data[i][4];
+    var lastActiveStr = formatGasTimeValue(lastActiveRaw);
+    if (!lastActiveStr) continue;
+    
+    var timeMatch = lastActiveStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (timeMatch) {
+      var h = parseInt(timeMatch[1], 10);
+      var m = parseInt(timeMatch[2], 10);
+      var s = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+      
+      var lastActiveDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, s);
+      var diffMins = (now.getTime() - lastActiveDate.getTime()) / 60000;
+      
+      if (diffMins >= limitMinutes) {
+        var rowIdx = i + 2;
+        sheet.getRange(rowIdx, 8).setValue('غادر / خروج تلقائي ⚪').setBackground('#f8fafc').setFontColor('#64748b');
+        sheet.getRange(rowIdx, 9).setValue('خروج تلقائي (انقطاع النشاط > ' + limitMinutes + ' د)');
+        updatedCount++;
+      }
+    }
+  }
+  return updatedCount;
+}
+
+function autoCheckInactivityTimeout() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var settingsRes = getAttendanceSettings();
+  var timeout = (settingsRes && settingsRes.settings && settingsRes.settings.inactivityTimeoutMinutes) || 10;
+  var count = sweepInactivityTimeouts(ss, timeout);
+  return { success: true, sweptCount: count };
 }
 
 function formatGasTimeValue(val) {
@@ -5347,6 +5538,13 @@ function getLiveMonitoringData() {
   
   var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   var logsSheet = getOrCreateAttendanceLogsSheet(ss);
+  
+  // Sweep inactive students to ensure AttendanceLogs sheet is up-to-date
+  var timeoutMinutes = (settings && settings.inactivityTimeoutMinutes) ? parseInt(settings.inactivityTimeoutMinutes, 10) : 10;
+  try {
+    sweepInactivityTimeouts(ss, timeoutMinutes);
+  } catch (err) {}
+  
   var logData = logsSheet.getLastRow() >= 2 ? logsSheet.getRange(2, 1, logsSheet.getLastRow() - 1, 9).getValues() : [];
   
   var todayLogs = {};
@@ -5421,8 +5619,23 @@ function getLiveMonitoringData() {
     var isTodayScheduled = isStarted && !isExpired && (activeDaysIndices.indexOf(currentDayOfWeek) !== -1);
     
     var userLog = todayLogs[st.id];
-    var isUserLoggedOut = Boolean(userLog && (userLog.status.indexOf('غادر') !== -1 || userLog.status.indexOf('خرج') !== -1));
+    var isUserLoggedOut = Boolean(userLog && (userLog.status.indexOf('غادر') !== -1 || userLog.status.indexOf('خرج') !== -1 || userLog.status.indexOf('⚪') !== -1));
     var completedCount = userLog ? (userLog.completedCount || 0) : 0;
+    
+    // Safety check for inactivity timeout directly
+    if (userLog && userLog.lastActiveTime && !isUserLoggedOut) {
+      var laMatch = userLog.lastActiveTime.match(/(\d{1,2}):(\d{2})/);
+      if (laMatch) {
+        var nowCheck = new Date();
+        var laDate = new Date(nowCheck.getFullYear(), nowCheck.getMonth(), nowCheck.getDate(), parseInt(laMatch[1], 10), parseInt(laMatch[2], 10));
+        var minsSinceActive = (nowCheck.getTime() - laDate.getTime()) / 60000;
+        if (minsSinceActive >= timeoutMinutes) {
+          isUserLoggedOut = true;
+          userLog.status = 'غادر / خروج تلقائي ⚪';
+          userLog.notes = 'خروج تلقائي (انقطاع النشاط > ' + timeoutMinutes + ' د)';
+        }
+      }
+    }
     
     var noteText = isTodayScheduled ? 'يوم دراسة مقرر' : (!isStarted ? ('لم تبدأ الخطة بعد (' + effStartDate + ')') : (isExpired ? 'انتهت الخطة' : 'يوم راحة'));
     

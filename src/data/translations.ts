@@ -593,6 +593,26 @@ export const defaultTranslations: TranslationDictionary = {
       en: "⚠️ Time allocated for today's scheduled class has ended.",
       th: '⚠️ หมดเวลาสำหรับชั้นเรียนที่กำหนดในวันนี้แล้ว',
     },
+    inactivityTimeoutLabel: {
+      ar: 'مهلة عدم النشاط التلقائية (Inactivity Timeout)',
+      en: 'Inactivity Timeout (Auto Logout)',
+      th: 'การหมดเวลาเมื่อไม่มีการใช้งาน (ออกจากระบบอัตโนมัติ)',
+    },
+    inactivityTimeoutDesc: {
+      ar: 'تسجيل خروج الطالب تلقائياً عند انقطاع النشاط أو إغلاق الصفحة بعد انقضاء هذه المدة',
+      en: 'Automatically logs out the student when activity stops or page closes after this duration',
+      th: 'ออกจากระบบโดยอัตโนมัติเมื่อหยุดการใช้งานหรือปิดหน้าเว็บหลังจากครบกำหนดเวลานี้',
+    },
+    autoLoggedOutBadge: {
+      ar: 'خروج تلقائي (انقطاع النشاط) ⚪',
+      en: 'Auto Logged Out (Inactivity) ⚪',
+      th: 'ออกจากระบบอัตโนมัติ (ไม่มีการใช้งาน) ⚪',
+    },
+    sessionResumedToast: {
+      ar: 'تم استئناف جلسة حضورك بنجاح ✅',
+      en: 'Your attendance session has been resumed successfully ✅',
+      th: 'เซสชันการเข้าเรียนของคุณกลับมาทำงานต่อเรียบร้อยแล้ว ✅',
+    },
     mustPunchInFirstBtn: {
       ar: 'سجل الحضور أولاً لبدء التمارين 🔓',
       en: 'Punch in first to unlock exercises 🔓',
@@ -607,6 +627,26 @@ export const defaultTranslations: TranslationDictionary = {
       ar: 'انتهى وقت الحصة المقررة',
       en: 'Scheduled class time expired',
       th: 'หมดเวลาชั้นเรียนที่กำหนดแล้ว',
+    },
+    hoursShort: {
+      ar: 'س',
+      en: 'h',
+      th: 'ชม.',
+    },
+    minutesShort: {
+      ar: 'د',
+      en: 'm',
+      th: 'น.',
+    },
+    secondsShort: {
+      ar: 'ث',
+      en: 's',
+      th: 'วิ',
+    },
+    closeAlert: {
+      ar: 'إغلاق',
+      en: 'Close',
+      th: 'ปิด',
     },
   },
 

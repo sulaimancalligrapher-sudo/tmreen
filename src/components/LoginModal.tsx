@@ -347,6 +347,10 @@ export default function LoginModal({
             localStorage.setItem(`student_custom_sched_${response.name}`, JSON.stringify(response.schedule));
           }
 
+          try {
+            sessionStorage.setItem('just_logged_in_welcome', 'true');
+          } catch (e) {}
+
           onLoginSuccess(student);
         } else {
           setError(response.message || t('login.loginFailedCheckData', 'فشل تسجيل الدخول. يرجى التحقق من صحة البيانات.'));
@@ -412,7 +416,14 @@ export default function LoginModal({
         <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
           {/* Top Row for Desktop & Tablet ONLY (Language Switcher in corner) */}
           <div className="w-full hidden sm:flex justify-between items-center -mb-6">
-            <div className="w-10 h-10" />
+            <button
+              type="button"
+              onClick={() => setShowUrlEditor(!showUrlEditor)}
+              className="p-2 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-xl transition"
+              title={t('login.editGasServerUrl', 'إعدادات ربط خادم Google Apps Script')}
+            >
+              <Settings className="w-5 h-5" />
+            </button>
             <LanguageSwitcher variant="minimal" />
           </div>
 
@@ -576,31 +587,29 @@ export default function LoginModal({
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
                 <span className="leading-relaxed font-bold">{error}</span>
               </div>
-              {loginMode === 'admin' && (
-                <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowUrlEditor(true)}
-                    className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-amber-600" />
-                    <span>{t('login.editGasServerUrl', 'تعديل رابط خادم الشيت')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetUrlDefault}
-                    className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
-                  >
-                    {t('login.resetDefaultUrl', 'إعادة الضبط للافتراضي')}
-                  </button>
-                </div>
-              )}
+              <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUrlEditor(true)}
+                  className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 shadow-xs transition flex items-center gap-1.5 shrink-0"
+                >
+                  <Settings className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{t('login.editGasServerUrl', 'تعديل رابط خادم الشيت')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetUrlDefault}
+                  className="text-rose-700 hover:text-rose-900 hover:underline text-[11px] font-bold"
+                >
+                  {t('login.resetDefaultUrl', 'إعادة الضبط للافتراضي')}
+                </button>
+              </div>
             </motion.div>
           )}
 
-          {/* GAS Server URL Drawer (Admin Only) */}
+          {/* GAS Server URL Drawer */}
           <AnimatePresence>
-            {showUrlEditor && loginMode === 'admin' && (
+            {showUrlEditor && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}

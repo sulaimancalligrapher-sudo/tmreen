@@ -1330,7 +1330,7 @@ export default function ExerciseMatching({ student, onBack, onSelectExercise }: 
             <span className="text-xs font-bold text-slate-400 bg-white border border-slate-100 px-3 py-1.5 rounded-xl">
               {t('exercises.exerciseXOfY', 'تمرين {index} من {total}')
                 .replace('{index}', String(activeQuestionIndex + 1))
-                .replace('{total}', String(activeLesson?.questions.length || 0))}
+                .replace('{total}', String(activeLesson?.questions?.length || 0))}
             </span>
           </div>
 

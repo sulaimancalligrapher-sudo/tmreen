@@ -39,7 +39,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (saved) {
         const parsed = JSON.parse(saved);
         // Deep merge with defaults so newly added keys are always present
-        const merged = { ...defaultTranslations };
+        const merged: TranslationDictionary = JSON.parse(JSON.stringify(defaultTranslations));
         Object.keys(parsed).forEach((sec) => {
           if (!merged[sec]) merged[sec] = {};
           Object.keys(parsed[sec]).forEach((k) => {
