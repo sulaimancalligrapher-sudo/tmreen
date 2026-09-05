@@ -36,6 +36,11 @@ export const defaultTranslations: TranslationDictionary = {
       en: 'Al-Dhad Educational Platform',
       th: 'แพลตฟอร์มการศึกษาอัล-ฎอด',
     },
+    appDescription: {
+      ar: 'تعلم وممارسة مهارات اللغة العربية والخط والتوصيل',
+      en: 'Learn and practice Arabic language skills, calligraphy, and exercises',
+      th: 'เรียนรู้และฝึกฝนทักษะภาษาอาหรับ คัดลายมือ และแบบฝึกหัด',
+    },
     welcome: {
       ar: 'مرحباً بك',
       en: 'Welcome',

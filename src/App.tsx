@@ -127,10 +127,8 @@ export default function App() {
 
   // Synchronize browser tab title with institution name
   useEffect(() => {
-    if (generalData?.header?.mainTitle) {
-      document.title = generalData.header.mainTitle;
-    }
-  }, [generalData?.header?.mainTitle]);
+    document.title = t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية');
+  }, [generalData?.header?.mainTitle, t]);
 
   // Fetch General App Data (Profile, Header logo/title/description, About, Contact)
   useEffect(() => {
@@ -716,7 +714,7 @@ export default function App() {
                   لوحة تحكم الإدارة والمسؤولين
                 </h1>
                 <p className="text-xs text-slate-400">
-                  {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
+                  {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
                 </p>
               </div>
             </div>
@@ -875,10 +873,10 @@ export default function App() {
             )}
             <div className="text-right">
               <span className="font-extrabold text-slate-900 tracking-tight text-base md:text-lg block font-sans">
-                {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
+                {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
               </span>
               <span className="text-[10px] text-slate-400 font-bold block">
-                {generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية'}
+                {t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية')}
               </span>
             </div>
           </div>
@@ -1000,10 +998,10 @@ export default function App() {
             )}
             <div className="min-w-0 flex-1 text-right">
               <span className="font-black text-slate-900 tracking-tight text-base leading-snug block font-sans">
-                {generalData?.header?.mainTitle || 'منصة الضاد التعليمية'}
+                {t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية')}
               </span>
               <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-relaxed block line-clamp-2 sm:line-clamp-3 mt-0.5 break-words">
-                {generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية'}
+                {t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية')}
               </p>
             </div>
           </div>
