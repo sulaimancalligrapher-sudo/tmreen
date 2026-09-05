@@ -3,6 +3,8 @@
  * Option 1 (Academic Plan): Based on startDate and active study days.
  */
 
+import { defaultTranslations, Language } from '../data/translations';
+
 export interface StudyDayInfo {
   dayNumber: number | null;
   dayOrdinal: string;
@@ -64,6 +66,19 @@ export function getArabicOrdinal(num: number): string {
   return `الـ ${num}`;
 }
 
+export function getOrdinal(num: number, lang: Language = 'ar'): string {
+  if (lang === 'ar') {
+    return getArabicOrdinal(num);
+  }
+  if (lang === 'en') {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = num % 100;
+    return `${num}${s[(v - 20) % 10] || s[v] || s[0]}`;
+  }
+  // Thai
+  return `${num}`;
+}
+
 export function parseActiveDaysArray(activeDaysStr?: string): number[] {
   if (!activeDaysStr || !activeDaysStr.trim()) {
     // Default all 7 days if not specified
@@ -89,9 +104,8 @@ export function parseActiveDaysArray(activeDaysStr?: string): number[] {
   return days.length > 0 ? Array.from(new Set(days)) : [0, 1, 2, 3, 4, 5, 6];
 }
 
-function getStudyDayTranslation(key: string, defaultAr: string): string {
+function getStudyDayTranslation(key: string, lang: Language, defaultFallback: string): string {
   try {
-    const lang = (localStorage.getItem('app_language_code') as any) || 'ar';
     const overrides = localStorage.getItem('app_i18n_dictionary_overrides');
     if (overrides) {
       const parsed = JSON.parse(overrides);
@@ -99,8 +113,11 @@ function getStudyDayTranslation(key: string, defaultAr: string): string {
         return parsed.home[key][lang];
       }
     }
+    if ((defaultTranslations as any)?.home?.[key]?.[lang]) {
+      return (defaultTranslations as any).home[key][lang];
+    }
   } catch (e) {}
-  return defaultAr;
+  return defaultFallback;
 }
 
 /**
@@ -109,10 +126,21 @@ function getStudyDayTranslation(key: string, defaultAr: string): string {
 export function calculateStudentStudyDay(
   schedule?: { startDate?: string; activeDays?: string } | null,
   studentName?: string,
-  studentId?: string
+  studentId?: string,
+  lang?: Language,
+  t?: (keyPath: string, fallback?: string) => string
 ): StudyDayInfo {
-  const name = (studentName || '').trim() || 'يا بطل';
+  const activeLang: Language = lang || (localStorage.getItem('app_language_code') as Language) || 'ar';
+  const defaultFallbackName = activeLang === 'ar' ? 'يا بطل' : activeLang === 'th' ? 'นักเรียน' : 'Champion';
+  const name = (studentName || '').trim() || defaultFallbackName;
   let effectiveSchedule = schedule;
+
+  const getTemplate = (key: string, fallback: string): string => {
+    if (t) {
+      return t(`home.${key}`, fallback);
+    }
+    return getStudyDayTranslation(key, activeLang, fallback);
+  };
 
   // If schedule or startDate is missing, check localStorage caches
   if (!effectiveSchedule || !effectiveSchedule.startDate) {
@@ -155,13 +183,22 @@ export function calculateStudentStudyDay(
   }
 
   if (!effectiveSchedule || !effectiveSchedule.startDate || !effectiveSchedule.startDate.trim()) {
+    const noScheduleTemplate = getTemplate(
+      'welcomeNoScheduleMessageTemplate',
+      'أهلاً بك يا {name}.. تم تسجيل دخولك بنجاح في المنصة التعليمية، نتمنى لك علماً نافعاً وموفقاً! 🌟'
+    );
+    const badgeText = getTemplate(
+      'badgeEducationalPlatform',
+      'المنظومة التعليمية 📚'
+    );
+
     return {
       dayNumber: null,
       dayOrdinal: '',
       isTodayActiveDay: true,
       status: 'no_schedule',
-      welcomeMessage: `أهلاً بك يا ${name}.. تم تسجيل دخولك بنجاح في المنصة التعليمية، نتمنى لك علماً نافعاً وموفقاً! 🌟`,
-      badgeText: 'المنظومة التعليمية 📚',
+      welcomeMessage: noScheduleTemplate.replace(/{name}/g, name),
+      badgeText,
       startDateStr: '',
       activeDaysStr: '',
     };
@@ -172,13 +209,22 @@ export function calculateStudentStudyDay(
   const parts = startDateStr.split('-');
 
   if (parts.length !== 3) {
+    const noScheduleTemplate = getTemplate(
+      'welcomeNoScheduleMessageTemplate',
+      'أهلاً بك يا {name}.. تم تسجيل دخولك بنجاح، نتمنى لك علماً نافعاً وموفقاً! 🌟'
+    );
+    const badgeText = getTemplate(
+      'badgeEducationalPlatform',
+      'المنظومة التعليمية 📚'
+    );
+
     return {
       dayNumber: null,
       dayOrdinal: '',
       isTodayActiveDay: true,
       status: 'no_schedule',
-      welcomeMessage: `أهلاً بك يا ${name}.. تم تسجيل دخولك بنجاح، نتمنى لك علماً نافعاً وموفقاً! 🌟`,
-      badgeText: 'المنظومة التعليمية 📚',
+      welcomeMessage: noScheduleTemplate.replace(/{name}/g, name),
+      badgeText,
       startDateStr,
       activeDaysStr,
     };
@@ -192,7 +238,7 @@ export function calculateStudentStudyDay(
 
   // If today is before the start date
   if (today.getTime() < startDate.getTime()) {
-    const notStartedTemplate = getStudyDayTranslation(
+    const notStartedTemplate = getTemplate(
       'welcomeNotStartedMessageTemplate',
       'أهلاً بك يا {name}.. يبدأ برنامجك الدراسي بتاريخ {date}، نتمنى لك رحلة تعليمية موفقة! 🌟'
     );
@@ -200,13 +246,18 @@ export function calculateStudentStudyDay(
       .replace(/{name}/g, name)
       .replace(/{date}/g, startDateStr);
 
+    const badgeTemplate = getTemplate(
+      'badgeNotStarted',
+      'يبدأ بتاريخ {date} ⏳'
+    );
+
     return {
       dayNumber: 0,
-      dayOrdinal: 'قبل البداية',
+      dayOrdinal: activeLang === 'ar' ? 'قبل البداية' : activeLang === 'th' ? 'ก่อนเริ่ม' : 'Before Start',
       isTodayActiveDay: false,
       status: 'not_started',
       welcomeMessage: notStartedMsg,
-      badgeText: `يبدأ بتاريخ ${startDateStr} ⏳`,
+      badgeText: badgeTemplate.replace(/{date}/g, startDateStr),
       startDateStr,
       activeDaysStr,
     };
@@ -231,10 +282,10 @@ export function calculateStudentStudyDay(
 
   // Ensure at least day 1 if we've reached start date
   const dayNumber = Math.max(1, activeDaysPassed);
-  const ordinal = getArabicOrdinal(dayNumber);
+  const ordinal = getOrdinal(dayNumber, activeLang);
 
   if (isTodayActiveDay) {
-    const activeTemplate = getStudyDayTranslation(
+    const activeTemplate = getTemplate(
       'welcomeDayMessageTemplate',
       'أهلاً بك يا {name}.. تم تسجيل دخولك في اليوم {day} من البرنامج، نتمنى لك علماً نافعاً وموفقاً! 🌟'
     );
@@ -242,18 +293,23 @@ export function calculateStudentStudyDay(
       .replace(/{name}/g, name)
       .replace(/{day}/g, ordinal);
 
+    const badgeTemplate = getTemplate(
+      'badgeStudyDay',
+      'اليوم {day} من البرنامج الدراسي 📚'
+    );
+
     return {
       dayNumber,
       dayOrdinal: ordinal,
       isTodayActiveDay: true,
       status: 'active_day',
       welcomeMessage: activeMsg,
-      badgeText: `اليوم ${ordinal} من البرنامج الدراسي 📚`,
+      badgeText: badgeTemplate.replace(/{day}/g, ordinal),
       startDateStr,
       activeDaysStr,
     };
   } else {
-    const restTemplate = getStudyDayTranslation(
+    const restTemplate = getTemplate(
       'welcomeRestDayMessageTemplate',
       'أهلاً بك يا {name}.. اليوم استراحة ومراجعة بعد إنهاء اليوم {day} من البرنامج، نتمنى لك وقتاً ممتعاً! 🌟'
     );
@@ -261,13 +317,18 @@ export function calculateStudentStudyDay(
       .replace(/{name}/g, name)
       .replace(/{day}/g, ordinal);
 
+    const badgeTemplate = getTemplate(
+      'badgeRestDay',
+      'يوم استراحة ومراجعة (اليوم {day}) 🌿'
+    );
+
     return {
       dayNumber,
       dayOrdinal: ordinal,
       isTodayActiveDay: false,
       status: 'rest_day',
       welcomeMessage: restMsg,
-      badgeText: `يوم استراحة ومراجعة (اليوم ${ordinal}) 🌿`,
+      badgeText: badgeTemplate.replace(/{day}/g, ordinal),
       startDateStr,
       activeDaysStr,
     };

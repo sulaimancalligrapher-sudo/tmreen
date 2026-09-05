@@ -533,6 +533,11 @@ export const defaultTranslations: TranslationDictionary = {
       en: '🎉 Attendance recorded successfully! You can now solve exercises and follow lessons.',
       th: '🎉 บันทึกการเข้าเรียนสำเร็จแล้ว! คุณสามารถทำแบบฝึกหัดและเรียนบทเรียนได้แล้ว',
     },
+    punchInWithDaySuccess: {
+      ar: '🎉 أهلاً بك يا {name}.. تم تسجيل حضورك في اليوم {day} من البرنامج بنجاح! نتمنى لك علماً نافعاً وموفقاً. 🌟',
+      en: '🎉 Welcome {name}.. Your attendance has been recorded for Day {day} of the program! Wishing you a blessed journey. 🌟',
+      th: '🎉 ยินดีต้อนรับ {name}.. บันทึกการเข้าเรียนวันที่ {day} ของโปรแกรมสำเร็จแล้ว! ขอให้ประสบความสำเร็จในการเรียน 🌟',
+    },
     punchInLocalSuccess: {
       ar: '✅ تم تسجيل الحضور محلياً بنجاح.',
       en: '✅ Attendance recorded locally.',
@@ -1542,6 +1547,36 @@ export const defaultTranslations: TranslationDictionary = {
       ar: 'أهلاً بك يا {name}.. يبدأ برنامجك الدراسي بتاريخ {date}، نتمنى لك رحلة تعليمية موفقة! 🌟',
       en: 'Welcome {name}.. Your study program starts on {date}. Wishing you a wonderful learning journey! 🌟',
       th: 'ยินดีต้อนรับ {name}.. โปรแกรมการเรียนของคุณจะเริ่มในวันที่ {date} ขอให้โชคดีในการเรียน! 🌟',
+    },
+    welcomeNoScheduleMessageTemplate: {
+      ar: 'أهلاً بك يا {name}.. تم تسجيل دخولك بنجاح في المنصة التعليمية، نتمنى لك علماً نافعاً وموفقاً! 🌟',
+      en: 'Welcome {name}.. You have successfully logged into the learning platform. Wishing you a fruitful journey! 🌟',
+      th: 'ยินดีต้อนรับ {name}.. คุณได้เข้าสู่ระบบแพลตฟอร์มการเรียนรู้สำเร็จแล้ว ขอให้โชคดีในการเรียน! 🌟',
+    },
+    badgeStudyDay: {
+      ar: 'اليوم {day} من البرنامج الدراسي 📚',
+      en: 'Day {day} of the study program 📚',
+      th: 'วันที่ {day} ของโปรแกรมการเรียน 📚',
+    },
+    badgeRestDay: {
+      ar: 'يوم استراحة ومراجعة (اليوم {day}) 🌿',
+      en: 'Rest & review day (Day {day}) 🌿',
+      th: 'วันพักและทบทวน (วันที่ {day}) 🌿',
+    },
+    badgeNotStarted: {
+      ar: 'يبدأ بتاريخ {date} ⏳',
+      en: 'Starts on {date} ⏳',
+      th: 'เริ่มวันที่ {date} ⏳',
+    },
+    badgeEducationalPlatform: {
+      ar: 'المنظومة التعليمية 📚',
+      en: 'Learning Platform 📚',
+      th: 'แพลตฟอร์มการเรียนรู้ 📚',
+    },
+    dayOrdinalLabel: {
+      ar: 'اليوم {day} 🎯',
+      en: 'Day {day} 🎯',
+      th: 'วันที่ {day} 🎯',
     },
     welcomeBadge: {
       ar: 'مرحباً بك يا بطل المتميز! 🌟',

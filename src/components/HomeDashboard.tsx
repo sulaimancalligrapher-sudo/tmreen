@@ -486,8 +486,8 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
   const studyDayInfo: StudyDayInfo = useMemo(() => {
     const sId = student.id || (student as any).studentId || '';
     const sName = student.name || (student as any).studentName || '';
-    return calculateStudentStudyDay(studentCustomSchedule, sName, sId);
-  }, [studentCustomSchedule, student.id, student.name]);
+    return calculateStudentStudyDay(studentCustomSchedule, sName, sId, language, t);
+  }, [studentCustomSchedule, student.id, student.name, language, t]);
 
   // Student dynamic stats for lesson reminder calculations
   const [studentStats, setStudentStats] = useState<StudentReminderStats>(() => {
@@ -1030,9 +1030,11 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (e) {}
 
-      const studyInfo = calculateStudentStudyDay(studentCustomSchedule, sName, sId);
+      const studyInfo = calculateStudentStudyDay(studentCustomSchedule, sName, sId, language, t);
       const punchSuccessText = studyInfo.dayOrdinal
-        ? `🎉 أهلاً بك يا ${sName}.. تم تسجيل حضورك في اليوم ${studyInfo.dayOrdinal} من البرنامج بنجاح! نتمنى لك علماً نافعاً وموفقاً. 🌟`
+        ? t('attendance.punchInWithDaySuccess', '🎉 أهلاً بك يا {name}.. تم تسجيل حضورك في اليوم {day} من البرنامج بنجاح! نتمنى لك علماً نافعاً وموفقاً. 🌟')
+            .replace('{name}', sName)
+            .replace('{day}', studyInfo.dayOrdinal)
         : t('attendance.punchInSuccess', '🎉 تم تسجيل حضورك وبدء الحصة بنجاح! يمكنك الآن حل التمارين ومتابعة الدروس.');
       setPunchMessage(punchSuccessText);
 
@@ -1071,9 +1073,11 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
         localStorage.setItem(`student_present_${sId}_${todayKey}`, 'true');
       } catch (err) {}
 
-      const studyInfoFallback = calculateStudentStudyDay(studentCustomSchedule, sName, sId);
+      const studyInfoFallback = calculateStudentStudyDay(studentCustomSchedule, sName, sId, language, t);
       const fallbackSuccessText = studyInfoFallback.dayOrdinal
-        ? `✅ أهلاً بك يا ${sName}.. تم تسجيل حضورك في اليوم ${studyInfoFallback.dayOrdinal} من البرنامج محلياً بنجاح.`
+        ? t('attendance.punchInWithDaySuccess', '✅ أهلاً بك يا {name}.. تم تسجيل حضورك في اليوم {day} من البرنامج بنجاح!')
+            .replace('{name}', sName)
+            .replace('{day}', studyInfoFallback.dayOrdinal)
         : t('attendance.punchInLocalSuccess', '✅ تم تسجيل الحضور محلياً بنجاح.');
       setPunchMessage(fallbackSuccessText);
 
@@ -1535,10 +1539,12 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs bg-amber-500 text-slate-950 font-black px-2.5 py-0.5 rounded-lg shadow-sm">
-                  {studyDayInfo.dayOrdinal ? `اليوم ${studyDayInfo.dayOrdinal}` : 'تسجيل دخول'}
+                  {studyDayInfo.dayOrdinal
+                    ? t('home.dayOrdinalLabel', 'اليوم {day} 🎯').replace('{day}', studyDayInfo.dayOrdinal).replace('🎯', '').trim()
+                    : t('auth.login', 'تسجيل دخول')}
                 </span>
                 <span className="text-xs text-slate-600 font-bold">
-                  {new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  {new Date().toLocaleDateString(language === 'ar' ? 'ar-SA' : language === 'th' ? 'th-TH' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
               </div>
               <p className="text-sm md:text-base font-black text-slate-900 leading-snug">
@@ -1571,7 +1577,7 @@ export default function HomeDashboard({ student, generalData, onSelectExercise, 
             </div>
             {studyDayInfo.dayOrdinal && (
               <span className="text-xs bg-emerald-50 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200/80">
-                اليوم {studyDayInfo.dayOrdinal} 🎯
+                {t('home.dayOrdinalLabel', 'اليوم {day} 🎯').replace('{day}', studyDayInfo.dayOrdinal)}
               </span>
             )}
           </div>
