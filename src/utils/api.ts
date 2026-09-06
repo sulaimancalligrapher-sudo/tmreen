@@ -5,7 +5,7 @@
 
 // Default Google Apps Script Web App URL
 // You can set this variable directly or set VITE_GAS_API_URL in Vercel environment variables
-export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbylUDX4QrvDcYNJR_XI_O_MMTJWJrjh6Gsi4b8BvooBlkTlH0ENvsmTHqnQbTndakacNQ/exec";
+export const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbwAwsenJdhsFmFRYpJaNPoX0Ze728ZpfRdMju7EDTeR5TyKeBiiZBlycCxruLcbcSAefw/exec";
 
 // Retrieve Google Apps Script Web App URL (LocalStorage > Environment Variable > Hardcoded Default)
 export function getApiUrl(): string {
@@ -276,4 +276,46 @@ export function transformGoogleDriveImageUrl(url: string): string {
   }
 
   return trimmed;
+}
+
+/**
+ * Fire-and-forget beacon for exit/unload events (pagehide, beforeunload)
+ * Uses navigator.sendBeacon with fetch keepalive fallback to ensure delivery even when tab/browser closes
+ */
+export function sendGasBeacon(action: string, payload: Record<string, any> = {}): boolean {
+  try {
+    const url = getApiUrl();
+    if (!url || !url.startsWith('https://script.google.com/')) return false;
+
+    const data = JSON.stringify({
+      action,
+      ...payload,
+    });
+
+    // 1. Try navigator.sendBeacon with text/plain Blob
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+      try {
+        const blob = new Blob([data], { type: 'text/plain;charset=UTF-8' });
+        const sent = navigator.sendBeacon(url, blob);
+        if (sent) return true;
+      } catch (beaconErr) {
+        // Fallback to fetch keepalive
+      }
+    }
+
+    // 2. Fallback: fetch with keepalive: true (keeps request alive after page unloads)
+    if (typeof fetch === 'function') {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: data,
+        keepalive: true,
+        mode: 'no-cors',
+      }).catch(() => {});
+      return true;
+    }
+  } catch (e) {
+    // Fail silently on unload
+  }
+  return false;
 }

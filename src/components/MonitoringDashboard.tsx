@@ -238,6 +238,40 @@ export default function MonitoringDashboard({
   const recentlySavedSettingsRef = useRef<{ settings: AttendanceSettings; timestamp: number } | null>(null);
   const activeTabRef = useRef<'live' | 'settings' | 'telegram'>('live');
 
+  // Trigger automation and manual sweep states
+  const [triggerActionLoading, setTriggerActionLoading] = useState<boolean>(false);
+  const [triggerFeedback, setTriggerFeedback] = useState<string | null>(null);
+  const [sweepLoading, setSweepLoading] = useState<boolean>(false);
+
+  const handleSetupTrigger = async () => {
+    setTriggerActionLoading(true);
+    setTriggerFeedback(null);
+    try {
+      const res = await callGasApi<{ success: boolean; message: string }>('setupInactivityAutoTrigger');
+      const msg = res?.message || 'تم تفعيل المشغّل الزمني التلقائي (كل 5 دقائق) بنجاح على سيرفرات قوقل!';
+      setTriggerFeedback(msg);
+      setTimeout(() => setTriggerFeedback(null), 8000);
+    } catch (err: any) {
+      setTriggerFeedback('خطأ في إعداد المشغل: ' + (err?.message || err));
+    } finally {
+      setTriggerActionLoading(false);
+    }
+  };
+
+  const handleSweepNow = async () => {
+    setSweepLoading(true);
+    try {
+      const res = await callGasApi<{ success: boolean; sweptCount: number }>('autoCheckInactivityTimeout');
+      await fetchMonitoringData(false);
+      setTriggerFeedback(`تم فحص الخمول وتحديث الشيت بنجاح! (تم تحديث ${res?.sweptCount ?? 0} طالب خامل إلى خروج تلقائي)`);
+      setTimeout(() => setTriggerFeedback(null), 6000);
+    } catch (err: any) {
+      setTriggerFeedback('خطأ في فحص الخمول: ' + (err?.message || err));
+    } finally {
+      setSweepLoading(false);
+    }
+  };
+
   // Active Tab View in Dashboard
   const [activeTab, setActiveTab] = useState<'live' | 'settings' | 'telegram'>('live');
 
@@ -1803,6 +1837,39 @@ export default function MonitoringDashboard({
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Trigger Automation & Manual Sweep Actions */}
+                  <div className="mt-4 pt-4 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSetupTrigger}
+                        disabled={triggerActionLoading}
+                        className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+                        title="ضبط مشغل زمني في قوقل يعمل كل 5 دقائق لمسح الشيت تلقائياً حتى لو المتصفح مغلق"
+                      >
+                        <Clock className={`w-4 h-4 ${triggerActionLoading ? 'animate-spin' : ''}`} />
+                        <span>{triggerActionLoading ? 'جارِ تهيئة المشغل في قوقل...' : 'تفعيل المشغّل الزمني التلقائي في قوقل (كل 5 دقائق)'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSweepNow}
+                        disabled={sweepLoading}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/60 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+                        title="فحص فوري للشيت الآن وتحديث حالة أي طالب خامل أو من يوم سابق إلى خروج تلقائي"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${sweepLoading ? 'animate-spin' : ''}`} />
+                        <span>{sweepLoading ? 'جارِ فحص الشيت...' : 'تنظيف فوري للشيت الآن (Sweep)'}</span>
+                      </button>
+                    </div>
+
+                    {triggerFeedback && (
+                      <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs font-semibold text-emerald-300">
+                        {triggerFeedback}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 flex justify-end">

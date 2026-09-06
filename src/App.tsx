@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { callGasApi, isApiConfigured, transformGoogleDriveImageUrl } from './utils/api';
+import { callGasApi, isApiConfigured, sendGasBeacon, transformGoogleDriveImageUrl } from './utils/api';
 import { Student, GeneralData, ExerciseType } from './types';
 
 // Importing custom modular components
@@ -239,18 +239,24 @@ export default function App() {
         }
       }, 60000);
 
-      // Attempt fast exit notification on tab close / unload
-      const handlePageHide = () => {
+      // Instantaneous exit notification on tab close / unload using navigator.sendBeacon
+      const handleExit = () => {
         try {
-          sendPresenceUpdate('page_close');
+          sendGasBeacon('logStudentPresence', {
+            studentId: student.id,
+            studentName: student.name,
+            actionType: 'page_close',
+          });
         } catch (e) {}
       };
-      window.addEventListener('pagehide', handlePageHide);
+      window.addEventListener('pagehide', handleExit);
+      window.addEventListener('beforeunload', handleExit);
 
       return () => {
         clearInterval(interval);
         activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
-        window.removeEventListener('pagehide', handlePageHide);
+        window.removeEventListener('pagehide', handleExit);
+        window.removeEventListener('beforeunload', handleExit);
       };
     }
   }, [student, apiConfigured]);
@@ -522,6 +528,11 @@ export default function App() {
     // Notify server of logout if student
     if (student && !student.isAdmin && apiConfigured) {
       try {
+        sendGasBeacon('logStudentPresence', {
+          studentId: student.id,
+          studentName: student.name,
+          actionType: 'logout',
+        });
         callGasApi('logStudentPresence', {
           studentId: student.id,
           studentName: student.name,

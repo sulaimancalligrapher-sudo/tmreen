@@ -123,6 +123,10 @@ function doPost(e) {
       result = logStudentPresence(request.studentId, request.studentName, request.actionType);
     } else if (action === 'autoCheckInactivityTimeout') {
       result = autoCheckInactivityTimeout();
+    } else if (action === 'setupInactivityAutoTrigger') {
+      result = setupInactivityAutoTrigger();
+    } else if (action === 'removeInactivityAutoTrigger') {
+      result = removeInactivityAutoTrigger();
     } else if (action === 'processTelegramAlerts') {
       result = processScheduledTelegramNotifications();
     } else if (action === 'recordTelegramUser') {
@@ -5437,17 +5441,31 @@ function sweepInactivityTimeouts(ss, timeoutMinutes) {
   var updatedCount = 0;
   
   for (var i = 0; i < data.length; i++) {
-    var rDate = data[i][0] ? (data[i][0] instanceof Date ? Utilities.formatDate(data[i][0], Session.getScriptTimeZone(), 'yyyy-MM-dd') : data[i][0].toString().trim()) : '';
-    if (rDate !== todayStr) continue;
-    
     var currentStatus = data[i][7] ? data[i][7].toString() : '';
     // Only check active students marked with green
     var isActive = currentStatus.indexOf('🟢') !== -1 || currentStatus.indexOf('نشط') !== -1 || currentStatus.indexOf('حاضر') !== -1;
     if (!isActive) continue;
+
+    var rowIdx = i + 2;
+    var rDate = data[i][0] ? (data[i][0] instanceof Date ? Utilities.formatDate(data[i][0], Session.getScriptTimeZone(), 'yyyy-MM-dd') : data[i][0].toString().trim()) : '';
     
+    // 1. If record is from yesterday or an earlier date, it is definitely expired
+    if (rDate && rDate !== todayStr) {
+      sheet.getRange(rowIdx, 8).setValue('غادر / خروج تلقائي ⚪').setBackground('#f8fafc').setFontColor('#64748b');
+      sheet.getRange(rowIdx, 9).setValue('خروج تلقائي (سجل من يوم سابق)');
+      updatedCount++;
+      continue;
+    }
+    
+    // 2. If record is from today, check inactivity limit
     var lastActiveRaw = data[i][4];
     var lastActiveStr = formatGasTimeValue(lastActiveRaw);
-    if (!lastActiveStr) continue;
+    if (!lastActiveStr) {
+      sheet.getRange(rowIdx, 8).setValue('غادر / خروج تلقائي ⚪').setBackground('#f8fafc').setFontColor('#64748b');
+      sheet.getRange(rowIdx, 9).setValue('خروج تلقائي (انقطاع النشاط)');
+      updatedCount++;
+      continue;
+    }
     
     var timeMatch = lastActiveStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
     if (timeMatch) {
@@ -5459,12 +5477,14 @@ function sweepInactivityTimeouts(ss, timeoutMinutes) {
       var diffMins = (now.getTime() - lastActiveDate.getTime()) / 60000;
       
       if (diffMins >= limitMinutes) {
-        var rowIdx = i + 2;
         sheet.getRange(rowIdx, 8).setValue('غادر / خروج تلقائي ⚪').setBackground('#f8fafc').setFontColor('#64748b');
         sheet.getRange(rowIdx, 9).setValue('خروج تلقائي (انقطاع النشاط > ' + limitMinutes + ' د)');
         updatedCount++;
       }
     }
+  }
+  if (updatedCount > 0) {
+    SpreadsheetApp.flush();
   }
   return updatedCount;
 }
@@ -5475,6 +5495,64 @@ function autoCheckInactivityTimeout() {
   var timeout = (settingsRes && settingsRes.settings && settingsRes.settings.inactivityTimeoutMinutes) || 10;
   var count = sweepInactivityTimeouts(ss, timeout);
   return { success: true, sweptCount: count };
+}
+
+/**
+ * دالة المشغل الزمني التلقائي (تعمل في الخلفية كل 5 دقائق بواسطة خوادم قوقل مباشرة على مدار الساعة)
+ */
+function scheduledInactivitySweepTrigger() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var settingsRes = getAttendanceSettings();
+    var timeout = (settingsRes && settingsRes.settings && settingsRes.settings.inactivityTimeoutMinutes) || 10;
+    var count = sweepInactivityTimeouts(ss, timeout);
+    if (count > 0) {
+      SpreadsheetApp.flush();
+    }
+  } catch (e) {
+    Logger.log('Inactivity sweep error: ' + e.message);
+  }
+}
+
+/**
+ * دالة لإنشاء وضبط المشغل الزمني التلقائي (كل 5 دقائق) في Google Apps Script
+ */
+function setupInactivityAutoTrigger() {
+  try {
+    var triggers = ScriptApp.getProjectTriggers();
+    for (var i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'scheduledInactivitySweepTrigger') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+    ScriptApp.newTrigger('scheduledInactivitySweepTrigger')
+      .timeBased()
+      .everyMinutes(5)
+      .create();
+
+    return { success: true, message: 'تم تفعيل المشغل الزمني التلقائي بنجاح (فحص دوري كل 5 دقائق على مدار الساعة)' };
+  } catch (e) {
+    return { success: false, message: 'تعذر ضبط المشغل التلقائي: ' + e.message };
+  }
+}
+
+/**
+ * دالة لإلغاء المشغل الزمني التلقائي عند الحاجة
+ */
+function removeInactivityAutoTrigger() {
+  try {
+    var triggers = ScriptApp.getProjectTriggers();
+    var count = 0;
+    for (var i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'scheduledInactivitySweepTrigger') {
+        ScriptApp.deleteTrigger(triggers[i]);
+        count++;
+      }
+    }
+    return { success: true, message: 'تم إيقاف المشغل الزمني التلقائي (' + count + ')' };
+  } catch (e) {
+    return { success: false, message: 'تعذر إيقاف المشغل: ' + e.message };
+  }
 }
 
 function formatGasTimeValue(val) {
