@@ -96,6 +96,38 @@ export default function LoginModal({
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Refs for mobile virtual keyboard navigation
+  const containerRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const idInputRef = useRef<HTMLInputElement>(null);
+  const adminUsernameRef = useRef<HTMLInputElement>(null);
+  const adminPasswordRef = useRef<HTMLInputElement>(null);
+  const submitBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Detect mobile virtual keyboard
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (window.visualViewport) {
+        // If viewport height decreased significantly, virtual keyboard is open
+        const isKeyboard = window.visualViewport.height < window.innerHeight * 0.8;
+        setIsKeyboardOpen(isKeyboard);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
+    }
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+      }
+    };
+  }, []);
+
   // Parse QR Code content
   const handleDecodedQr = (decodedText: string) => {
     console.log('Decoded QR code:', decodedText);
@@ -405,12 +437,18 @@ export default function LoginModal({
   };
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col justify-start sm:justify-center items-center p-3 sm:p-6 overflow-y-auto pt-4 pb-28 sm:py-8 overscroll-contain" dir="rtl">
+    <div
+      ref={containerRef}
+      className={`min-h-[100dvh] w-full bg-slate-50 flex flex-col justify-start sm:justify-center items-center px-3 sm:px-6 pt-3 overflow-y-auto overscroll-y-contain touch-pan-y transition-[padding] duration-200 ${
+        isKeyboardOpen ? 'pb-[65vh]' : 'pb-64 sm:py-8'
+      }`}
+      dir="rtl"
+    >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-xl sm:shadow-2xl overflow-visible max-w-md w-full p-4 sm:p-8 space-y-4 sm:space-y-6 relative my-auto"
+        transition={{ duration: 0.25 }}
+        className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-xl sm:shadow-2xl max-w-md w-full p-4 sm:p-8 space-y-4 sm:space-y-6 relative my-1 sm:my-auto shrink-0"
       >
         {/* Header: Customized specifically for mobile (vertical stack: Icon -> Title -> Subtitle -> Language Switcher) while preserving Desktop/Tablet */}
         <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
@@ -486,36 +524,72 @@ export default function LoginModal({
                 exit={{ opacity: 0, x: 10 }}
                 className="space-y-4"
               >
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentNameLabel', 'اسم الطالب كاملاً')}</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentNameLabel', 'اسم الطالب كاملاً')}</label>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => idInputRef.current?.focus()}
+                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 active:scale-95 transition flex items-center gap-0.5 sm:hidden"
+                    >
+                      <span>الانتقال لرقم الطالب ↓</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <User className="w-5 h-5" />
                     </span>
                     <input
+                      ref={nameInputRef}
                       type="text"
                       value={studentName}
                       onChange={(e) => setStudentName(e.target.value)}
                       onFocus={handleInputFocus}
+                      enterKeyHint="next"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          idInputRef.current?.focus();
+                        }
+                      }}
                       placeholder={t('login.studentNamePlaceholder', 'اسم المستخدم مثل: أحمد محمد')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition scroll-mt-16"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition scroll-mt-28"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentIdLabel', 'رقم الطالب (كود المرور)')}</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.studentIdLabel', 'رقم الطالب (كود المرور)')}</label>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => nameInputRef.current?.focus()}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-700 active:scale-95 transition flex items-center gap-0.5 sm:hidden"
+                    >
+                      <span>الرجوع للاسم ↑</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <Lock className="w-5 h-5" />
                     </span>
                     <input
+                      ref={idInputRef}
                       type="password"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
                       onFocus={handleInputFocus}
+                      enterKeyHint="go"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleLogin(e);
+                        }
+                      }}
                       placeholder={t('login.studentIdPlaceholder', 'الرقم التعريفي الخاص بك')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-right scroll-mt-16"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-right scroll-mt-28"
                     />
                   </div>
                 </div>
@@ -544,36 +618,72 @@ export default function LoginModal({
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-4"
               >
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminUsernameLabel', 'اسم مستخدم الإدارة')}</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminUsernameLabel', 'اسم مستخدم الإدارة')}</label>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => adminPasswordRef.current?.focus()}
+                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 active:scale-95 transition flex items-center gap-0.5 sm:hidden"
+                    >
+                      <span>كلمة المرور ↓</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <User className="w-5 h-5" />
                     </span>
                     <input
+                      ref={adminUsernameRef}
                       type="text"
                       value={adminUsername}
                       onChange={(e) => setAdminUsername(e.target.value)}
                       onFocus={handleInputFocus}
+                      enterKeyHint="next"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          adminPasswordRef.current?.focus();
+                        }
+                      }}
                       placeholder={t('login.adminUsernamePlaceholder', 'اسم مستخدم المدير (مثال: admin)')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-16"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-28"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminPasswordLabel', 'كلمة مرور المسؤول')}</label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 block mr-1">{t('login.adminPasswordLabel', 'كلمة مرور المسؤول')}</label>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => adminUsernameRef.current?.focus()}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-700 active:scale-95 transition flex items-center gap-0.5 sm:hidden"
+                    >
+                      <span>اسم المستخدم ↑</span>
+                    </button>
+                  </div>
                   <div className="relative">
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       <Lock className="w-5 h-5" />
                     </span>
                     <input
+                      ref={adminPasswordRef}
                       type="password"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
                       onFocus={handleInputFocus}
+                      enterKeyHint="go"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleLogin(e);
+                        }
+                      }}
                       placeholder={t('login.adminPasswordPlaceholder', 'كلمة المرور الخاصة بك')}
-                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-16"
+                      className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-3.5 pr-11 pl-4 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition text-left scroll-mt-28"
                     />
                   </div>
                 </div>
@@ -686,9 +796,10 @@ export default function LoginModal({
           </AnimatePresence>
 
           <button
+            ref={submitBtnRef}
             type="submit"
             disabled={loading}
-            className={`w-full font-bold py-3.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 ${
+            className={`w-full font-bold py-3.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 active:scale-98 ${
               loginMode === 'student' 
                 ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/10'
                 : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-950/10'
@@ -735,7 +846,7 @@ export default function LoginModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
             onClick={() => {
               stopCamera();
               setShowQrModal(false);
@@ -745,7 +856,7 @@ export default function LoginModal({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 max-w-md w-full space-y-5 shadow-2xl relative"
+              className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-5 sm:p-6 max-w-md w-full space-y-4 sm:space-y-5 shadow-2xl relative max-h-[92dvh] overflow-y-auto my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
