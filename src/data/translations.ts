@@ -32,14 +32,14 @@ export interface TranslationDictionary {
 export const defaultTranslations: TranslationDictionary = {
   common: {
     appName: {
-      ar: 'منصة الضاد التعليمية',
-      en: 'Al-Dhad Educational Platform',
-      th: 'แพลตฟอร์มการศึกษาอัล-ฎอด',
+      ar: 'مؤسسة يوسف ذنون',
+      en: 'Yusuf Dhannun Foundation',
+      th: 'มูลนิธิยูซุฟ ซันนูน',
     },
     appDescription: {
-      ar: 'تعلم وممارسة مهارات اللغة العربية والخط والتوصيل',
-      en: 'Learn and practice Arabic language skills, calligraphy, and exercises',
-      th: 'เรียนรู้และฝึกฝนทักษะภาษาอาหรับ คัดลายมือ และแบบฝึกหัด',
+      ar: 'تعلّم الخط العربي بأسلوب حديث يجمع بين الأصالة والإبداع.',
+      en: 'Learn Arabic calligraphy with a modern approach combining authenticity and creativity.',
+      th: 'เรียนรู้ศิลปะการคัดลายมือภาษาอาหรับด้วยแนวทางสมัยใหม่ที่ผสมผสานความดั้งเดิมและความคิดสร้างสรรค์',
     },
     welcome: {
       ar: 'مرحباً بك',

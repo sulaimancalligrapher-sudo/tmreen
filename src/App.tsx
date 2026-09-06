@@ -130,14 +130,14 @@ export default function App() {
     if (language === 'en' && generalData?.header?.mainTitleEn) return generalData.header.mainTitleEn;
     if (language === 'th' && generalData?.header?.mainTitleTh) return generalData.header.mainTitleTh;
     if (language === 'ar' && generalData?.header?.mainTitle) return generalData.header.mainTitle;
-    return t('common.appName', generalData?.header?.mainTitle || 'منصة الضاد التعليمية');
+    return t('common.appName', generalData?.header?.mainTitle || 'مؤسسة يوسف ذنون');
   })();
 
   const displayAppDesc = (() => {
     if (language === 'en' && generalData?.header?.descriptionEn) return generalData.header.descriptionEn;
     if (language === 'th' && generalData?.header?.descriptionTh) return generalData.header.descriptionTh;
     if (language === 'ar' && generalData?.header?.description) return generalData.header.description;
-    return t('common.appDescription', generalData?.header?.description || 'تعلم وممارسة مهارات اللغة العربية');
+    return t('common.appDescription', generalData?.header?.description || 'تعلّم الخط العربي بأسلوب حديث يجمع بين الأصالة والإبداع.');
   })();
 
   // Synchronize browser tab title with institution name
